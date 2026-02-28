@@ -1,0 +1,200 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth & User ─────────────────────────────────────────────────
+
+model User {
+  id               String   @id @default(uuid())
+  displayName      String   @db.VarChar(50)
+  authProvider     String   @db.VarChar(10) // apple | google
+  providerSubId    String   @unique @db.VarChar(255) // Zero-PII: provider's anonymous sub
+  onboardingCompleted Boolean @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  character     Character?
+  progression   UserProgression?
+  streak        Streak?
+  roadmaps      Roadmap[]
+  xpEvents      XPEvent[]
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique @db.VarChar(500)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ─── Character System ────────────────────────────────────────────
+
+model Character {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  characterId    String   @db.VarChar(20) // aria, kofi, mei, etc.
+  archetypeId    String   @db.VarChar(20) // strategist, explorer, etc.
+  evolutionTier  String   @default("novice") @db.VarChar(20)
+  companionId    String?  @db.VarChar(20)
+
+  // 6 Attributes (0-100)
+  mastery     Int @default(0)
+  insight     Int @default(0)
+  influence   Int @default(0)
+  resilience  Int @default(0)
+  versatility Int @default(0)
+  discovery   Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  equipment CharacterEquipment[]
+
+  @@map("characters")
+}
+
+model CharacterEquipment {
+  id          String   @id @default(uuid())
+  characterId String
+  slot        String   @db.VarChar(20) // weapon, shield, armor, helmet, boots, ring, companion
+  itemId      String   @db.VarChar(50)
+  rarity      String   @default("common") @db.VarChar(20)
+  equippedAt  DateTime @default(now())
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, slot])
+  @@map("character_equipment")
+}
+
+// ─── Roadmap System ──────────────────────────────────────────────
+
+model Roadmap {
+  id           String   @id @default(uuid())
+  userId       String
+  title        String   @db.VarChar(200)
+  goal         String   @db.Text
+  description  String   @db.Text @default("")
+  durationDays Int      @default(90)
+  dailyMinutes Int      @default(30)
+  status       String   @default("generating") @db.VarChar(20)
+  progress     Float    @default(0) // 0-100
+  aiModel      String   @default("claude-sonnet-4-6") @db.VarChar(50)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  milestones Milestone[]
+
+  @@index([userId])
+  @@map("roadmaps")
+}
+
+model Milestone {
+  id          String   @id @default(uuid())
+  roadmapId   String
+  title       String   @db.VarChar(200)
+  description String   @db.Text @default("")
+  weekStart   Int
+  weekEnd     Int
+  order       Int
+  status      String   @default("locked") @db.VarChar(20)
+  progress    Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  roadmap Roadmap @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+
+  @@index([roadmapId])
+  @@map("milestones")
+}
+
+model Task {
+  id               String    @id @default(uuid())
+  milestoneId      String
+  title            String    @db.VarChar(200)
+  description      String    @db.Text @default("")
+  taskType         String    @db.VarChar(20) // video, article, quiz, project, review, boss
+  estimatedMinutes Int       @default(15)
+  xpReward         Int       @default(25)
+  coinReward       Int       @default(5)
+  rarity           String    @default("common") @db.VarChar(20)
+  status           String    @default("locked") @db.VarChar(20)
+  order            Int
+  completedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  milestone Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+
+  @@index([milestoneId])
+  @@map("tasks")
+}
+
+// ─── Progression System ──────────────────────────────────────────
+
+model UserProgression {
+  id                String    @id @default(uuid())
+  userId            String    @unique
+  totalXp           Int       @default(0)
+  level             Int       @default(1)
+  coins             Int       @default(0)
+  energyCrystals    Int       @default(3)
+  maxEnergyCrystals Int       @default(3)
+  subscriptionTier  String    @default("free") @db.VarChar(20)
+  energyRechargeAt  DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_progressions")
+}
+
+model Streak {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  currentStreak    Int      @default(0)
+  longestStreak    Int      @default(0)
+  lastActivityDate DateTime @default(now())
+  freezesUsed      Int      @default(0)
+  maxFreezes       Int      @default(1) // Free: 1/month, Pro: 4/month
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("streaks")
+}
+
+model XPEvent {
+  id         String   @id @default(uuid())
+  userId     String
+  amount     Int
+  source     String   @db.VarChar(30) // task_complete, quiz_pass, boss_defeat, etc.
+  multiplier Float    @default(1.0)
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("xp_events")
+}

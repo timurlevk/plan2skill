@@ -1,4 +1,8 @@
 // @plan2skill/types — Shared TypeScript types
-// This file will be populated in Phase 0, Task 2
-
-export {};
+export * from './auth';
+export * from './user';
+export * from './character';
+export * from './roadmap';
+export * from './progression';
+export * from './gamification';
+export * from './enums';
