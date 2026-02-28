@@ -75,7 +75,7 @@ export class RoadmapService {
 
     // Create milestones and tasks from AI result
     for (let i = 0; i < aiResult.milestones.length; i++) {
-      const ms = aiResult.milestones[i];
+      const ms = aiResult.milestones[i]!;
       const milestone = await this.prisma.milestone.create({
         data: {
           roadmapId,
@@ -89,7 +89,7 @@ export class RoadmapService {
       });
 
       for (let j = 0; j < ms.tasks.length; j++) {
-        const task = ms.tasks[j];
+        const task = ms.tasks[j]!;
         await this.prisma.task.create({
           data: {
             milestoneId: milestone.id,

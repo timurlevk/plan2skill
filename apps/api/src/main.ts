@@ -6,7 +6,7 @@ async function bootstrap() {
 
   app.enableCors({
     origin: [
-      'http://localhost:3000', // Next.js web
+      'http://localhost:3500', // Next.js web
       'exp://localhost:8081', // Expo dev
     ],
     credentials: true,

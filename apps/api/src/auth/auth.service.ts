@@ -80,13 +80,13 @@ export class AuthService {
   private async generateTokens(userId: string, displayName: string) {
     const payload: TokenPayload = { sub: userId, displayName };
 
-    const accessToken = this.jwt.sign(payload);
+    const accessToken = this.jwt.sign({ ...payload } as Record<string, unknown>);
 
     const refreshExpiry = this.config.get<string>('JWT_REFRESH_EXPIRY', '7d');
     const refreshExpiresAt = new Date();
     refreshExpiresAt.setDate(refreshExpiresAt.getDate() + parseInt(refreshExpiry, 10) || 7);
 
-    const refreshToken = this.jwt.sign(payload, { expiresIn: refreshExpiry });
+    const refreshToken = this.jwt.sign({ ...payload } as Record<string, unknown>, { expiresIn: refreshExpiry as any });
 
     await this.prisma.refreshToken.create({
       data: {

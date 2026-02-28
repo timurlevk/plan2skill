@@ -10,6 +10,8 @@ import { RoadmapService } from '../roadmap/roadmap.service';
 
 @Injectable()
 export class TrpcRouter implements OnModuleInit {
+  appRouter!: ReturnType<typeof this.buildRouter>;
+
   constructor(
     private readonly trpc: TrpcService,
     private readonly httpAdapterHost: HttpAdapterHost,
@@ -19,112 +21,99 @@ export class TrpcRouter implements OnModuleInit {
     private readonly roadmapService: RoadmapService,
   ) {}
 
-  // ─── User Router ─────────────────────────────────────────────
-  userRouter = this.trpc.router({
-    profile: this.trpc.protectedProcedure.query(({ ctx }) => {
-      return this.userService.getProfile(ctx.userId);
-    }),
-    updateDisplayName: this.trpc.protectedProcedure
-      .input(z.object({ displayName: z.string().min(2).max(50) }))
-      .mutation(({ ctx, input }) => {
-        return this.userService.updateDisplayName(ctx.userId, input.displayName);
-      }),
-    completeOnboarding: this.trpc.protectedProcedure.mutation(({ ctx }) => {
-      return this.userService.completeOnboarding(ctx.userId);
-    }),
-  });
+  private buildRouter() {
+    const { router, protectedProcedure } = this.trpc;
 
-  // ─── Character Router ────────────────────────────────────────
-  characterRouter = this.trpc.router({
-    get: this.trpc.protectedProcedure.query(({ ctx }) => {
-      return this.characterService.getCharacter(ctx.userId);
-    }),
-    create: this.trpc.protectedProcedure
-      .input(
-        z.object({
-          characterId: z.enum([
-            'aria',
-            'kofi',
-            'mei',
-            'diego',
-            'zara',
-            'alex',
-            'priya',
-            'liam',
-          ]),
-          archetypeId: z.enum([
-            'strategist',
-            'explorer',
-            'connector',
-            'builder',
-            'innovator',
-          ]),
-          companionId: z
-            .enum(['cat', 'plant', 'guitar', 'robot', 'bird'])
-            .nullable()
-            .optional(),
+    const userRouter = router({
+      profile: protectedProcedure.query(({ ctx }) => {
+        return this.userService.getProfile(ctx.userId);
+      }),
+      updateDisplayName: protectedProcedure
+        .input(z.object({ displayName: z.string().min(2).max(50) }))
+        .mutation(({ ctx, input }) => {
+          return this.userService.updateDisplayName(ctx.userId, input.displayName);
         }),
-      )
-      .mutation(({ ctx, input }) => {
-        return this.characterService.createCharacter(
-          ctx.userId,
-          input.characterId,
-          input.archetypeId,
-          input.companionId ?? null,
-        );
+      completeOnboarding: protectedProcedure.mutation(({ ctx }) => {
+        return this.userService.completeOnboarding(ctx.userId);
       }),
-  });
+    });
 
-  // ─── Roadmap Router ──────────────────────────────────────────
-  roadmapRouter = this.trpc.router({
-    list: this.trpc.protectedProcedure.query(({ ctx }) => {
-      return this.roadmapService.listRoadmaps(ctx.userId);
-    }),
-    get: this.trpc.protectedProcedure
-      .input(z.object({ id: z.string().uuid() }))
-      .query(({ ctx, input }) => {
-        return this.roadmapService.getRoadmap(ctx.userId, input.id);
+    const characterRouter = router({
+      get: protectedProcedure.query(({ ctx }) => {
+        return this.characterService.getCharacter(ctx.userId);
       }),
-    generate: this.trpc.protectedProcedure
-      .input(
-        z.object({
-          goal: z.string().min(5).max(500),
-          currentRole: z.string().min(2).max(100),
-          experienceLevel: z.enum(['beginner', 'intermediate', 'advanced', 'expert']),
-          dailyMinutes: z.union([z.literal(15), z.literal(30), z.literal(60), z.literal(90)]),
-          selectedTools: z.array(z.string()).max(10),
-          superpower: z.string().max(200),
+      create: protectedProcedure
+        .input(
+          z.object({
+            characterId: z.enum([
+              'aria', 'kofi', 'mei', 'diego',
+              'zara', 'alex', 'priya', 'liam',
+            ]),
+            archetypeId: z.enum([
+              'strategist', 'explorer', 'connector', 'builder', 'innovator',
+            ]),
+            companionId: z
+              .enum(['cat', 'plant', 'guitar', 'robot', 'bird'])
+              .nullable()
+              .optional(),
+          }),
+        )
+        .mutation(({ ctx, input }) => {
+          return this.characterService.createCharacter(
+            ctx.userId,
+            input.characterId,
+            input.archetypeId,
+            input.companionId ?? null,
+          );
         }),
-      )
-      .mutation(({ ctx, input }) => {
-        return this.roadmapService.generateRoadmap(ctx.userId, input);
+    });
+
+    const roadmapRouter = router({
+      list: protectedProcedure.query(({ ctx }) => {
+        return this.roadmapService.listRoadmaps(ctx.userId);
       }),
-  });
+      get: protectedProcedure
+        .input(z.object({ id: z.string().uuid() }))
+        .query(({ ctx, input }) => {
+          return this.roadmapService.getRoadmap(ctx.userId, input.id);
+        }),
+      generate: protectedProcedure
+        .input(
+          z.object({
+            goal: z.string().min(5).max(500),
+            currentRole: z.string().min(2).max(100),
+            experienceLevel: z.enum(['beginner', 'intermediate', 'advanced', 'expert']),
+            dailyMinutes: z.union([z.literal(15), z.literal(30), z.literal(60), z.literal(90)]),
+            selectedTools: z.array(z.string()).max(10),
+            superpower: z.string().max(200),
+          }),
+        )
+        .mutation(({ ctx, input }) => {
+          return this.roadmapService.generateRoadmap(ctx.userId, input);
+        }),
+    });
 
-  // ─── Progression Router ──────────────────────────────────────
-  progressionRouter = this.trpc.router({
-    completeTask: this.trpc.protectedProcedure
-      .input(z.object({ taskId: z.string().uuid() }))
-      .mutation(({ ctx, input }) => {
-        return this.progressionService.completeTask(ctx.userId, input.taskId);
+    const progressionRouter = router({
+      completeTask: protectedProcedure
+        .input(z.object({ taskId: z.string().uuid() }))
+        .mutation(({ ctx, input }) => {
+          return this.progressionService.completeTask(ctx.userId, input.taskId);
+        }),
+    });
+
+    return this.trpc.mergeRouters(
+      router({
+        user: userRouter,
+        character: characterRouter,
+        roadmap: roadmapRouter,
+        progression: progressionRouter,
       }),
-  });
-
-  // ─── Merged App Router ───────────────────────────────────────
-  appRouter = this.trpc.mergeRouters(
-    this.trpc.router({
-      user: this.userRouter,
-      character: this.characterRouter,
-      roadmap: this.roadmapRouter,
-      progression: this.progressionRouter,
-    }),
-  );
-
-  // Export type for clients
-  // This type is consumed by @plan2skill/api-client
-  // Type: typeof this.appRouter
+    );
+  }
 
   onModuleInit() {
+    this.appRouter = this.buildRouter();
+
     const app = this.httpAdapterHost.httpAdapter.getInstance();
     app.use(
       '/trpc',

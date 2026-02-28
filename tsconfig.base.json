@@ -13,9 +13,7 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "composite": true,
-    "noUncheckedIndexedAccess": true,
-    "noEmit": true
+    "noUncheckedIndexedAccess": true
   },
   "exclude": ["node_modules", "dist"]
 }

@@ -12,6 +12,5 @@
     "declarationMap": false,
     "composite": false
   },
-  "include": ["src"],
-  "references": [{ "path": "../../packages/types" }]
+  "include": ["src"]
 }

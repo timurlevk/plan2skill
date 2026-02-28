@@ -27,13 +27,13 @@ export class ProgressionService {
     amount: number,
     source: XPSource,
     multiplier: number = 1.0,
-    metadata: Record<string, unknown> = {},
+    metadata: Record<string, unknown> = {} as any,
   ) {
     const totalAmount = Math.floor(amount * multiplier);
 
     // Record XP event
     await this.prisma.xPEvent.create({
-      data: { userId, amount: totalAmount, source, multiplier, metadata },
+      data: { userId, amount: totalAmount, source, multiplier, metadata: metadata as any },
     });
 
     // Update progression
