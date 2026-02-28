@@ -1,0 +1,57 @@
+@import 'tailwindcss';
+
+@theme {
+  /* Brand Colors */
+  --color-violet: #9D7AFF;
+  --color-indigo: #818CF8;
+  --color-rose: #FF6B8A;
+  --color-coral: #FF8A80;
+  --color-cyan: #4ECDC4;
+  --color-mint: #6EE7B7;
+  --color-gold: #FFD166;
+  --color-amber: #FBBF24;
+  --color-fuchsia: #E879F9;
+
+  /* Dark Theme */
+  --color-dark-950: #09090B;
+  --color-dark-900: #0C0C10;
+  --color-dark-850: #121218;
+  --color-dark-800: #18181F;
+  --color-dark-700: #252530;
+  --color-dark-600: #35354A;
+
+  /* Light Theme */
+  --color-light-50: #FAFAFA;
+  --color-light-100: #F5F5F7;
+  --color-light-200: #E5E5E8;
+  --color-light-300: #D4D4D8;
+  --color-light-400: #A1A1AA;
+  --color-light-500: #71717A;
+  --color-light-600: #52525B;
+
+  /* Typography */
+  --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-pill: 100px;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background-color: var(--color-dark-900);
+    color: white;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}

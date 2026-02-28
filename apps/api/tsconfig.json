@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "noEmit": false,
+    "declaration": false,
+    "declarationMap": false,
+    "composite": false
+  },
+  "include": ["src"],
+  "references": [{ "path": "../../packages/types" }]
+}
