@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { t } from '../../../(onboarding)/_components/tokens';
 
 // ─── Mastery Ring — per-skill mastery indicator (Phase 5D) ──────
 // Displays SM-2 mastery level as a circular progress ring.
@@ -85,7 +86,7 @@ export function MasteryRing({
             cy={dim.size / 2}
             r={dim.radius}
             fill="none"
-            stroke="#252530"
+            stroke={t.border}
             strokeWidth={dim.stroke}
           />
 

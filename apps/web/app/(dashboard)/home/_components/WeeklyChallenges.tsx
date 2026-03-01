@@ -2,24 +2,10 @@
 
 import React from 'react';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
+import { t } from '../../../(onboarding)/_components/tokens';
 
 // ─── Weekly Challenges card (Phase 5E) ──────────────────────────
 // Shows 3 weekly goals with progress bars. Resets every Monday.
-
-const t = {
-  display: '"Plus Jakarta Sans", system-ui, sans-serif',
-  body: '"Inter", system-ui, sans-serif',
-  mono: '"JetBrains Mono", monospace',
-  text: '#FFFFFF',
-  textSecondary: '#A1A1AA',
-  textMuted: '#71717A',
-  bgCard: '#18181F',
-  bgElevated: '#121218',
-  border: '#252530',
-  violet: '#9D7AFF',
-  cyan: '#4ECDC4',
-  gold: '#FFD166',
-};
 
 const DIFFICULTY_COLORS: Record<string, string> = {
   easy: '#6EE7B7',

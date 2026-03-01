@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
+import { t } from '../../../(onboarding)/_components/tokens';
 import type { AchievementRarity } from '../_data/achievements';
 
 // ─── Achievement Badge — visual badge element (Phase 5E) ────────
@@ -130,7 +131,7 @@ export function AchievementBadge({
         <NeonIcon
           type={isLocked ? 'lock' : (icon as any)}
           size={dim.icon}
-          color={isLocked ? '#71717A' : rarColor}
+          color={isLocked ? t.textMuted : rarColor}
         />
 
         {/* Rarity dot */}
@@ -185,7 +186,7 @@ export function AchievementBadge({
             fontFamily: '"Inter", system-ui, sans-serif',
             fontSize: 10,
             fontWeight: 600,
-            color: isLocked ? '#71717A' : '#A1A1AA',
+            color: isLocked ? t.textMuted : t.textSecondary,
             textAlign: 'center',
             maxWidth: dim.badge + 16,
             overflow: 'hidden',

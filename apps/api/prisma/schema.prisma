@@ -38,6 +38,8 @@ model User {
   reviewItems         ReviewItem[]
   achievementUnlocks  AchievementUnlock[]
   weeklyChallenges    WeeklyChallenge[]
+  inventoryItems      InventoryItem[]
+  forgeHistory        ForgeHistory[]
 
   @@map("users")
 }
@@ -94,6 +96,58 @@ model CharacterEquipment {
 
   @@unique([characterId, slot])
   @@map("character_equipment")
+}
+
+// ─── Equipment Catalog (Phase 5F, SCD Type 2) ──────────────────
+
+model EquipmentCatalog {
+  id             String    @id @default(uuid())
+  itemId         String    @unique @db.VarChar(60) // e.g. "weapon_common_blade_01"
+  slot           String    @db.VarChar(20)  // weapon|shield|armor|helmet|boots|ring|companion
+  rarity         String    @db.VarChar(20)  // common|uncommon|rare|epic|legendary
+  name           String    @db.VarChar(100) // "Novice Blade"
+  description    String    @db.Text
+  attributeBonus Json      @default("{}") // { "MAS": 5, "INS": 2 }
+  pixelArt       String?   @db.Text        // pixel art string key (nullable)
+  isActive       Boolean   @default(true)
+  validFrom      DateTime  @default(now()) // SCD Type 2
+  validTo        DateTime?                 // null = current version
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([slot, rarity], name: "idx_equipment_catalog_slot_rarity")
+  @@index([isActive], name: "idx_equipment_catalog_active")
+  @@map("equipment_catalog")
+}
+
+model InventoryItem {
+  id         String   @id @default(uuid())
+  userId     String
+  itemId     String   @db.VarChar(60) // FK → EquipmentCatalog.itemId
+  slot       String   @db.VarChar(20)
+  rarity     String   @db.VarChar(20)
+  quantity   Int      @default(1)
+  acquiredAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, itemId], name: "uq_inventory_user_item")
+  @@index([userId], name: "idx_inventory_user")
+  @@map("inventory_item")
+}
+
+model ForgeHistory {
+  id           String   @id @default(uuid())
+  userId       String
+  inputItems   Json     // [{ itemId, rarity }] × 3
+  outputItemId String   @db.VarChar(60)
+  outputRarity String   @db.VarChar(20)
+  forgedAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], name: "idx_forge_history_user")
+  @@map("forge_history")
 }
 
 // ─── Roadmap System ──────────────────────────────────────────────
