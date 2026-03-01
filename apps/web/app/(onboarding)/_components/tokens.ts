@@ -34,13 +34,14 @@ export const t = {
   mono: '"JetBrains Mono", monospace',
 } as const;
 
-// Rarity — double-coded (color + shape + icon)
+// Rarity — double-coded (color + shape + icon + bg + glow)
+// Matches v8 gamification.rarity tokens from style guide
 export const rarity = {
-  common:    { color: '#71717A', icon: '●',  shape: 'circle'   as const, label: 'Common' },
-  uncommon:  { color: '#6EE7B7', icon: '◆',  shape: 'pentagon' as const, label: 'Uncommon' },
-  rare:      { color: '#3B82F6', icon: '⬡',  shape: 'hexagon'  as const, label: 'Rare' },
-  epic:      { color: '#9D7AFF', icon: '◈',  shape: 'diamond'  as const, label: 'Epic' },
-  legendary: { color: '#FFD166', icon: '★',  shape: 'octagon'  as const, label: 'Legendary' },
+  common:    { color: '#71717A', icon: '●',  shape: 'circle'   as const, label: 'Common',    bg: 'rgba(113,113,122,0.08)', glow: 'none' },
+  uncommon:  { color: '#6EE7B7', icon: '◆',  shape: 'pentagon' as const, label: 'Uncommon',  bg: 'rgba(110,231,183,0.08)', glow: 'none' },
+  rare:      { color: '#3B82F6', icon: '⬡',  shape: 'hexagon'  as const, label: 'Rare',      bg: 'rgba(59,130,246,0.08)',  glow: '0 0 12px rgba(59,130,246,0.3)' },
+  epic:      { color: '#9D7AFF', icon: '◈',  shape: 'diamond'  as const, label: 'Epic',      bg: 'rgba(157,122,255,0.08)', glow: '0 0 16px rgba(157,122,255,0.35)' },
+  legendary: { color: '#FFD166', icon: '★',  shape: 'octagon'  as const, label: 'Legendary', bg: 'rgba(255,209,102,0.10)', glow: '0 0 20px rgba(255,209,102,0.4)' },
 } as const;
 
 // Skill level → rarity mapping

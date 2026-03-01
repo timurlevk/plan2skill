@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useOnboardingStore } from '@plan2skill/store';
 import { NeonIcon } from '../(onboarding)/_components/NeonIcon';
-import { t } from '../(onboarding)/_components/tokens';
+import { t, rarity } from '../(onboarding)/_components/tokens';
 import { CHARACTERS, charArtStrings, charPalettes } from '../(onboarding)/_components/characters';
 import { parseArt, PixelCanvas, AnimatedPixelCanvas } from '../(onboarding)/_components/PixelEngine';
 import { XPBar } from '../(onboarding)/_components/XPBar';
@@ -275,6 +275,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           from { opacity: 0; transform: translateY(40px) scale(0.95); }
           to   { opacity: 1; transform: translateY(0) scale(1); }
         }
+        @keyframes xpFloat {
+          0%   { opacity: 1; transform: translateY(0); }
+          100% { opacity: 0; transform: translateY(-40px); }
+        }
         @keyframes celebratePop {
           0%   { opacity: 0; transform: scale(0); }
           50%  { transform: scale(1.2); }
@@ -408,6 +412,228 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               )}
             </div>
           )}
+
+          {/* ═══ Party Quest — Cooperative Boss Fight (Habitica model) ═══ */}
+          <div style={{
+            padding: 14, borderRadius: 16,
+            background: t.bgCard, border: `1px solid ${t.border}`,
+            marginBottom: 12,
+          }}>
+            {/* Section header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10,
+            }}>
+              <NeonIcon type="lightning" size={14} color="rose" />
+              <span style={{
+                fontFamily: t.display, fontSize: 11, fontWeight: 700,
+                color: t.textSecondary, textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+              }}>
+                Party Quest
+              </span>
+            </div>
+
+            {/* Boss info */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10,
+            }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10,
+                background: `${t.rose}12`, border: `1px solid ${t.rose}25`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 18,
+              }}>
+                🐉
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  fontFamily: t.display, fontSize: 13, fontWeight: 700, color: t.text,
+                  marginBottom: 2,
+                }}>
+                  Procrastination Dragon
+                </div>
+                <span style={{
+                  fontFamily: t.mono, fontSize: 9, fontWeight: 700,
+                  color: rarity.epic.color, textTransform: 'uppercase',
+                }}>
+                  {rarity.epic.icon} Epic Boss
+                </span>
+              </div>
+            </div>
+
+            {/* Boss HP bar */}
+            <div style={{ marginBottom: 6 }}>
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', marginBottom: 4,
+              }}>
+                <span style={{ fontFamily: t.mono, fontSize: 9, fontWeight: 700, color: t.rose }}>
+                  HP
+                </span>
+                <span style={{ fontFamily: t.mono, fontSize: 9, fontWeight: 700, color: t.textMuted }}>
+                  847 / 1200
+                </span>
+              </div>
+              <div style={{
+                height: 6, borderRadius: 3, background: '#252530', overflow: 'hidden',
+              }}>
+                <div style={{
+                  width: '70.6%', height: '100%', borderRadius: 3,
+                  background: `linear-gradient(90deg, ${t.rose}, #FF8FA3)`,
+                  transition: 'width 0.6s ease-out',
+                }} />
+              </div>
+            </div>
+
+            {/* Party members */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: -4, marginBottom: 8,
+            }}>
+              {/* Stacked avatars */}
+              <div style={{ display: 'flex', marginRight: 8 }}>
+                {['#9D7AFF', '#4ECDC4', '#FF6B8A', '#FFD166'].map((c, i) => (
+                  <div key={i} style={{
+                    width: 20, height: 20, borderRadius: '50%',
+                    background: `${c}30`, border: `1.5px solid ${c}`,
+                    marginLeft: i > 0 ? -6 : 0, zIndex: 4 - i,
+                  }} />
+                ))}
+              </div>
+              <span style={{
+                fontFamily: t.body, fontSize: 10, color: t.textMuted,
+              }}>
+                4 heroes fighting
+              </span>
+            </div>
+
+            {/* Your contribution */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '6px 10px', borderRadius: 8,
+              background: `${t.violet}08`, border: `1px solid ${t.violet}15`,
+            }}>
+              <span style={{ fontFamily: t.body, fontSize: 10, fontWeight: 600, color: t.textSecondary }}>
+                Your damage
+              </span>
+              <span style={{ fontFamily: t.mono, fontSize: 11, fontWeight: 800, color: t.violet }}>
+                0 DMG
+              </span>
+            </div>
+            <div style={{
+              fontFamily: t.body, fontSize: 9, color: t.textMuted,
+              marginTop: 6, textAlign: 'center', fontStyle: 'italic',
+            }}>
+              Complete quests to deal damage!
+            </div>
+          </div>
+
+          {/* ═══ League — Opt-in (Duolingo model) ═══ */}
+          <div style={{
+            padding: 14, borderRadius: 16,
+            background: t.bgCard, border: `1px solid ${t.border}`,
+            marginBottom: 12,
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10,
+            }}>
+              <NeonIcon type="trophy" size={14} color="gold" />
+              <span style={{
+                fontFamily: t.display, fontSize: 11, fontWeight: 700,
+                color: t.textSecondary, textTransform: 'uppercase',
+                letterSpacing: '0.06em', flex: 1,
+              }}>
+                League
+              </span>
+              {/* League tier badge */}
+              <span style={{
+                fontFamily: t.mono, fontSize: 9, fontWeight: 700,
+                color: '#CD7F32', padding: '2px 8px', borderRadius: 8,
+                background: 'rgba(205,127,50,0.10)', border: '1px solid rgba(205,127,50,0.20)',
+                textTransform: 'uppercase',
+              }}>
+                ● Bronze
+              </span>
+            </div>
+
+            {/* League tiers visual */}
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              marginBottom: 10, padding: '0 4px',
+            }}>
+              {[
+                { label: 'Bronze', color: '#CD7F32', active: true },
+                { label: 'Silver', color: '#C0C0C0', active: false },
+                { label: 'Gold', color: '#FFD700', active: false },
+                { label: 'Diamond', color: '#4ECDC4', active: false },
+              ].map((league) => (
+                <div key={league.label} style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                }}>
+                  <div style={{
+                    width: 24, height: 24, borderRadius: '50%',
+                    background: league.active ? `${league.color}25` : `${t.border}`,
+                    border: `2px solid ${league.active ? league.color : t.border}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: league.active ? `0 0 8px ${league.color}40` : 'none',
+                    animation: league.active ? 'pulse 2s ease-in-out infinite' : 'none',
+                  }}>
+                    <div style={{
+                      width: 8, height: 8, borderRadius: '50%',
+                      background: league.active ? league.color : t.textMuted,
+                    }} />
+                  </div>
+                  <span style={{
+                    fontFamily: t.mono, fontSize: 8, fontWeight: 700,
+                    color: league.active ? league.color : t.textMuted,
+                  }}>
+                    {league.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Weekly standings */}
+            <div style={{
+              padding: '8px 10px', borderRadius: 8,
+              background: t.bgElevated, border: `1px solid ${t.border}`,
+              marginBottom: 8,
+            }}>
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                marginBottom: 4,
+              }}>
+                <span style={{ fontFamily: t.body, fontSize: 10, fontWeight: 600, color: t.textSecondary }}>
+                  Your rank
+                </span>
+                <span style={{ fontFamily: t.mono, fontSize: 12, fontWeight: 800, color: t.text }}>
+                  #— / 30
+                </span>
+              </div>
+              <div style={{
+                fontFamily: t.body, fontSize: 9, color: t.textMuted,
+              }}>
+                Top 10 promote • Bottom 5 demote
+              </div>
+            </div>
+
+            {/* Join CTA (opt-in only — ethical) */}
+            <button style={{
+              width: '100%', padding: '8px 0', borderRadius: 10,
+              background: `${t.gold}12`, border: `1px solid ${t.gold}25`,
+              cursor: 'pointer',
+              fontFamily: t.display, fontSize: 11, fontWeight: 700,
+              color: t.gold, transition: 'all 0.2s ease',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            }}>
+              <NeonIcon type="trophy" size={12} color="gold" />
+              Join Weekly League
+            </button>
+            <div style={{
+              fontFamily: t.body, fontSize: 8, color: t.textMuted,
+              marginTop: 4, textAlign: 'center',
+            }}>
+              Opt-in • Resets weekly • No pressure
+            </div>
+          </div>
 
           {/* XP Bar */}
           <div style={{ padding: '0 4px', marginBottom: 12 }}>
