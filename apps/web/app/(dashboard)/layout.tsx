@@ -19,6 +19,7 @@ import { ARCHETYPES } from '../(onboarding)/_data/archetypes';
 const NAV_ITEMS = [
   { href: '/home',      label: 'Command Center', icon: 'compass' as const },
   { href: '/roadmap',   label: 'Quest Log',      icon: 'map'     as const },
+  { href: '/league',    label: 'Guild Arena',     icon: 'trophy'  as const },
   { href: '/hero-card', label: 'Hero Card',       icon: 'shield'  as const },
 ];
 

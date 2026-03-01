@@ -26,6 +26,11 @@ interface QuestTask {
   mins: number;
   desc: string;
   objectives: string[];
+  aiTip: string;
+  funFact: string;
+  checkQuestion: string;
+  checkOptions: string[];
+  checkCorrect: number; // index of correct option
   goalLabel: string;
   goalIcon: string;
 }
@@ -41,6 +46,11 @@ const TASK_TEMPLATES = [
       'Take note of 3 key concepts',
       'Mark quest as complete when done',
     ],
+    aiTipFn: (g: string) => `When reading about ${g}, highlight key terms you don't understand. Then ask AI: "Explain [term] like I'm 5." You'll learn 3x faster!`,
+    funFactFn: (g: string) => `The word "study" comes from the Latin "studium" meaning "eagerness." So when you study ${g}, you're literally being eager to learn!`,
+    checkQuestionFn: (g: string) => `What is the most effective way to retain new ${g} concepts?`,
+    checkOptions: ['Read it once quickly', 'Take notes and summarize in your own words', 'Memorize definitions word-for-word', 'Skip to the next topic'],
+    checkCorrect: 1,
   },
   {
     titleFn: (g: string) => `Watch: ${g} Fundamentals`,
@@ -51,6 +61,11 @@ const TASK_TEMPLATES = [
       'Follow along with the examples',
       'Try one technique on your own',
     ],
+    aiTipFn: (g: string) => `Pause the video every 2 minutes and try to explain what you just learned. This is called "active recall" — it makes ${g} concepts stick 10x better!`,
+    funFactFn: (g: string) => `Your brain processes visual information 60,000x faster than text. That's why video tutorials about ${g} feel so much easier to follow!`,
+    checkQuestionFn: (g: string) => `After watching a ${g} tutorial, what should you do first?`,
+    checkOptions: ['Watch another video', 'Try to recreate what was shown', 'Take a break for the day', 'Read the comments section'],
+    checkCorrect: 1,
   },
   {
     titleFn: (g: string) => `Quiz: ${g} Basics`,
@@ -61,6 +76,11 @@ const TASK_TEMPLATES = [
       'Score at least 80%',
       'Review any incorrect answers',
     ],
+    aiTipFn: (g: string) => `If you get a question wrong, don't just look at the answer. Ask AI: "Why is option B correct for ${g}?" Understanding the WHY is more valuable than the answer!`,
+    funFactFn: (g: string) => `Studies show that testing yourself (even and failing!) improves long-term memory by 50%. Every wrong answer about ${g} is actually making you smarter!`,
+    checkQuestionFn: (g: string) => `Why is it important to review incorrect quiz answers about ${g}?`,
+    checkOptions: ['To feel bad about mistakes', 'To understand WHY the correct answer is right', 'It\'s not important, just move on', 'To memorize the answers for next time'],
+    checkCorrect: 1,
   },
   {
     titleFn: (g: string) => `Build: ${g} Mini-Project`,
@@ -72,6 +92,11 @@ const TASK_TEMPLATES = [
       'Test and iterate on your solution',
       'Share or save your progress',
     ],
+    aiTipFn: (g: string) => `Stuck on your ${g} project? Describe what you're trying to build to AI and ask: "What's the simplest way to start?" Break big tasks into tiny steps!`,
+    funFactFn: (g: string) => `The "IKEA effect" shows that people value things they build themselves 5x more. Your ${g} project will feel amazing because YOU made it!`,
+    checkQuestionFn: (g: string) => `What's the best approach when starting a ${g} project?`,
+    checkOptions: ['Build everything at once', 'Start with the hardest part', 'Build a small working version first, then improve', 'Copy someone else\'s project exactly'],
+    checkCorrect: 2,
   },
 ];
 
@@ -87,6 +112,11 @@ function generateTasks(goalLabel: string, goalId: string, goalIcon: string): Que
     mins: tmpl.mins,
     desc: tmpl.descFn(goalLabel),
     objectives: tmpl.objectivesFn(goalLabel),
+    aiTip: tmpl.aiTipFn(goalLabel),
+    funFact: tmpl.funFactFn(goalLabel),
+    checkQuestion: tmpl.checkQuestionFn(goalLabel),
+    checkOptions: tmpl.checkOptions,
+    checkCorrect: tmpl.checkCorrect,
     goalLabel,
     goalIcon,
   }));
@@ -178,6 +208,11 @@ function QuestCardModal({ task, done, onClose, onToggle, onOpenNext, characterId
 
   // Multi-step completion state: 'viewing' → 'celebrating' → 'summary'
   const [phase, setPhase] = useState<'viewing' | 'celebrating' | 'summary'>('viewing');
+
+  // Knowledge Check state
+  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const checkAnswered = selectedAnswer !== null;
+  const checkCorrect = selectedAnswer === task.checkCorrect;
 
   // Sparkle positions — stable across re-renders
   const sparklePositions = useRef(
@@ -273,17 +308,18 @@ function QuestCardModal({ task, done, onClose, onToggle, onOpenNext, characterId
         overflow: 'hidden',
         animation: 'slideUp 0.4s cubic-bezier(0.175,0.885,0.32,1.275)',
         maxHeight: '85vh',
-        overflowY: 'auto',
         position: 'relative',
       }}>
-        {/* ─── Phase: Celebrating (Meso tier: 800ms, interruptible → tap advances to summary) ─── */}
+
+        {/* ─── Phase: Celebrating ─── */}
         {phase === 'celebrating' && (
           <div style={{
-            position: 'absolute', inset: 0, zIndex: 10,
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            background: `${t.bg}E0`,
+            minHeight: 360, padding: 32,
+            background: t.bgCard,
             animation: 'fadeUp 0.3s ease-out',
             cursor: 'pointer',
+            position: 'relative',
           }} onClick={() => setPhase('summary')}>
             {charData && (
               <div style={{ marginBottom: 16, animation: 'bounceIn 0.5s ease-out' }}>
@@ -305,7 +341,6 @@ function QuestCardModal({ task, done, onClose, onToggle, onOpenNext, characterId
             }}>
               +{xpEarned.total} XP
             </div>
-            {/* Bonus XP indicator (Variable Ratio Reinforcement) */}
             {xpEarned.hasBonus && (
               <div style={{
                 fontFamily: t.mono, fontSize: 13, fontWeight: 800, color: t.gold,
@@ -316,7 +351,6 @@ function QuestCardModal({ task, done, onClose, onToggle, onOpenNext, characterId
                 ★ BONUS +{xpEarned.bonus} XP ★
               </div>
             )}
-            {/* Sparkle particles */}
             {sparklePositions.map((pos, i) => (
               <div key={i} style={{
                 position: 'absolute',
@@ -337,14 +371,14 @@ function QuestCardModal({ task, done, onClose, onToggle, onOpenNext, characterId
           </div>
         )}
 
-        {/* ─── Phase: Summary (after celebration) — XP breakdown + daily progress + next quest CTA ─── */}
+        {/* ─── Phase: Summary ─── */}
         {phase === 'summary' && (
           <div style={{
-            position: 'absolute', inset: 0, zIndex: 10,
             display: 'flex', flexDirection: 'column',
             background: t.bgCard,
             animation: 'fadeUp 0.4s ease-out',
             padding: 24,
+            maxHeight: '85vh',
             overflowY: 'auto',
           }}>
             {/* Close */}
@@ -352,7 +386,7 @@ function QuestCardModal({ task, done, onClose, onToggle, onOpenNext, characterId
               onClick={onClose}
               aria-label="Close summary"
               style={{
-                position: 'absolute', top: 12, right: 12,
+                position: 'absolute', top: 12, right: 12, zIndex: 5,
                 width: 32, height: 32, borderRadius: '50%',
                 background: t.border, border: 'none',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -403,7 +437,6 @@ function QuestCardModal({ task, done, onClose, onToggle, onOpenNext, characterId
                   +{task.xp} XP
                 </span>
               </div>
-              {/* Bonus row (Variable Ratio Reinforcement — surprise reward) */}
               {xpEarned.hasBonus && (
                 <div style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -411,10 +444,7 @@ function QuestCardModal({ task, done, onClose, onToggle, onOpenNext, characterId
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 14 }}>★</span>
-                    <span style={{
-                      fontFamily: t.body, fontSize: 13, fontWeight: 600,
-                      color: t.gold,
-                    }}>
+                    <span style={{ fontFamily: t.body, fontSize: 13, fontWeight: 600, color: t.gold }}>
                       Lucky Bonus!
                     </span>
                   </div>
@@ -426,7 +456,6 @@ function QuestCardModal({ task, done, onClose, onToggle, onOpenNext, characterId
                   </span>
                 </div>
               )}
-              {/* Total */}
               {xpEarned.hasBonus && (
                 <div style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -463,7 +492,7 @@ function QuestCardModal({ task, done, onClose, onToggle, onOpenNext, characterId
               </div>
             </div>
 
-            {/* Daily Quest Progress (Goal-Gradient Effect — Zeigarnik trigger) */}
+            {/* Daily Quest Progress */}
             <div style={{
               padding: 16, borderRadius: 14,
               background: t.bgElevated, border: `1px solid ${t.border}`,
@@ -480,7 +509,6 @@ function QuestCardModal({ task, done, onClose, onToggle, onOpenNext, characterId
                   {dailyCompleted}/{dailyTotal}
                 </span>
               </div>
-              {/* Quest dots — filled = complete, hollow = remaining */}
               <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
                 {Array.from({ length: dailyTotal }, (_, i) => (
                   <div key={i} style={{
@@ -492,7 +520,6 @@ function QuestCardModal({ task, done, onClose, onToggle, onOpenNext, characterId
                   }} />
                 ))}
               </div>
-              {/* Proximity messaging */}
               <div style={{
                 fontFamily: t.body, fontSize: 12, color: t.textSecondary,
                 fontStyle: 'italic',
@@ -501,13 +528,11 @@ function QuestCardModal({ task, done, onClose, onToggle, onOpenNext, characterId
               </div>
             </div>
 
-            {/* Action buttons — Session-extend "Next Quest" CTA */}
+            {/* Action buttons */}
             {onOpenNext && dailyCompleted < dailyTotal ? (
               <>
                 <button
-                  onClick={() => {
-                    onOpenNext();
-                  }}
+                  onClick={() => { onOpenNext(); }}
                   style={{
                     width: '100%', padding: '14px 0', borderRadius: 14,
                     border: 'none', background: t.gradient,
@@ -552,6 +577,9 @@ function QuestCardModal({ task, done, onClose, onToggle, onOpenNext, characterId
             )}
           </div>
         )}
+
+        {/* ─── Phase: Viewing (default quest card content) ─── */}
+        {phase === 'viewing' && (<div style={{ maxHeight: '85vh', overflowY: 'auto' }}>
 
         {/* ─── Header with rarity stripe ─── */}
         <div style={{
@@ -741,6 +769,192 @@ function QuestCardModal({ task, done, onClose, onToggle, onOpenNext, characterId
             </div>
           </div>
 
+          {/* ─── AI Tip ─── */}
+          <div style={{
+            display: 'flex', gap: 10, alignItems: 'flex-start',
+            padding: '12px 14px', borderRadius: 14,
+            background: `${t.cyan}06`,
+            border: `1px solid ${t.cyan}15`,
+            marginBottom: 12,
+          }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+              background: `${t.cyan}15`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 14,
+            }}>
+              💡
+            </div>
+            <div>
+              <div style={{
+                fontFamily: t.mono, fontSize: 9, fontWeight: 800,
+                color: t.cyan, textTransform: 'uppercase',
+                letterSpacing: '0.08em', marginBottom: 4,
+              }}>
+                AI Tip
+              </div>
+              <p style={{
+                fontFamily: t.body, fontSize: 12, color: t.textSecondary,
+                lineHeight: 1.5, margin: 0,
+              }}>
+                {task.aiTip}
+              </p>
+            </div>
+          </div>
+
+          {/* ─── Fun Fact ─── */}
+          <div style={{
+            display: 'flex', gap: 10, alignItems: 'flex-start',
+            padding: '12px 14px', borderRadius: 14,
+            background: `${t.gold}06`,
+            border: `1px solid ${t.gold}15`,
+            marginBottom: 16,
+          }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+              background: `${t.gold}15`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 14,
+            }}>
+              🤓
+            </div>
+            <div>
+              <div style={{
+                fontFamily: t.mono, fontSize: 9, fontWeight: 800,
+                color: t.gold, textTransform: 'uppercase',
+                letterSpacing: '0.08em', marginBottom: 4,
+              }}>
+                Fun Fact
+              </div>
+              <p style={{
+                fontFamily: t.body, fontSize: 12, color: t.textSecondary,
+                lineHeight: 1.5, margin: 0,
+              }}>
+                {task.funFact}
+              </p>
+            </div>
+          </div>
+
+          {/* ─── Knowledge Check ─── */}
+          <div style={{
+            padding: 16, borderRadius: 14,
+            background: t.bgElevated,
+            border: `1px solid ${checkAnswered ? (checkCorrect ? `${t.cyan}30` : `${t.rose}30`) : t.border}`,
+            marginBottom: 20,
+            transition: 'border-color 0.3s ease',
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12,
+            }}>
+              <NeonIcon type="quiz" size={14} color={checkAnswered ? (checkCorrect ? 'cyan' : 'rose') : 'violet'} />
+              <span style={{
+                fontFamily: t.mono, fontSize: 9, fontWeight: 800,
+                color: checkAnswered ? (checkCorrect ? t.cyan : t.rose) : t.violet,
+                textTransform: 'uppercase', letterSpacing: '0.08em',
+              }}>
+                Knowledge Check
+              </span>
+            </div>
+            <p style={{
+              fontFamily: t.body, fontSize: 13, fontWeight: 600,
+              color: t.text, lineHeight: 1.4,
+              margin: '0 0 12px 0',
+            }}>
+              {task.checkQuestion}
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {task.checkOptions.map((opt, i) => {
+                const isSelected = selectedAnswer === i;
+                const isCorrectOption = i === task.checkCorrect;
+                // After answering: show green for correct, red for wrong selection
+                let optBg: string = t.bgCard;
+                let optBorder: string = t.border;
+                let optColor: string = t.textSecondary;
+                if (checkAnswered) {
+                  if (isCorrectOption) {
+                    optBg = `${t.cyan}10`;
+                    optBorder = `${t.cyan}40`;
+                    optColor = t.cyan;
+                  } else if (isSelected && !checkCorrect) {
+                    optBg = `${t.rose}10`;
+                    optBorder = `${t.rose}40`;
+                    optColor = t.rose;
+                  }
+                } else if (isSelected) {
+                  optBg = `${t.violet}10`;
+                  optBorder = `${t.violet}40`;
+                  optColor = t.violet;
+                }
+                return (
+                  <button
+                    key={i}
+                    onClick={() => { if (!checkAnswered) setSelectedAnswer(i); }}
+                    disabled={checkAnswered}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '10px 12px', borderRadius: 10,
+                      background: optBg,
+                      border: `1px solid ${optBorder}`,
+                      cursor: checkAnswered ? 'default' : 'pointer',
+                      transition: 'all 0.2s ease',
+                      textAlign: 'left',
+                    }}
+                  >
+                    {/* Option letter circle */}
+                    <div style={{
+                      width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: isSelected || (checkAnswered && isCorrectOption) ? optColor : 'transparent',
+                      border: `1.5px solid ${optColor}`,
+                      transition: 'all 0.2s ease',
+                    }}>
+                      {checkAnswered && isCorrectOption ? (
+                        <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                          <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      ) : checkAnswered && isSelected && !checkCorrect ? (
+                        <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                          <path d="M3 3L9 9M9 3L3 9" stroke="#FFF" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                      ) : (
+                        <span style={{
+                          fontFamily: t.mono, fontSize: 10, fontWeight: 700,
+                          color: isSelected ? '#FFF' : optColor,
+                        }}>
+                          {String.fromCharCode(65 + i)}
+                        </span>
+                      )}
+                    </div>
+                    <span style={{
+                      fontFamily: t.body, fontSize: 12, fontWeight: isSelected ? 600 : 400,
+                      color: checkAnswered && isCorrectOption ? t.text : optColor,
+                      flex: 1,
+                    }}>
+                      {opt}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {/* Result feedback */}
+            {checkAnswered && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                marginTop: 10, padding: '8px 12px', borderRadius: 8,
+                background: checkCorrect ? `${t.cyan}08` : `${t.rose}08`,
+                animation: 'fadeUp 0.3s ease-out',
+              }}>
+                <NeonIcon type={checkCorrect ? 'trophy' : 'sparkle'} size={14} color={checkCorrect ? 'cyan' : 'rose'} />
+                <span style={{
+                  fontFamily: t.body, fontSize: 12, fontWeight: 600,
+                  color: checkCorrect ? t.cyan : t.rose,
+                }}>
+                  {checkCorrect ? 'Correct! +5 bonus XP for your wisdom!' : 'Not quite — review the objectives above and try to remember why!'}
+                </span>
+              </div>
+            )}
+          </div>
+
           {/* XP Bounty card */}
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -809,6 +1023,10 @@ function QuestCardModal({ task, done, onClose, onToggle, onOpenNext, characterId
             Not now
           </button>
         </div>
+
+        </div>)}
+        {/* end phase === 'viewing' */}
+
       </div>
     </div>
   );
