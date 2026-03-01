@@ -1,12 +1,11 @@
 import { createTRPCClient, httpBatchLink } from '@trpc/client';
-import { createTRPCReact } from '@trpc/react-query';
+import { type CreateTRPCReact, createTRPCReact } from '@trpc/react-query';
 
-// TODO: Replace with proper type import when TypeScript project references
-// are configured between api-client and api packages.
-// For now, AppRouter is typed via inference from trpc.router.ts at the app level.
-// The web app's transpilePackages handles the actual type resolution.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AppRouter = any;
+// Type-only import from @plan2skill/api (workspace devDependency)
+// No runtime code is pulled — only the inferred router type for type-safe hooks.
+import type { AppRouter } from '@plan2skill/api/src/trpc/trpc.router';
+
+export type { AppRouter };
 
 // Vanilla client (for non-React contexts, e.g. Expo auth)
 export function createTrpcClient(baseUrl: string, getToken: () => string | null) {
@@ -23,8 +22,8 @@ export function createTrpcClient(baseUrl: string, getToken: () => string | null)
   });
 }
 
-// React Query hooks client
-export const trpc = createTRPCReact<AppRouter>();
+// React Query hooks client — explicit type annotation to avoid TS2742
+export const trpc: CreateTRPCReact<AppRouter, unknown> = createTRPCReact<AppRouter>();
 
 export function createTrpcReactClient(baseUrl: string, getToken: () => string | null) {
   return trpc.createClient({

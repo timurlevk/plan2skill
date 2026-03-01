@@ -1,13 +1,18 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { useOnboardingStore } from '@plan2skill/store';
+import { useOnboardingStore, useProgressionStore } from '@plan2skill/store';
 import { NeonIcon } from '../../(onboarding)/_components/NeonIcon';
 import { t, rarity } from '../../(onboarding)/_components/tokens';
 import { CHARACTERS, charArtStrings, charPalettes } from '../../(onboarding)/_components/characters';
 import { parseArt, AnimatedPixelCanvas } from '../../(onboarding)/_components/PixelEngine';
 import { XPBar } from '../../(onboarding)/_components/XPBar';
 import { ARCHETYPES } from '../../(onboarding)/_data/archetypes';
+import { MasteryRing } from '../home/_components/MasteryRing';
+import { AchievementBadge } from '../home/_components/AchievementBadge';
+import { ACHIEVEMENTS } from '../home/_data/achievements';
+import { useSpacedRepetition } from '../home/_hooks/useSpacedRepetition';
+import type { AchievementRarity } from '../home/_data/achievements';
 
 // ═══════════════════════════════════════════
 // HERO CARD — Full character profile page
@@ -35,6 +40,8 @@ const EQUIPMENT_SLOTS = [
 
 export default function HeroCardPage() {
   const { characterId, archetypeId, xpTotal, level, receivedEquipment } = useOnboardingStore();
+  const { unlockedAchievements } = useProgressionStore();
+  const mastery = useSpacedRepetition();
 
   const charMeta = CHARACTERS.find(c => c.id === characterId);
   const archetype = archetypeId ? ARCHETYPES[archetypeId] : null;
@@ -325,6 +332,95 @@ export default function HeroCardPage() {
                   </div>
                 )}
               </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ─── Skill Mastery (Phase 5D) ─── */}
+      {mastery.skills.length > 0 && (
+        <div style={{
+          padding: 20, borderRadius: 16,
+          background: t.bgCard, border: `1px solid ${t.border}`,
+          marginBottom: 16, animation: 'fadeUp 0.4s ease-out 0.4s both',
+        }}>
+          <h3 style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            fontFamily: t.display, fontSize: 13, fontWeight: 700,
+            color: t.textSecondary, textTransform: 'uppercase' as const,
+            letterSpacing: '0.08em', marginBottom: 16,
+          }}>
+            <NeonIcon type="book" size={14} color="cyan" />
+            Skill Mastery
+            <span style={{
+              marginLeft: 'auto', fontFamily: t.mono, fontSize: 10,
+              fontWeight: 700, color: t.cyan,
+            }}>
+              {mastery.masteredCount}/{mastery.totalSkills} mastered
+            </span>
+          </h3>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+            gap: 12,
+          }}>
+            {mastery.skills.map((skill) => (
+              <div key={skill.skillId} style={{ textAlign: 'center' }}>
+                <MasteryRing
+                  masteryLevel={skill.masteryLevel}
+                  skillDomain={skill.skillDomain}
+                  isOverdue={skill.isOverdue}
+                  size="lg"
+                  showLabel
+                />
+                <div style={{
+                  fontFamily: t.mono, fontSize: 9, color: t.textMuted, marginTop: 4,
+                }}>
+                  {skill.totalReviews} reviews
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Achievement Board (Phase 5E) ─── */}
+      <div style={{
+        padding: 20, borderRadius: 16,
+        background: t.bgCard, border: `1px solid ${t.border}`,
+        marginBottom: 16, animation: 'fadeUp 0.4s ease-out 0.45s both',
+      }}>
+        <h3 style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          fontFamily: t.display, fontSize: 13, fontWeight: 700,
+          color: t.textSecondary, textTransform: 'uppercase' as const,
+          letterSpacing: '0.08em', marginBottom: 16,
+        }}>
+          <NeonIcon type="trophy" size={14} color="gold" />
+          Achievement Board
+          <span style={{
+            marginLeft: 'auto', fontFamily: t.mono, fontSize: 10,
+            fontWeight: 700, color: t.gold,
+          }}>
+            {unlockedAchievements.length}/{ACHIEVEMENTS.length}
+          </span>
+        </h3>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
+          gap: 12,
+        }}>
+          {ACHIEVEMENTS.map((ach) => {
+            const isUnlocked = unlockedAchievements.includes(ach.id);
+            return (
+              <AchievementBadge
+                key={ach.id}
+                title={ach.title}
+                icon={ach.icon}
+                rarity={ach.rarity as AchievementRarity}
+                state={isUnlocked ? 'unlocked' : 'locked'}
+                size="md"
+              />
             );
           })}
         </div>

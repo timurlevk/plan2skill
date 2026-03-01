@@ -23,6 +23,9 @@ import { SocialCards } from './_components/SocialCards';
 import { WeeklyChallenges } from './_components/WeeklyChallenges';
 import { QuestError } from './_components/QuestError';
 import { useWeeklyChallenges } from './_hooks/useWeeklyChallenges';
+import { useSpacedRepetition } from './_hooks/useSpacedRepetition';
+import { MasteryRing } from './_components/MasteryRing';
+import { NeonIcon } from '../../(onboarding)/_components/NeonIcon';
 
 // ═══════════════════════════════════════════
 // COMMAND CENTER — Dashboard home page orchestrator
@@ -50,6 +53,9 @@ export default function HomePage() {
 
   // Weekly challenges (Phase 5E)
   const weekly = useWeeklyChallenges();
+
+  // Spaced repetition mastery (Phase 5D)
+  const mastery = useSpacedRepetition();
 
   // Generate quest groups from goals
   const questGroups = useMemo(() => {
@@ -149,6 +155,43 @@ export default function HomePage() {
         energyCrystals={energyCrystals}
         maxEnergyCrystals={maxEnergyCrystals}
       />
+
+      {/* Skill Mastery — spaced repetition overview (Phase 5D) */}
+      {mastery.skills.length > 0 && (
+        <div style={{ marginBottom: 24, animation: 'fadeUp 0.4s ease-out 0.15s both' }}>
+          <h2 style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            fontFamily: t.display, fontSize: 13, fontWeight: 700,
+            color: t.textSecondary, textTransform: 'uppercase' as const,
+            letterSpacing: '0.08em', marginBottom: 12,
+          }}>
+            <NeonIcon type="book" size={14} color="cyan" />
+            Skill Mastery
+            {mastery.dueCount > 0 && (
+              <span style={{
+                marginLeft: 'auto',
+                fontFamily: t.mono, fontSize: 10, fontWeight: 700,
+                color: '#FF6B8A', padding: '2px 8px', borderRadius: 10,
+                background: '#FF6B8A15', border: '1px solid #FF6B8A25',
+              }}>
+                {mastery.dueCount} due
+              </span>
+            )}
+          </h2>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' as const }}>
+            {mastery.skills.map((skill) => (
+              <MasteryRing
+                key={skill.skillId}
+                masteryLevel={skill.masteryLevel}
+                skillDomain={skill.skillDomain}
+                isOverdue={skill.isOverdue}
+                size="md"
+                showLabel
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Weekly Challenges — personal weekly goals (Phase 5E) */}
       {weekly.challenges.length > 0 && (

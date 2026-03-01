@@ -10,21 +10,21 @@ export function useServerHydration() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const hydratedRef = useRef(false);
 
-  // @ts-expect-error — AppRouter type resolution pending project references setup
+
   const { data: profile, isLoading } = trpc.progression.getProfile.useQuery(undefined, {
     enabled: isAuthenticated && !hydratedRef.current,
     staleTime: 1000 * 60 * 5, // 5 min
     retry: 1,
   });
 
-  // @ts-expect-error — AppRouter type resolution pending project references setup
+
   const { data: mastery } = trpc.review.mastery.useQuery(undefined, {
     enabled: isAuthenticated && !hydratedRef.current,
     staleTime: 1000 * 60 * 5,
     retry: 1,
   });
 
-  // @ts-expect-error — AppRouter type resolution pending project references setup
+
   const { data: serverAchievements } = trpc.achievement.list.useQuery(undefined, {
     enabled: isAuthenticated && !hydratedRef.current,
     staleTime: 1000 * 60 * 5,

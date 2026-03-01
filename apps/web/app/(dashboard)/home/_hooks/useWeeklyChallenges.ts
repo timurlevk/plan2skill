@@ -7,7 +7,6 @@ import { trpc } from '@plan2skill/api-client';
 export function useWeeklyChallenges() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
-  // @ts-expect-error — AppRouter type resolution pending project references setup
   const { data, isLoading } = trpc.achievement.weeklyChallenges.useQuery(undefined, {
     enabled: isAuthenticated,
     staleTime: 1000 * 60 * 3,

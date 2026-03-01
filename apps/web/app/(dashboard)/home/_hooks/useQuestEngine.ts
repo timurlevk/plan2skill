@@ -29,9 +29,9 @@ export function useQuestEngine(): QuestEngineResult {
 
   // tRPC mutations for server-side sync (background, non-blocking)
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  // @ts-expect-error — AppRouter type resolution pending project references setup
+
   const completeTaskMutation = trpc.progression.completeTask.useMutation();
-  // @ts-expect-error — AppRouter type resolution pending project references setup
+
   const unlockAchievementMutation = trpc.achievement.unlock.useMutation();
 
   // Initialize from persisted daily quests

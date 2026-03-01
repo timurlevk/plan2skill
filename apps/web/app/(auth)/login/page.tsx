@@ -35,7 +35,7 @@ const parseArt = (str: string, pal: Record<string, string>) =>
 
 function PixelCanvas({ data, size = 5, style = {} }: { data: (string | null)[][]; size?: number; style?: React.CSSProperties }) {
   if (!data?.length) return null;
-  const w = data[0].length, h = data.length;
+  const w = data[0]!.length, h = data.length;
   const sh: string[] = [];
   data.forEach((row, y) => row.forEach((c, x) => { if (c) sh.push(`${x * size}px ${y * size}px 0 0 ${c}`); }));
   return <div style={{ width: size, height: size, boxShadow: sh.join(','), marginRight: (w - 1) * size, marginBottom: (h - 1) * size, ...style }} />;
@@ -103,7 +103,7 @@ function AnimatedPixelCanvas({ character, size = 5, glowColor }: {
 
   return (
     <div style={{ filter: glowColor ? `drop-shadow(0 0 10px ${glowColor}44)` : 'none' }}>
-      <PixelCanvas data={frames[frameIndex] || frames[0]} size={size} />
+      <PixelCanvas data={(frames[frameIndex] ?? frames[0])!} size={size} />
     </div>
   );
 }
@@ -130,7 +130,7 @@ function MirroredAnimatedPixelCanvas({ character, size = 5, glowColor }: {
 
   return (
     <div style={{ filter: glowColor ? `drop-shadow(0 0 10px ${glowColor}44)` : 'none' }}>
-      <PixelCanvas data={frames[frameIndex] || frames[0]} size={size} />
+      <PixelCanvas data={(frames[frameIndex] ?? frames[0])!} size={size} />
     </div>
   );
 }
@@ -297,7 +297,7 @@ function BrandPanel() {
             flexShrink: 0,
           }}>
             <AnimatedPixelCanvas
-              character={gamifChars[0]}
+              character={gamifChars[0]!}
               size={5}
               glowColor={charPalettes.mei.T}
             />
@@ -370,7 +370,7 @@ function BrandPanel() {
             flexShrink: 0,
           }}>
             <MirroredAnimatedPixelCanvas
-              character={gamifChars[1]}
+              character={gamifChars[1]!}
               size={5}
               glowColor={charPalettes.kofi.T}
             />
@@ -448,7 +448,7 @@ function MobileAuth({ onBypassAuth }: { onBypassAuth: () => void }) {
           animation: 'bounceIn 0.6s cubic-bezier(0.34,1.56,0.64,1) both',
         }}>
           <AnimatedPixelCanvas
-            character={gamifChars[0]}
+            character={gamifChars[0]!}
             size={5}
             glowColor={t.violet}
           />

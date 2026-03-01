@@ -267,6 +267,9 @@ importers:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
     devDependencies:
+      '@plan2skill/api':
+        specifier: workspace:*
+        version: link:../../apps/api
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.14

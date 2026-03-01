@@ -7,19 +7,19 @@ import { trpc } from '@plan2skill/api-client';
 export function useSpacedRepetition() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
-  // @ts-expect-error — AppRouter type resolution pending project references setup
+
   const { data: mastery } = trpc.review.mastery.useQuery(undefined, {
     enabled: isAuthenticated,
     staleTime: 1000 * 60 * 5,
   });
 
-  // @ts-expect-error — AppRouter type resolution pending project references setup
+
   const { data: dueReviews } = trpc.review.due.useQuery(
     { limit: 5 },
     { enabled: isAuthenticated, staleTime: 1000 * 60 * 2 },
   );
 
-  // @ts-expect-error — AppRouter type resolution pending project references setup
+
   const submitReviewMutation = trpc.review.submit.useMutation();
 
   const submitReview = async (skillId: string, quality: number) => {

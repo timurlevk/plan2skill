@@ -16,7 +16,7 @@ export function PixelCanvas({ data, size = 5, style = {} }: {
   style?: React.CSSProperties;
 }) {
   if (!data?.length) return null;
-  const w = data[0].length, h = data.length;
+  const w = data[0]!.length, h = data.length;
   const sh: string[] = [];
   data.forEach((row, y) => row.forEach((c, x) => {
     if (c) sh.push(`${x * size}px ${y * size}px 0 0 ${c}`);
@@ -70,8 +70,8 @@ export function AnimatedPixelCanvas({ character, size = 5, glowColor, style: ext
     return () => clearInterval(iv);
   }, [frames.length]);
 
-  const currentFrame = frames[frameIndex] || frames[0];
-  if (!currentFrame) return null;
+  const currentFrame = frames[frameIndex] ?? frames[0];
+  if (!currentFrame?.length) return null;
 
   return (
     <div style={{
