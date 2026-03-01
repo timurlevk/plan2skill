@@ -3,8 +3,8 @@ import { useRouter } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
 
 // ═══════════════════════════════════════════
-// QUEST — WHO I AM (Step 1/7)
-// 6 tappable identity cards
+// ASPIRATION — WHERE I WANT TO BE (Step 2/7)
+// Goal cards + time commitment
 // ═══════════════════════════════════════════
 
 const t = {
@@ -18,13 +18,19 @@ const t = {
   textMuted: '#71717A',
 };
 
-const IDENTITIES = [
-  { id: 'student',  icon: '🎓', title: 'Student',        subtitle: 'Starting my learning journey' },
-  { id: 'junior',   icon: '🚀', title: 'Junior',         subtitle: '0-2 years, building foundations' },
-  { id: 'mid',      icon: '⚡', title: 'Mid-level',      subtitle: '2-5 years, leveling up' },
-  { id: 'senior',   icon: '💎', title: 'Senior',         subtitle: '5+ years, going deeper' },
-  { id: 'changer',  icon: '🔄', title: 'Career Changer', subtitle: 'Transitioning to a new field' },
-  { id: 'explore',  icon: '🔍', title: 'Exploring',      subtitle: 'Not sure yet, just curious' },
+const ASPIRATIONS = [
+  { id: 'promote',  icon: '🎯', title: 'Get promoted',   subtitle: 'Reach the next career level' },
+  { id: 'build',    icon: '🛠', title: 'Build & ship',   subtitle: 'Create projects & build portfolio' },
+  { id: 'switch',   icon: '🔄', title: 'Switch fields',  subtitle: 'Transition to a new domain' },
+  { id: 'deep',     icon: '🧠', title: 'Go deep',        subtitle: 'Master specific technologies' },
+  { id: 'lead',     icon: '👥', title: 'Lead teams',      subtitle: 'Move into leadership / management' },
+];
+
+const TIME_OPTIONS = [
+  { id: '5',  label: '5 min' },
+  { id: '15', label: '15 min' },
+  { id: '30', label: '30 min' },
+  { id: '60', label: '1 hour' },
 ];
 
 function StepBar({ current, total = 7 }: { current: number; total?: number }) {
@@ -45,9 +51,10 @@ function StepBar({ current, total = 7 }: { current: number; total?: number }) {
   );
 }
 
-export default function QuestScreen() {
+export default function AspirationScreen() {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
+  const [time, setTime] = useState<string | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
 
@@ -58,28 +65,26 @@ export default function QuestScreen() {
     ]).start();
   }, [fadeAnim, slideAnim]);
 
+  const canContinue = selected && time;
+
   return (
     <View style={styles.container}>
-      {/* Ambient glows */}
       <View style={styles.glowViolet} />
       <View style={styles.glowCyan} />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
-          <StepBar current={1} />
+          <StepBar current={2} />
 
-          <Text style={styles.title}>Who are you?</Text>
-          <Text style={styles.subtitle}>Select the one that best describes you right now</Text>
+          <Text style={styles.title}>Where do you want to be{'\n'}in 12 months?</Text>
+          <Text style={styles.subtitle}>Pick your main goal</Text>
 
-          {IDENTITIES.map((item, index) => {
+          {ASPIRATIONS.map((item) => {
             const isSelected = selected === item.id;
             return (
               <TouchableOpacity
                 key={item.id}
-                style={[
-                  styles.card,
-                  isSelected && styles.cardSelected,
-                ]}
+                style={[styles.card, isSelected && styles.cardSelected]}
                 onPress={() => setSelected(item.id)}
                 activeOpacity={0.7}
               >
@@ -101,10 +106,30 @@ export default function QuestScreen() {
             );
           })}
 
+          {/* Time commitment */}
+          <Text style={styles.timeLabel}>How much time daily?</Text>
+          <View style={styles.timeRow}>
+            {TIME_OPTIONS.map((opt) => {
+              const isActive = time === opt.id;
+              return (
+                <TouchableOpacity
+                  key={opt.id}
+                  style={[styles.timeChip, isActive && styles.timeChipActive]}
+                  onPress={() => setTime(opt.id)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.timeChipText, isActive && styles.timeChipTextActive]}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
           <TouchableOpacity
-            style={[styles.continueBtn, !selected && styles.continueBtnDisabled]}
-            disabled={!selected}
-            onPress={() => router.push('/(onboarding)/aspiration' as never)}
+            style={[styles.continueBtn, !canContinue && styles.continueBtnDisabled]}
+            disabled={!canContinue}
+            onPress={() => router.push('/(onboarding)/archetype' as never)}
             activeOpacity={0.8}
           >
             <Text style={styles.continueBtnText}>Continue</Text>
@@ -181,7 +206,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: 'rgba(157, 122, 255, 0.06)',
+    backgroundColor: 'rgba(78, 205, 196, 0.06)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -213,8 +238,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  timeLabel: {
+    color: t.textSecondary,
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 24,
+    marginBottom: 12,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 8,
+  },
+  timeChip: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: t.bgCard,
+    borderWidth: 1.5,
+    borderColor: t.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timeChipActive: {
+    backgroundColor: 'rgba(78, 205, 196, 0.1)',
+    borderColor: 'rgba(78, 205, 196, 0.4)',
+  },
+  timeChipText: {
+    color: t.textMuted,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  timeChipTextActive: {
+    color: t.cyan,
+  },
   continueBtn: {
-    marginTop: 12,
+    marginTop: 20,
     height: 52,
     borderRadius: 14,
     backgroundColor: t.violet,

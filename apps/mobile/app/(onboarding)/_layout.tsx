@@ -10,6 +10,7 @@ export default function OnboardingLayout() {
       }}
     >
       <Stack.Screen name="quest" />
+      <Stack.Screen name="aspiration" />
       <Stack.Screen name="archetype" />
       <Stack.Screen name="character" />
       <Stack.Screen name="forge" />

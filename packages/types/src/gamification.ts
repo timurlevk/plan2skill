@@ -53,7 +53,47 @@ export interface CompanionConfig {
   colors: string[];
 }
 
-// ─── Onboarding Data ─────────────────────────────────────────────
+// ─── Onboarding — Goal Categories ───────────────────────────────
+
+export type GoalCategory = 'tech' | 'business' | 'creative' | 'personal' | 'emerging';
+
+// ─── Onboarding — Skill Levels ──────────────────────────────────
+
+export type SkillLevel = 'beginner' | 'familiar' | 'intermediate' | 'advanced';
+
+// ─── Onboarding — Goal Selection ────────────────────────────────
+
+export interface GoalSelection {
+  id: string;
+  label: string;
+  category: GoalCategory;
+  popularity: number;
+  isCustom?: boolean;
+  subGoals?: string[];    // selected sub-goal preset IDs
+  freeText?: string;      // free-form description
+}
+
+// ─── Sub-Goal Preset ────────────────────────────────────────────
+
+export interface SubGoalPreset {
+  id: string;
+  label: string;
+  type: 'milestone' | 'dream' | 'project';
+}
+
+// ─── Equipment Item ─────────────────────────────────────────────
+// Re-exported from ./character (EquipmentItem)
+
+// ─── Onboarding — Skill Assessment ──────────────────────────────
+
+export interface SkillAssessment {
+  goalId: string;
+  level: SkillLevel;
+  answers: number[];
+  freeTextNote?: string;
+}
+
+// ─── Onboarding Data (legacy — kept for compatibility) ──────────
 
 export interface OnboardingState {
   step: number;
