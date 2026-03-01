@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { useOnboardingStore, useProgressionStore } from '@plan2skill/store';
+import { useOnboardingStore, useProgressionStore, getLevelInfo } from '@plan2skill/store';
 import { NeonIcon } from '../../(onboarding)/_components/NeonIcon';
 import { t, rarity } from '../../(onboarding)/_components/tokens';
 import { CHARACTERS, charArtStrings, charPalettes } from '../../(onboarding)/_components/characters';
@@ -39,8 +39,13 @@ const EQUIPMENT_SLOTS = [
 ];
 
 export default function HeroCardPage() {
-  const { characterId, archetypeId, xpTotal, level, receivedEquipment } = useOnboardingStore();
-  const { unlockedAchievements } = useProgressionStore();
+  const { characterId, archetypeId, receivedEquipment } = useOnboardingStore();
+  const {
+    totalXp, level, coins,
+    currentStreak, longestStreak,
+    energyCrystals, maxEnergyCrystals,
+    unlockedAchievements,
+  } = useProgressionStore();
   const mastery = useSpacedRepetition();
 
   const charMeta = CHARACTERS.find(c => c.id === characterId);
@@ -56,7 +61,10 @@ export default function HeroCardPage() {
     };
   }, [characterId]);
 
-  const xpInLevel = xpTotal - (level - 1) * 100;
+  const levelInfo = getLevelInfo(totalXp);
+  const crystalDots = Array.from({ length: maxEnergyCrystals }, (_, i) =>
+    i < energyCrystals ? '●' : '○'
+  ).join('');
 
   return (
     <div style={{ animation: 'fadeUp 0.5s ease-out' }}>
@@ -123,15 +131,15 @@ export default function HeroCardPage() {
         }}>
           <NeonIcon type="lightning" size={12} color="violet" />
           <span style={{ fontFamily: t.mono, fontSize: 12, fontWeight: 800, color: t.violet }}>
-            Level {level}
+            Level {levelInfo.level}
           </span>
         </div>
 
         {/* XP to next level */}
         <div style={{ maxWidth: 280, margin: '0 auto 14px', position: 'relative', zIndex: 1 }}>
-          <XPBar xp={xpTotal} level={level} />
+          <XPBar xp={totalXp} level={levelInfo.level} />
           <p style={{ fontFamily: t.mono, fontSize: 10, color: t.textMuted, marginTop: 4 }}>
-            {xpInLevel} / 100 XP to Level {level + 1}
+            {levelInfo.currentXp} / {levelInfo.xpForNextLevel} XP to Level {levelInfo.level + 1}
           </p>
         </div>
 
@@ -166,13 +174,13 @@ export default function HeroCardPage() {
         }}>
           <NeonIcon type="fire" size={24} color="gold" style={{ marginBottom: 8 }} />
           <div style={{ fontFamily: t.mono, fontSize: 22, fontWeight: 800, color: t.gold, marginBottom: 2 }}>
-            0
+            {currentStreak}
           </div>
           <div style={{ fontFamily: t.body, fontSize: 11, color: t.textSecondary }}>
             day streak
           </div>
           <div style={{ fontFamily: t.mono, fontSize: 9, color: t.textMuted, marginTop: 4 }}>
-            Best: 0 days
+            Best: {longestStreak} days
           </div>
         </div>
 
@@ -187,13 +195,13 @@ export default function HeroCardPage() {
             fontFamily: t.mono, fontSize: 18, fontWeight: 800, color: t.cyan,
             marginBottom: 2, letterSpacing: 4,
           }}>
-            {'●●●'}
+            {crystalDots}
           </div>
           <div style={{ fontFamily: t.body, fontSize: 11, color: t.textSecondary }}>
             energy
           </div>
           <div style={{ fontFamily: t.mono, fontSize: 9, color: t.textMuted, marginTop: 4 }}>
-            3/3 crystals
+            {energyCrystals}/{maxEnergyCrystals} crystals
           </div>
         </div>
 
@@ -205,13 +213,13 @@ export default function HeroCardPage() {
         }}>
           <NeonIcon type="xp" size={24} color="violet" style={{ marginBottom: 8 }} />
           <div style={{ fontFamily: t.mono, fontSize: 22, fontWeight: 800, color: t.violet, marginBottom: 2 }}>
-            {xpTotal}
+            {totalXp}
           </div>
           <div style={{ fontFamily: t.body, fontSize: 11, color: t.textSecondary }}>
             total XP
           </div>
           <div style={{ fontFamily: t.mono, fontSize: 9, color: t.textMuted, marginTop: 4 }}>
-            Level {level}
+            Level {levelInfo.level}
           </div>
         </div>
       </div>
@@ -256,6 +264,7 @@ export default function HeroCardPage() {
                   boxShadow: `0 0 6px ${attr.color}40`,
                 }} />
               </div>
+              {/* TODO Phase 5F: compute from equipment + mastery */}
               <span style={{
                 fontFamily: t.mono, fontSize: 10, fontWeight: 700,
                 color: t.textMuted, width: 24, textAlign: 'right', flexShrink: 0,

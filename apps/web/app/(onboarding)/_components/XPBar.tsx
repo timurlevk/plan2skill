@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { getLevelInfo } from '@plan2skill/store';
 import { t } from './tokens';
 
 // ═══════════════════════════════════════════
@@ -15,9 +16,8 @@ interface XPBarProps {
 }
 
 export function XPBar({ xp, level }: XPBarProps) {
-  const xpForNextLevel = level * 100;
-  const xpInCurrentLevel = xp - (level - 1) * 100;
-  const fillPct = Math.min((xpInCurrentLevel / 100) * 100, 100);
+  const info = getLevelInfo(xp);
+  const fillPct = Math.min(info.progress * 100, 100);
   const [animatedFill, setAnimatedFill] = useState(0);
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [prevLevel, setPrevLevel] = useState(level);
