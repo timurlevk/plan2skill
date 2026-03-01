@@ -16,6 +16,9 @@ model User {
   providerSubId       String   @unique @db.VarChar(255) // Zero-PII: provider's anonymous sub
   onboardingCompleted Boolean  @default(false)
 
+  // Admin: role-based access control
+  role                String   @default("user") @db.VarChar(20) // user | moderator | admin | superadmin
+
   // Phase 5B: UX preferences (DA-04)
   quietMode           Boolean  @default(false)
   timezone            String   @default("UTC") @db.VarChar(50) // IANA timezone, e.g. "Europe/Kyiv"
