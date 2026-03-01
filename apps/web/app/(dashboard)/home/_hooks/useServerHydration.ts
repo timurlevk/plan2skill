@@ -17,6 +17,20 @@ export function useServerHydration() {
     retry: 1,
   });
 
+  // @ts-expect-error — AppRouter type resolution pending project references setup
+  const { data: mastery } = trpc.review.mastery.useQuery(undefined, {
+    enabled: isAuthenticated && !hydratedRef.current,
+    staleTime: 1000 * 60 * 5,
+    retry: 1,
+  });
+
+  // @ts-expect-error — AppRouter type resolution pending project references setup
+  const { data: serverAchievements } = trpc.achievement.list.useQuery(undefined, {
+    enabled: isAuthenticated && !hydratedRef.current,
+    staleTime: 1000 * 60 * 5,
+    retry: 1,
+  });
+
   useEffect(() => {
     if (!profile || hydratedRef.current) return;
     hydratedRef.current = true;
@@ -37,7 +51,28 @@ export function useServerHydration() {
         lastActivityDate: profile.streak?.lastActivityDate ?? store.lastActivityDate,
       });
     }
-  }, [profile]);
+
+    // Hydrate mastery stats (Phase 5D)
+    if (mastery) {
+      useProgressionStore.setState({
+        masteredSkills: mastery.masteredCount ?? 0,
+        totalReviews: mastery.skills?.reduce(
+          (sum: number, s: { totalReviews: number }) => sum + s.totalReviews, 0,
+        ) ?? 0,
+      });
+    }
+
+    // Hydrate server-side achievements (Phase 5E)
+    if (serverAchievements && Array.isArray(serverAchievements)) {
+      const serverIds = serverAchievements.map(
+        (a: { achievementId: string }) => a.achievementId,
+      );
+      const merged = [...new Set([...store.unlockedAchievements, ...serverIds])];
+      if (merged.length > store.unlockedAchievements.length) {
+        useProgressionStore.setState({ unlockedAchievements: merged });
+      }
+    }
+  }, [profile, mastery, serverAchievements]);
 
   return { isHydrating: isAuthenticated && isLoading, isAuthenticated };
 }

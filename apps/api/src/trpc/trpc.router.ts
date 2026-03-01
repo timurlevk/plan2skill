@@ -8,6 +8,8 @@ import { CharacterService } from '../character/character.service';
 import { ProgressionService } from '../progression/progression.service';
 import { RoadmapService } from '../roadmap/roadmap.service';
 import { QuestService } from '../quest/quest.service';
+import { SpacedRepetitionService } from '../spaced-repetition/spaced-repetition.service';
+import { AchievementService } from '../achievement/achievement.service';
 
 @Injectable()
 export class TrpcRouter implements OnModuleInit {
@@ -21,6 +23,8 @@ export class TrpcRouter implements OnModuleInit {
     private readonly progressionService: ProgressionService,
     private readonly roadmapService: RoadmapService,
     private readonly questService: QuestService,
+    private readonly spacedRepetitionService: SpacedRepetitionService,
+    private readonly achievementService: AchievementService,
   ) {}
 
   private buildRouter() {
@@ -152,6 +156,61 @@ export class TrpcRouter implements OnModuleInit {
         }),
     });
 
+    // ─── Spaced Repetition (Phase 5D) ──────────────────────────
+
+    const reviewRouter = router({
+      due: protectedProcedure
+        .input(z.object({ limit: z.number().int().min(1).max(20).default(10) }).optional())
+        .query(({ ctx, input }) => {
+          return this.spacedRepetitionService.getDueReviews(ctx.userId, input?.limit ?? 10);
+        }),
+      submit: protectedProcedure
+        .input(z.object({
+          skillId: z.string().max(50),
+          quality: z.number().int().min(0).max(5),
+        }))
+        .mutation(({ ctx, input }) => {
+          return this.spacedRepetitionService.submitReview(ctx.userId, input.skillId, input.quality);
+        }),
+      mastery: protectedProcedure.query(({ ctx }) => {
+        return this.spacedRepetitionService.getSkillMastery(ctx.userId);
+      }),
+      create: protectedProcedure
+        .input(z.object({
+          skillId: z.string().max(50),
+          skillDomain: z.string().max(50).optional(),
+        }))
+        .mutation(({ ctx, input }) => {
+          return this.spacedRepetitionService.createReviewItem(ctx.userId, input.skillId, input.skillDomain);
+        }),
+    });
+
+    // ─── Achievements (Phase 5E) ────────────────────────────────
+
+    const achievementRouter = router({
+      list: protectedProcedure.query(({ ctx }) => {
+        return this.achievementService.getUnlockedAchievements(ctx.userId);
+      }),
+      unlock: protectedProcedure
+        .input(z.object({
+          achievementId: z.string().max(50),
+          xpReward: z.number().int().min(0).default(0),
+        }))
+        .mutation(({ ctx, input }) => {
+          return this.achievementService.unlockAchievement(ctx.userId, input.achievementId, input.xpReward);
+        }),
+      sync: protectedProcedure
+        .input(z.object({
+          achievementIds: z.array(z.string().max(50)),
+        }))
+        .mutation(({ ctx, input }) => {
+          return this.achievementService.syncAchievements(ctx.userId, input.achievementIds);
+        }),
+      weeklyChallenges: protectedProcedure.query(({ ctx }) => {
+        return this.achievementService.getWeeklyChallenges(ctx.userId);
+      }),
+    });
+
     return this.trpc.mergeRouters(
       router({
         user: userRouter,
@@ -159,6 +218,8 @@ export class TrpcRouter implements OnModuleInit {
         roadmap: roadmapRouter,
         progression: progressionRouter,
         quest: questRouter,
+        review: reviewRouter,
+        achievement: achievementRouter,
       }),
     );
   }

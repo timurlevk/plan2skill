@@ -346,6 +346,22 @@ export class ProgressionService {
       data: { progress: roadmapProgress },
     });
 
+    // Auto-seed spaced repetition review item (Phase 5D)
+    if (task.skillDomain) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      await this.prisma.reviewItem.upsert({
+        where: { userId_skillId: { userId, skillId: `${task.skillDomain}:${task.id}` } },
+        create: {
+          userId,
+          skillId: `${task.skillDomain}:${task.id}`,
+          skillDomain: task.skillDomain,
+          nextReview: tomorrow,
+        },
+        update: {},
+      });
+    }
+
     return {
       xpEarned: xpResult.xpEarned,
       coinsEarned: task.coinReward,

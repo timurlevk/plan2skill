@@ -8,6 +8,8 @@ import { ProgressionModule } from './progression/progression.module';
 import { RoadmapModule } from './roadmap/roadmap.module';
 import { AiModule } from './ai/ai.module';
 import { QuestModule } from './quest/quest.module';
+import { SpacedRepetitionModule } from './spaced-repetition/spaced-repetition.module';
+import { AchievementModule } from './achievement/achievement.module';
 import { TrpcModule } from './trpc/trpc.module';
 
 @Module({
@@ -24,6 +26,8 @@ import { TrpcModule } from './trpc/trpc.module';
     RoadmapModule,
     AiModule,
     QuestModule,
+    SpacedRepetitionModule,
+    AchievementModule,
     TrpcModule,
   ],
 })

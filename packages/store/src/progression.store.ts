@@ -39,6 +39,10 @@ interface ProgressionState {
   // Achievements
   unlockedAchievements: string[];
 
+  // Spaced Repetition (Phase 5D) — synced from server
+  masteredSkills: number;
+  totalReviews: number;
+
   // UX toggles
   quietMode: boolean;
 
@@ -96,6 +100,8 @@ const initialState = {
   dailyDate: null as string | null,
   questHistory: [] as QuestCompletion[],
   unlockedAchievements: [] as string[],
+  masteredSkills: 0,
+  totalReviews: 0,
   quietMode: false,
   xpAnimation: { amount: 0, active: false },
   levelUpAnimation: false,

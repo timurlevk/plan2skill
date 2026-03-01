@@ -27,10 +27,12 @@ export function useQuestEngine(): QuestEngineResult {
   const storeRef = useRef(store);
   storeRef.current = store;
 
-  // tRPC mutation for server-side quest completion (background sync)
+  // tRPC mutations for server-side sync (background, non-blocking)
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   // @ts-expect-error — AppRouter type resolution pending project references setup
   const completeTaskMutation = trpc.progression.completeTask.useMutation();
+  // @ts-expect-error — AppRouter type resolution pending project references setup
+  const unlockAchievementMutation = trpc.achievement.unlock.useMutation();
 
   // Initialize from persisted daily quests
   const [completedQuests, setCompletedQuests] = useState<Set<string>>(
@@ -59,18 +61,41 @@ export function useQuestEngine(): QuestEngineResult {
 
   const checkAchievements = useCallback(() => {
     const s = storeRef.current;
+    const checkState: import('../_data/achievements').AchievementCheckState = {
+      questHistory: s.questHistory,
+      currentStreak: s.currentStreak,
+      longestStreak: s.longestStreak,
+      level: s.level,
+      totalXp: s.totalXp,
+      coins: s.coins,
+      unlockedAchievements: s.unlockedAchievements,
+      masteredSkills: s.masteredSkills,
+      totalReviews: s.totalReviews,
+      energyCrystals: s.energyCrystals,
+      dailyQuestsCompleted: s.dailyQuestsCompleted,
+    };
     const newUnlocks: Achievement[] = [];
     for (const achievement of ACHIEVEMENTS) {
       if (s.unlockedAchievements.includes(achievement.id)) continue;
-      if (achievement.check(s)) {
+      if (achievement.check(checkState)) {
         s.unlockAchievement(achievement.id);
         newUnlocks.push(achievement);
+
+        // Sync to server (background, non-blocking)
+        if (isAuthenticated) {
+          unlockAchievementMutation.mutate(
+            { achievementId: achievement.id, xpReward: achievement.xpReward },
+            { onError: (err: { message: string }) => {
+              console.warn('[QuestEngine] Achievement sync failed:', err.message);
+            }},
+          );
+        }
       }
     }
     if (newUnlocks.length > 0) {
       setNewlyUnlockedAchievements(prev => [...prev, ...newUnlocks]);
     }
-  }, []);
+  }, [isAuthenticated, unlockAchievementMutation]);
 
   const completeQuest = useCallback((taskId: string, goalId: string, xp: number) => {
     const s = storeRef.current;

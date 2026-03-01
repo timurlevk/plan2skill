@@ -8,9 +8,15 @@ import { ProgressionModule } from '../progression/progression.module';
 import { RoadmapModule } from '../roadmap/roadmap.module';
 import { AiModule } from '../ai/ai.module';
 import { QuestModule } from '../quest/quest.module';
+import { SpacedRepetitionModule } from '../spaced-repetition/spaced-repetition.module';
+import { AchievementModule } from '../achievement/achievement.module';
 
 @Module({
-  imports: [AuthModule, UserModule, CharacterModule, ProgressionModule, RoadmapModule, AiModule, QuestModule],
+  imports: [
+    AuthModule, UserModule, CharacterModule, ProgressionModule,
+    RoadmapModule, AiModule, QuestModule,
+    SpacedRepetitionModule, AchievementModule,
+  ],
   providers: [TrpcService, TrpcRouter],
 })
 export class TrpcModule {}

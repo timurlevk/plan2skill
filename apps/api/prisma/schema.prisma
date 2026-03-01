@@ -35,6 +35,9 @@ model User {
   xpEvents            XPEvent[]
   refreshTokens       RefreshToken[]
   questCompletions    QuestCompletion[]
+  reviewItems         ReviewItem[]
+  achievementUnlocks  AchievementUnlock[]
+  weeklyChallenges    WeeklyChallenge[]
 
   @@map("users")
 }
@@ -254,4 +257,68 @@ model QuestCompletion {
   @@index([userId, completedAt]) // daily XP cap aggregation
   @@index([userId, questType]) // type diversity queries
   @@map("quest_completions")
+}
+
+// ─── Spaced Repetition (Phase 5D) ────────────────────────────────
+
+model ReviewItem {
+  id              String    @id @default(uuid())
+  userId          String
+  skillId         String    @db.VarChar(50)
+  skillDomain     String?   @db.VarChar(50)
+  easinessFactor  Float     @default(2.5)
+  intervalDays    Int       @default(1)
+  repetitionCount Int       @default(0)
+  masteryLevel    Int       @default(0)
+  nextReview      DateTime
+  lastReviewedAt  DateTime?
+  lastQuality     Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillId])
+  @@index([userId, nextReview])
+  @@index([userId, masteryLevel])
+  @@map("review_items")
+}
+
+// ─── Achievements (Phase 5E) ─────────────────────────────────────
+
+model AchievementUnlock {
+  id            String   @id @default(uuid())
+  userId        String
+  achievementId String   @db.VarChar(50) // matches client-side ACHIEVEMENTS[].id
+  xpAwarded     Int      @default(0)
+  unlockedAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+  @@map("achievement_unlocks")
+}
+
+// ─── Weekly Challenges (Phase 5E) ────────────────────────────────
+
+model WeeklyChallenge {
+  id           String    @id @default(uuid())
+  userId       String
+  weekStart    DateTime  // Monday 00:00 in user timezone
+  type         String    @db.VarChar(30) // quest_volume, streak_guard, domain_focus, etc.
+  difficulty   String    @db.VarChar(10) // easy, medium, hard
+  targetValue  Int
+  currentValue Int       @default(0)
+  targetDomain String?   @db.VarChar(50)
+  completed    Boolean   @default(false)
+  completedAt  DateTime?
+  xpReward     Int
+  coinReward   Int
+  createdAt    DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, weekStart])
+  @@map("weekly_challenges")
 }

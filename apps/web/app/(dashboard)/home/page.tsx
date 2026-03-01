@@ -20,7 +20,9 @@ import { AchievementToast } from './_components/AchievementToast';
 import { WelcomeBack } from './_components/WelcomeBack';
 import { SkeletonLoader } from './_components/SkeletonLoader';
 import { SocialCards } from './_components/SocialCards';
+import { WeeklyChallenges } from './_components/WeeklyChallenges';
 import { QuestError } from './_components/QuestError';
+import { useWeeklyChallenges } from './_hooks/useWeeklyChallenges';
 
 // ═══════════════════════════════════════════
 // COMMAND CENTER — Dashboard home page orchestrator
@@ -45,6 +47,9 @@ export default function HomePage() {
 
   // Quest engine — persistence pipeline
   const engine = useQuestEngine();
+
+  // Weekly challenges (Phase 5E)
+  const weekly = useWeeklyChallenges();
 
   // Generate quest groups from goals
   const questGroups = useMemo(() => {
@@ -144,6 +149,11 @@ export default function HomePage() {
         energyCrystals={energyCrystals}
         maxEnergyCrystals={maxEnergyCrystals}
       />
+
+      {/* Weekly Challenges — personal weekly goals (Phase 5E) */}
+      {weekly.challenges.length > 0 && (
+        <WeeklyChallenges challenges={weekly.challenges} weekEnd={weekly.weekEnd} />
+      )}
 
       {/* Social Cards — opt-in social features (UX-R162) */}
       {!quietMode && <SocialCards />}
