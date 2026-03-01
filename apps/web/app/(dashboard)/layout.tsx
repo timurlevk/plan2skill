@@ -3,9 +3,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useOnboardingStore } from '@plan2skill/store';
+import { useOnboardingStore, useProgressionStore } from '@plan2skill/store';
 import { NeonIcon } from '../(onboarding)/_components/NeonIcon';
-import { t, rarity } from '../(onboarding)/_components/tokens';
+import { t } from '../(onboarding)/_components/tokens';
 import { CHARACTERS, charArtStrings, charPalettes } from '../(onboarding)/_components/characters';
 import { parseArt, PixelCanvas, AnimatedPixelCanvas } from '../(onboarding)/_components/PixelEngine';
 import { XPBar } from '../(onboarding)/_components/XPBar';
@@ -17,24 +17,24 @@ import { ARCHETYPES } from '../(onboarding)/_data/archetypes';
 // ═══════════════════════════════════════════
 
 const NAV_ITEMS = [
-  { href: '/home',      label: 'Command Center', icon: 'compass' as const },
-  { href: '/roadmap',   label: 'Quest Log',      icon: 'map'     as const },
-  { href: '/league',    label: 'Guild Arena',     icon: 'trophy'  as const },
-  { href: '/hero-card', label: 'Hero Card',       icon: 'shield'  as const },
+  { href: '/home',      label: 'Command Center', icon: 'compass' as const, badge: false },
+  { href: '/roadmap',   label: 'Quest Log',      icon: 'map'     as const, badge: false },
+  { href: '/league',    label: 'Guild Arena',     icon: 'trophy'  as const, badge: true  },
+  { href: '/hero-card', label: 'Hero Card',       icon: 'shield'  as const, badge: false },
 ];
 
 // ─── User Menu (dropdown from bottom of sidebar) ───
 
 const USER_MENU_ITEMS = [
-  { id: 'hero-card', label: 'Hero Card',       icon: 'shield'  as const, href: '/hero-card' },
-  { id: 'settings',  label: 'Hero Settings',   icon: 'gear'    as const, href: null },
+  { id: 'hero-card',  label: 'Hero Card',       icon: 'shield'  as const, href: '/hero-card' },
+  { id: 'settings',   label: 'Hero Settings',   icon: 'gear'    as const, href: null },
+  { id: 'quiet-mode', label: 'Quiet Mode',      icon: 'gear'    as const, href: null, toggle: true },
   { id: 'divider' },
-  { id: 'restart',   label: 'Restart Journey',  icon: 'refresh' as const, href: null, danger: true },
-  { id: 'logout',    label: 'Leave Guild',      icon: 'close'   as const, href: null, danger: true },
+  { id: 'restart',    label: 'Restart Journey',  icon: 'refresh' as const, href: null, danger: true },
+  { id: 'logout',     label: 'Leave Guild',      icon: 'close'   as const, href: null, danger: true },
 ] as const;
 
-function UserMenu({ charData, charMeta, archetype, level, xpTotal }: {
-  charData: { id: string; art: (string | null)[][] } | null;
+function UserMenu({ charMeta, archetype, level, xpTotal }: {
   charMeta: { name: string; color: string } | undefined;
   archetype: { icon: string; name: string; color: string } | null | undefined;
   level: number;
@@ -44,6 +44,7 @@ function UserMenu({ charData, charMeta, archetype, level, xpTotal }: {
   const menuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const resetStore = useOnboardingStore(s => s.reset);
+  const quietMode = useProgressionStore(s => s.quietMode);
 
   // Close on click outside
   useEffect(() => {
@@ -66,6 +67,10 @@ function UserMenu({ charData, charMeta, archetype, level, xpTotal }: {
 
   function handleItemClick(item: typeof USER_MENU_ITEMS[number]) {
     if (!('label' in item)) return;
+    if (item.id === 'quiet-mode') {
+      useProgressionStore.getState().toggleQuietMode();
+      return; // Don't close menu on toggle
+    }
     setOpen(false);
     if ('href' in item && item.href) {
       router.push(item.href);
@@ -82,7 +87,7 @@ function UserMenu({ charData, charMeta, archetype, level, xpTotal }: {
 
   return (
     <div ref={menuRef} style={{ position: 'relative' }}>
-      {/* Trigger button */}
+      {/* Trigger button — no avatar (avatar is in Hero Identity Card) */}
       <button
         onClick={() => setOpen(o => !o)}
         style={{
@@ -96,29 +101,21 @@ function UserMenu({ charData, charMeta, archetype, level, xpTotal }: {
         onMouseEnter={e => { if (!open) e.currentTarget.style.background = `${t.violet}08`; }}
         onMouseLeave={e => { if (!open) e.currentTarget.style.background = 'none'; }}
       >
-        {/* Avatar */}
-        <div style={{
-          width: 32, height: 32, borderRadius: '50%',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: `${charMeta?.color || t.violet}15`,
-          border: `1.5px solid ${charMeta?.color || t.violet}40`,
-          flexShrink: 0,
+        <NeonIcon type="gear" size={16} color={open ? 'violet' : 'muted'} />
+        <span style={{
+          flex: 1, textAlign: 'left',
+          fontFamily: t.body, fontSize: 12, fontWeight: 600, color: t.text,
         }}>
-          {charData ? (
-            <PixelCanvas data={charData.art} size={2} />
-          ) : (
-            <NeonIcon type="shield" size={14} color="violet" />
-          )}
-        </div>
-        <div style={{ flex: 1, textAlign: 'left' }}>
-          <div style={{ fontFamily: t.body, fontSize: 12, fontWeight: 600, color: t.text }}>
-            {charMeta?.name || 'Hero'}
-          </div>
-          <div style={{ fontFamily: t.body, fontSize: 10, color: t.textMuted }}>
-            Hero Settings
-          </div>
-        </div>
-        <NeonIcon type="gear" size={14} color={open ? 'violet' : 'muted'} />
+          {charMeta?.name || 'Hero'}
+        </span>
+        <span style={{
+          fontFamily: t.body, fontSize: 10, color: open ? t.violet : t.textMuted,
+          transition: 'transform 0.2s ease',
+          transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+          display: 'inline-block',
+        }}>
+          ▲
+        </span>
       </button>
 
       {/* Dropdown — opens upward */}
@@ -138,19 +135,6 @@ function UserMenu({ charData, charMeta, archetype, level, xpTotal }: {
             borderBottom: `1px solid ${t.border}`,
             marginBottom: 4,
           }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: '50%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: `${charMeta?.color || t.violet}15`,
-              border: `1.5px solid ${charMeta?.color || t.violet}40`,
-              flexShrink: 0,
-            }}>
-              {charData ? (
-                <PixelCanvas data={charData.art} size={2} />
-              ) : (
-                <NeonIcon type="shield" size={16} color="violet" />
-              )}
-            </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: t.display, fontSize: 13, fontWeight: 700, color: t.text }}>
                 {charMeta?.name || 'Hero'}
@@ -183,6 +167,51 @@ function UserMenu({ charData, charMeta, archetype, level, xpTotal }: {
             }
             if (!('label' in item)) return null;
             const danger = 'danger' in item && item.danger;
+            const isToggle = 'toggle' in item && item.toggle;
+            const isQuietActive = item.id === 'quiet-mode' && quietMode;
+
+            // Quiet Mode toggle row
+            if (isToggle) {
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleItemClick(item)}
+                  role="switch"
+                  aria-checked={isQuietActive}
+                  aria-label={isQuietActive ? 'Quiet mode is on — click to turn off' : 'Quiet mode is off — click to turn on'}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    width: '100%', padding: '8px 16px',
+                    background: 'none', border: 'none',
+                    cursor: 'pointer', transition: 'background 0.15s ease',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = `${t.violet}08`)}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  <NeonIcon type="gear" size={16} color={isQuietActive ? 'violet' : 'muted'} />
+                  <span style={{
+                    fontFamily: t.body, fontSize: 13, fontWeight: 500,
+                    color: isQuietActive ? t.violet : t.textSecondary, flex: 1, textAlign: 'left',
+                  }}>
+                    Quiet Mode
+                  </span>
+                  <div style={{
+                    width: 28, height: 16, borderRadius: 8,
+                    background: isQuietActive ? t.violet : t.border,
+                    position: 'relative', transition: 'background 0.2s ease',
+                    flexShrink: 0,
+                  }}>
+                    <div style={{
+                      width: 12, height: 12, borderRadius: '50%',
+                      background: '#FFF', position: 'absolute', top: 2,
+                      left: isQuietActive ? 14 : 2,
+                      transition: 'left 0.2s ease',
+                    }} />
+                  </div>
+                </button>
+              );
+            }
+
             return (
               <button
                 key={item.id}
@@ -215,7 +244,8 @@ function UserMenu({ charData, charMeta, archetype, level, xpTotal }: {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { characterId, archetypeId, xpTotal, level, forgeComplete } = useOnboardingStore();
+  const { characterId, archetypeId, forgeComplete } = useOnboardingStore();
+  const { totalXp, level, currentStreak, energyCrystals, maxEnergyCrystals, quietMode } = useProgressionStore();
 
   // Guard: if onboarding not complete, redirect
   if (!forgeComplete) {
@@ -325,22 +355,109 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             zIndex: 10,
           }}
         >
-          {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32, paddingLeft: 4 }}>
-            <div style={{
-              width: 40, height: 40, borderRadius: 12,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#FFF', fontWeight: 800, fontSize: 14,
-              fontFamily: t.display, background: t.gradient,
-            }}>
-              P2
+          {/* ═══ ZONE 1 — BRAND + HERO IDENTITY (pinned top) ═══ */}
+
+          {/* Logo — clickable → /home */}
+          <Link href="/home" aria-label="Go to Command Center" style={{ textDecoration: 'none' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, paddingLeft: 4 }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: 12,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#FFF', fontWeight: 800, fontSize: 14,
+                fontFamily: t.display, background: t.gradient,
+              }}>
+                P2
+              </div>
+              <span style={{ fontFamily: t.display, fontSize: 18, fontWeight: 800, color: t.text }}>
+                Plan2Skill
+              </span>
             </div>
-            <span style={{ fontFamily: t.display, fontSize: 18, fontWeight: 800, color: t.text }}>
-              Plan2Skill
-            </span>
+          </Link>
+
+          {/* Hero Identity Card */}
+          <div
+            role="region"
+            aria-label="Hero status"
+            style={{
+              position: 'relative',
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              padding: '16px 12px 12px', marginBottom: 16,
+              borderRadius: 16, background: t.bgCard,
+              border: `1px solid ${t.border}`,
+            }}
+          >
+            {/* Streak — top left corner */}
+            <div
+              aria-label={`${currentStreak} day streak`}
+              style={{
+                position: 'absolute', top: 8, left: 10,
+                display: 'flex', alignItems: 'center', gap: 3,
+              }}
+            >
+              <NeonIcon type="fire" size={12} color="gold" />
+              <span style={{ fontFamily: t.mono, fontSize: 10, fontWeight: 700, color: t.gold }}>
+                {currentStreak}d
+              </span>
+            </div>
+            {/* Crystals — top right corner */}
+            <div
+              aria-label={`${energyCrystals} of ${maxEnergyCrystals} energy crystals`}
+              style={{
+                position: 'absolute', top: 8, right: 10,
+                display: 'flex', alignItems: 'center', gap: 3,
+              }}
+            >
+              <NeonIcon type="gem" size={12} color="cyan" />
+              <span style={{ fontFamily: t.mono, fontSize: 10, fontWeight: 700, color: t.cyan }}>
+                {energyCrystals}/{maxEnergyCrystals}
+              </span>
+            </div>
+
+            {/* Avatar */}
+            {charData && (
+              <div style={{ animation: 'float 3s ease-in-out infinite', marginBottom: 8 }}>
+                <AnimatedPixelCanvas
+                  character={charData}
+                  size={3}
+                  glowColor={charMeta?.color}
+                />
+              </div>
+            )}
+            {/* Name + Level */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <span style={{ fontFamily: t.display, fontSize: 13, fontWeight: 700, color: t.text }}>
+                {charMeta?.name || 'Hero'}
+              </span>
+              <span style={{
+                fontFamily: t.mono, fontSize: 10, fontWeight: 700,
+                color: t.violet, padding: '1px 6px', borderRadius: 6,
+                background: `${t.violet}12`,
+              }}>
+                Lv.{level}
+              </span>
+            </div>
+            {/* Archetype badge */}
+            {archetype && (
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '2px 10px', borderRadius: 20, marginBottom: 10,
+                background: `${archetype.color}15`, border: `1px solid ${archetype.color}30`,
+              }}>
+                <span style={{ fontSize: 10, color: archetype.color }}>{archetype.icon}</span>
+                <span style={{
+                  fontFamily: t.mono, fontSize: 10, fontWeight: 700, color: archetype.color,
+                }}>
+                  {archetype.name}
+                </span>
+              </div>
+            )}
+            {/* XP Bar */}
+            <div style={{ width: '100%', padding: '0 4px' }}>
+              <XPBar xp={totalXp} level={level} />
+            </div>
           </div>
 
-          {/* Nav items */}
+          {/* ═══ ZONE 2 — NAV (4 items) ═══ */}
           <nav style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {NAV_ITEMS.map((item) => {
               const active = pathname === item.href;
@@ -367,288 +484,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         background: t.violet, boxShadow: `0 0 8px ${t.violet}80`,
                       }} />
                     )}
+                    {!active && item.badge && !quietMode && (
+                      <div
+                        aria-label="New activity"
+                        style={{
+                          marginLeft: 'auto', width: 8, height: 8, borderRadius: '50%',
+                          background: t.rose, boxShadow: `0 0 6px ${t.rose}60`,
+                          animation: 'pulse 2s ease-in-out infinite',
+                        }}
+                      />
+                    )}
                   </div>
                 </Link>
               );
             })}
           </nav>
 
-          {/* Spacer */}
-          <div style={{ flex: 1 }} />
-
-          {/* Character companion */}
-          {charData && (
-            <div style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              padding: '16px 12px 12px', marginBottom: 16,
-              borderRadius: 16, background: t.bgCard,
-              border: `1px solid ${t.border}`,
-            }}>
-              <div style={{ animation: 'float 3s ease-in-out infinite', marginBottom: 12 }}>
-                <AnimatedPixelCanvas
-                  character={charData}
-                  size={3}
-                  glowColor={charMeta?.color}
-                />
-              </div>
-              <span style={{
-                fontFamily: t.display, fontSize: 13, fontWeight: 700,
-                color: t.text, marginBottom: 4,
-              }}>
-                {charMeta?.name || 'Hero'}
-              </span>
-              {archetype && (
-                <div style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                  padding: '2px 10px', borderRadius: 20,
-                  background: `${archetype.color}15`, border: `1px solid ${archetype.color}30`,
-                }}>
-                  <span style={{ fontSize: 10, color: archetype.color }}>{archetype.icon}</span>
-                  <span style={{
-                    fontFamily: t.mono, fontSize: 10, fontWeight: 700, color: archetype.color,
-                  }}>
-                    {archetype.name}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ═══ Party Quest — Cooperative Boss Fight (Habitica model) ═══ */}
-          <div style={{
-            padding: 14, borderRadius: 16,
-            background: t.bgCard, border: `1px solid ${t.border}`,
-            marginBottom: 12,
-          }}>
-            {/* Section header */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10,
-            }}>
-              <NeonIcon type="lightning" size={14} color="rose" />
-              <span style={{
-                fontFamily: t.display, fontSize: 11, fontWeight: 700,
-                color: t.textSecondary, textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-              }}>
-                Party Quest
-              </span>
-            </div>
-
-            {/* Boss info */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10,
-            }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: 10,
-                background: `${t.rose}12`, border: `1px solid ${t.rose}25`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 18,
-              }}>
-                🐉
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{
-                  fontFamily: t.display, fontSize: 13, fontWeight: 700, color: t.text,
-                  marginBottom: 2,
-                }}>
-                  Procrastination Dragon
-                </div>
-                <span style={{
-                  fontFamily: t.mono, fontSize: 9, fontWeight: 700,
-                  color: rarity.epic.color, textTransform: 'uppercase',
-                }}>
-                  {rarity.epic.icon} Epic Boss
-                </span>
-              </div>
-            </div>
-
-            {/* Boss HP bar */}
-            <div style={{ marginBottom: 6 }}>
-              <div style={{
-                display: 'flex', justifyContent: 'space-between', marginBottom: 4,
-              }}>
-                <span style={{ fontFamily: t.mono, fontSize: 9, fontWeight: 700, color: t.rose }}>
-                  HP
-                </span>
-                <span style={{ fontFamily: t.mono, fontSize: 9, fontWeight: 700, color: t.textMuted }}>
-                  847 / 1200
-                </span>
-              </div>
-              <div style={{
-                height: 6, borderRadius: 3, background: '#252530', overflow: 'hidden',
-              }}>
-                <div style={{
-                  width: '70.6%', height: '100%', borderRadius: 3,
-                  background: `linear-gradient(90deg, ${t.rose}, #FF8FA3)`,
-                  transition: 'width 0.6s ease-out',
-                }} />
-              </div>
-            </div>
-
-            {/* Party members */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: -4, marginBottom: 8,
-            }}>
-              {/* Stacked avatars */}
-              <div style={{ display: 'flex', marginRight: 8 }}>
-                {['#9D7AFF', '#4ECDC4', '#FF6B8A', '#FFD166'].map((c, i) => (
-                  <div key={i} style={{
-                    width: 20, height: 20, borderRadius: '50%',
-                    background: `${c}30`, border: `1.5px solid ${c}`,
-                    marginLeft: i > 0 ? -6 : 0, zIndex: 4 - i,
-                  }} />
-                ))}
-              </div>
-              <span style={{
-                fontFamily: t.body, fontSize: 10, color: t.textMuted,
-              }}>
-                4 heroes fighting
-              </span>
-            </div>
-
-            {/* Your contribution */}
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '6px 10px', borderRadius: 8,
-              background: `${t.violet}08`, border: `1px solid ${t.violet}15`,
-            }}>
-              <span style={{ fontFamily: t.body, fontSize: 10, fontWeight: 600, color: t.textSecondary }}>
-                Your damage
-              </span>
-              <span style={{ fontFamily: t.mono, fontSize: 11, fontWeight: 800, color: t.violet }}>
-                0 DMG
-              </span>
-            </div>
-            <div style={{
-              fontFamily: t.body, fontSize: 9, color: t.textMuted,
-              marginTop: 6, textAlign: 'center', fontStyle: 'italic',
-            }}>
-              Complete quests to deal damage!
-            </div>
+          {/* ═══ ZONE 3 — USER MENU (pinned bottom) ═══ */}
+          <div style={{ marginTop: 'auto' }}>
+            <UserMenu
+              charMeta={charMeta}
+              archetype={archetype}
+              level={level}
+              xpTotal={totalXp}
+            />
           </div>
-
-          {/* ═══ League — Opt-in (Duolingo model) ═══ */}
-          <div style={{
-            padding: 14, borderRadius: 16,
-            background: t.bgCard, border: `1px solid ${t.border}`,
-            marginBottom: 12,
-          }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10,
-            }}>
-              <NeonIcon type="trophy" size={14} color="gold" />
-              <span style={{
-                fontFamily: t.display, fontSize: 11, fontWeight: 700,
-                color: t.textSecondary, textTransform: 'uppercase',
-                letterSpacing: '0.06em', flex: 1,
-              }}>
-                League
-              </span>
-              {/* League tier badge */}
-              <span style={{
-                fontFamily: t.mono, fontSize: 9, fontWeight: 700,
-                color: '#CD7F32', padding: '2px 8px', borderRadius: 8,
-                background: 'rgba(205,127,50,0.10)', border: '1px solid rgba(205,127,50,0.20)',
-                textTransform: 'uppercase',
-              }}>
-                ● Bronze
-              </span>
-            </div>
-
-            {/* League tiers visual */}
-            <div style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              marginBottom: 10, padding: '0 4px',
-            }}>
-              {[
-                { label: 'Bronze', color: '#CD7F32', active: true },
-                { label: 'Silver', color: '#C0C0C0', active: false },
-                { label: 'Gold', color: '#FFD700', active: false },
-                { label: 'Diamond', color: '#4ECDC4', active: false },
-              ].map((league) => (
-                <div key={league.label} style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                }}>
-                  <div style={{
-                    width: 24, height: 24, borderRadius: '50%',
-                    background: league.active ? `${league.color}25` : `${t.border}`,
-                    border: `2px solid ${league.active ? league.color : t.border}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: league.active ? `0 0 8px ${league.color}40` : 'none',
-                    animation: league.active ? 'pulse 2s ease-in-out infinite' : 'none',
-                  }}>
-                    <div style={{
-                      width: 8, height: 8, borderRadius: '50%',
-                      background: league.active ? league.color : t.textMuted,
-                    }} />
-                  </div>
-                  <span style={{
-                    fontFamily: t.mono, fontSize: 8, fontWeight: 700,
-                    color: league.active ? league.color : t.textMuted,
-                  }}>
-                    {league.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {/* Weekly standings */}
-            <div style={{
-              padding: '8px 10px', borderRadius: 8,
-              background: t.bgElevated, border: `1px solid ${t.border}`,
-              marginBottom: 8,
-            }}>
-              <div style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                marginBottom: 4,
-              }}>
-                <span style={{ fontFamily: t.body, fontSize: 10, fontWeight: 600, color: t.textSecondary }}>
-                  Your rank
-                </span>
-                <span style={{ fontFamily: t.mono, fontSize: 12, fontWeight: 800, color: t.text }}>
-                  #— / 30
-                </span>
-              </div>
-              <div style={{
-                fontFamily: t.body, fontSize: 9, color: t.textMuted,
-              }}>
-                Top 10 promote • Bottom 5 demote
-              </div>
-            </div>
-
-            {/* Join CTA (opt-in only — ethical) */}
-            <button style={{
-              width: '100%', padding: '8px 0', borderRadius: 10,
-              background: `${t.gold}12`, border: `1px solid ${t.gold}25`,
-              cursor: 'pointer',
-              fontFamily: t.display, fontSize: 11, fontWeight: 700,
-              color: t.gold, transition: 'all 0.2s ease',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-            }}>
-              <NeonIcon type="trophy" size={12} color="gold" />
-              Join Weekly League
-            </button>
-            <div style={{
-              fontFamily: t.body, fontSize: 8, color: t.textMuted,
-              marginTop: 4, textAlign: 'center',
-            }}>
-              Opt-in • Resets weekly • No pressure
-            </div>
-          </div>
-
-          {/* XP Bar */}
-          <div style={{ padding: '0 4px', marginBottom: 12 }}>
-            <XPBar xp={xpTotal} level={level} />
-          </div>
-
-          {/* User menu */}
-          <UserMenu
-            charData={charData}
-            charMeta={charMeta}
-            archetype={archetype}
-            level={level}
-            xpTotal={xpTotal}
-          />
         </aside>
 
         {/* ═══ Mobile Header ═══ */}
@@ -679,19 +539,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
           {/* XP bar — compact */}
           <div style={{ flex: 1 }}>
-            <XPBar xp={xpTotal} level={level} />
+            <XPBar xp={totalXp} level={level} />
           </div>
-          {/* Streak indicator */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 4,
-            padding: '4px 8px', borderRadius: 12,
-            background: `${t.gold}10`,
-          }}>
-            <NeonIcon type="fire" size={14} color="gold" />
-            <span style={{ fontFamily: t.mono, fontSize: 10, fontWeight: 700, color: t.gold }}>
-              0
-            </span>
-          </div>
+          {/* Streak indicator — hidden in quiet mode */}
+          {!quietMode && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: '4px 8px', borderRadius: 12,
+              background: `${t.gold}10`,
+            }}>
+              <NeonIcon type="fire" size={14} color="gold" />
+              <span style={{ fontFamily: t.mono, fontSize: 10, fontWeight: 700, color: t.gold }}>
+                {currentStreak}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* ═══ Main Content ═══ */}

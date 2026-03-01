@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { AuthProvider } from '@plan2skill/types';
 
 interface AuthState {
@@ -15,27 +16,39 @@ interface AuthState {
   setLoading: (loading: boolean) => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+const initialState = {
   isAuthenticated: false,
-  userId: null,
-  displayName: null,
-  accessToken: null,
-  refreshToken: null,
+  userId: null as string | null,
+  displayName: null as string | null,
+  accessToken: null as string | null,
+  refreshToken: null as string | null,
   isLoading: false,
+};
 
-  setTokens: (accessToken, refreshToken) =>
-    set({ accessToken, refreshToken, isAuthenticated: true }),
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      ...initialState,
 
-  setUser: (userId, displayName) => set({ userId, displayName }),
+      setTokens: (accessToken, refreshToken) =>
+        set({ accessToken, refreshToken, isAuthenticated: true }),
 
-  logout: () =>
-    set({
-      isAuthenticated: false,
-      userId: null,
-      displayName: null,
-      accessToken: null,
-      refreshToken: null,
+      setUser: (userId, displayName) => set({ userId, displayName }),
+
+      logout: () => set({ ...initialState }),
+
+      setLoading: (isLoading) => set({ isLoading }),
     }),
-
-  setLoading: (isLoading) => set({ isLoading }),
-}));
+    {
+      name: 'plan2skill-auth',
+      partialize: (state) => ({
+        // Persist auth credentials, exclude transient loading state
+        isAuthenticated: state.isAuthenticated,
+        userId: state.userId,
+        displayName: state.displayName,
+        accessToken: state.accessToken,
+        refreshToken: state.refreshToken,
+      }),
+    },
+  ),
+);

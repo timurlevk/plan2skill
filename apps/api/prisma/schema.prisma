@@ -10,20 +10,31 @@ datasource db {
 // ─── Auth & User ─────────────────────────────────────────────────
 
 model User {
-  id               String   @id @default(uuid())
-  displayName      String   @db.VarChar(50)
-  authProvider     String   @db.VarChar(10) // apple | google
-  providerSubId    String   @unique @db.VarChar(255) // Zero-PII: provider's anonymous sub
-  onboardingCompleted Boolean @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                  String   @id @default(uuid())
+  displayName         String   @db.VarChar(50)
+  authProvider        String   @db.VarChar(10) // apple | google
+  providerSubId       String   @unique @db.VarChar(255) // Zero-PII: provider's anonymous sub
+  onboardingCompleted Boolean  @default(false)
 
-  character     Character?
-  progression   UserProgression?
-  streak        Streak?
-  roadmaps      Roadmap[]
-  xpEvents      XPEvent[]
-  refreshTokens RefreshToken[]
+  // Phase 5B: UX preferences (DA-04)
+  quietMode           Boolean  @default(false)
+  timezone            String   @default("UTC") @db.VarChar(50) // IANA timezone, e.g. "Europe/Kyiv"
+  locale              String   @default("en") @db.VarChar(10) // i18n locale, e.g. "en", "uk", "de"
+
+  // Phase 6: GDPR two-domain identity (DA-10, designed now)
+  publicId            String?  @unique @db.VarChar(16) // nanoid(16), generated on first social opt-in
+  anonymized          Boolean  @default(false) // GDPR erasure flag
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  character           Character?
+  progression         UserProgression?
+  streak              Streak?
+  roadmaps            Roadmap[]
+  xpEvents            XPEvent[]
+  refreshTokens       RefreshToken[]
+  questCompletions    QuestCompletion[]
 
   @@map("users")
 }
@@ -46,8 +57,8 @@ model RefreshToken {
 model Character {
   id             String   @id @default(uuid())
   userId         String   @unique
-  characterId    String   @db.VarChar(20) // aria, kofi, mei, etc.
-  archetypeId    String   @db.VarChar(20) // strategist, explorer, etc.
+  characterId    String   @db.VarChar(20) // aria, kofi, mei, diego, zara, alex, priya, liam
+  archetypeId    String   @db.VarChar(20) // strategist, explorer, connector, builder, innovator
   evolutionTier  String   @default("novice") @db.VarChar(20)
   companionId    String?  @db.VarChar(20)
 
@@ -95,6 +106,7 @@ model Roadmap {
   status       String   @default("generating") @db.VarChar(20)
   progress     Float    @default(0) // 0-100
   aiModel      String   @default("claude-sonnet-4-6") @db.VarChar(50)
+  locale       String   @default("en") @db.VarChar(10) // locale of generated content
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -141,7 +153,19 @@ model Task {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  milestone Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  // Phase 5C: Quest Engine v2 extensions (DA-05)
+  questType        String    @default("knowledge") @db.VarChar(15)
+  // ^ Validation type: "knowledge" | "physical" | "creative" | "habit" | "social" | "reflection"
+  difficultyTier   Int       @default(1) // 1-5 challenge tier for AI Director
+  requiredTimeSpent Int?     // minimum seconds before completion allowed (time-gating)
+  knowledgeCheck   Json?     // quiz data: { question, options[], correctIndex, explanation }
+  validationType   String    @default("knowledge_quiz") @db.VarChar(30)
+  // ^ "knowledge_quiz" | "effort_reflection" | "artifact_declaration" |
+  //   "completion_attestation" | "social_checkin" | "journal_entry"
+  skillDomain      String?   @db.VarChar(50) // skill domain for diversity enforcement
+
+  milestone        Milestone         @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  questCompletions QuestCompletion[]
 
   @@index([milestoneId])
   @@map("tasks")
@@ -168,15 +192,22 @@ model UserProgression {
 }
 
 model Streak {
-  id               String   @id @default(uuid())
-  userId           String   @unique
-  currentStreak    Int      @default(0)
-  longestStreak    Int      @default(0)
-  lastActivityDate DateTime @default(now())
-  freezesUsed      Int      @default(0)
-  maxFreezes       Int      @default(1) // Free: 1/month, Pro: 4/month
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id               String    @id @default(uuid())
+  userId           String    @unique
+  currentStreak    Int       @default(0)
+  longestStreak    Int       @default(0)
+
+  // Phase 5A: Explicit state machine (DA-01)
+  status           String    @default("active") @db.VarChar(10)
+  // ^ "active" | "at_risk" | "frozen" | "broken"
+
+  lastActivityDate DateTime  @default(now())
+  freezesUsed      Int       @default(0) // resets weekly (free) or monthly (pro)
+  freezesUsedMonth Int       @default(0) // monthly counter for Pro tier
+  maxFreezes       Int       @default(1) // Free: 1/week, Pro: 4/month, Champion: unlimited
+  frozenAt         DateTime? // when freeze was applied (for 3-day max)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -187,7 +218,7 @@ model XPEvent {
   id         String   @id @default(uuid())
   userId     String
   amount     Int
-  source     String   @db.VarChar(30) // task_complete, quiz_pass, boss_defeat, etc.
+  source     String   @db.VarChar(30) // task_complete, quiz_pass, boss_defeat, streak_bonus, etc.
   multiplier Float    @default(1.0)
   metadata   Json     @default("{}")
   createdAt  DateTime @default(now())
@@ -197,4 +228,30 @@ model XPEvent {
   @@index([userId])
   @@index([createdAt])
   @@map("xp_events")
+}
+
+// ─── Quest Completions (Phase 5A, DA-02) ─────────────────────────
+
+model QuestCompletion {
+  id               String   @id @default(uuid())
+  userId           String
+  taskId           String
+  questType        String   @db.VarChar(15)
+  // ^ "knowledge" | "physical" | "creative" | "habit" | "social" | "reflection"
+  rarity           String   @db.VarChar(12)
+  baseXp           Int
+  bonusXp          Int      @default(0)
+  qualityScore     Float?   // 0.0-1.0 engagement depth score
+  validationResult Json     @default("{}")
+  // ^ Type-specific validation data (quiz answers, effort rating, journal text)
+  timeSpentSeconds Int?     // actual time from quest open to submit
+  completedAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, taskId]) // idempotency: one completion per user per task
+  @@index([userId, completedAt]) // daily XP cap aggregation
+  @@index([userId, questType]) // type diversity queries
+  @@map("quest_completions")
 }

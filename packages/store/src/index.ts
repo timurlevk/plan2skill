@@ -3,3 +3,5 @@ export { useOnboardingStore } from './onboarding.store';
 export { useCharacterStore } from './character.store';
 export { useRoadmapStore } from './roadmap.store';
 export { useProgressionStore } from './progression.store';
+export type { QuestCompletion } from './progression.store';
+export { computeLevel, getLevelInfo, xpForLevel } from './level-utils';

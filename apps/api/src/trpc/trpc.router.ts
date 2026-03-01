@@ -7,6 +7,7 @@ import { UserService } from '../user/user.service';
 import { CharacterService } from '../character/character.service';
 import { ProgressionService } from '../progression/progression.service';
 import { RoadmapService } from '../roadmap/roadmap.service';
+import { QuestService } from '../quest/quest.service';
 
 @Injectable()
 export class TrpcRouter implements OnModuleInit {
@@ -19,6 +20,7 @@ export class TrpcRouter implements OnModuleInit {
     private readonly characterService: CharacterService,
     private readonly progressionService: ProgressionService,
     private readonly roadmapService: RoadmapService,
+    private readonly questService: QuestService,
   ) {}
 
   private buildRouter() {
@@ -36,6 +38,17 @@ export class TrpcRouter implements OnModuleInit {
       completeOnboarding: protectedProcedure.mutation(({ ctx }) => {
         return this.userService.completeOnboarding(ctx.userId);
       }),
+      updatePreferences: protectedProcedure
+        .input(
+          z.object({
+            quietMode: z.boolean().optional(),
+            timezone: z.string().max(50).optional(),
+            locale: z.string().max(10).optional(),
+          }),
+        )
+        .mutation(({ ctx, input }) => {
+          return this.userService.updatePreferences(ctx.userId, input);
+        }),
     });
 
     const characterRouter = router({
@@ -94,10 +107,48 @@ export class TrpcRouter implements OnModuleInit {
     });
 
     const progressionRouter = router({
+      getProfile: protectedProcedure.query(({ ctx }) => {
+        return this.progressionService.getProfile(ctx.userId);
+      }),
       completeTask: protectedProcedure
-        .input(z.object({ taskId: z.string().uuid() }))
+        .input(
+          z.object({
+            taskId: z.string().uuid(),
+            validationResult: z.record(z.unknown()).optional(),
+            timeSpentSeconds: z.number().int().positive().optional(),
+          }),
+        )
         .mutation(({ ctx, input }) => {
-          return this.progressionService.completeTask(ctx.userId, input.taskId);
+          return this.progressionService.completeTask(
+            ctx.userId,
+            input.taskId,
+            input.validationResult ?? {},
+            input.timeSpentSeconds,
+          );
+        }),
+      rechargeEnergy: protectedProcedure.mutation(({ ctx }) => {
+        return this.progressionService.rechargeEnergy(ctx.userId);
+      }),
+    });
+
+    const questRouter = router({
+      daily: protectedProcedure.query(({ ctx }) => {
+        return this.questService.getDailyQuests(ctx.userId);
+      }),
+      validate: protectedProcedure
+        .input(
+          z.object({
+            validationType: z.string().max(30),
+            validationData: z.record(z.unknown()),
+            knowledgeCheck: z.unknown().optional(),
+          }),
+        )
+        .mutation(({ input }) => {
+          return this.questService.validateCompletion(
+            input.validationType,
+            input.validationData as Record<string, unknown>,
+            input.knowledgeCheck ?? null,
+          );
         }),
     });
 
@@ -107,6 +158,7 @@ export class TrpcRouter implements OnModuleInit {
         character: characterRouter,
         roadmap: roadmapRouter,
         progression: progressionRouter,
+        quest: questRouter,
       }),
     );
   }

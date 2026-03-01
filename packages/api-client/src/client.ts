@@ -1,10 +1,10 @@
 import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import { createTRPCReact } from '@trpc/react-query';
 
-// Note: AppRouter type is imported from the API package at build time.
-// This type-only import ensures type-safety without runtime dependency.
-// In tsconfig, we reference the API's trpc.router.ts path.
-// For now, use `any` as placeholder — will be replaced by project references.
+// TODO: Replace with proper type import when TypeScript project references
+// are configured between api-client and api packages.
+// For now, AppRouter is typed via inference from trpc.router.ts at the app level.
+// The web app's transpilePackages handles the actual type resolution.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AppRouter = any;
 

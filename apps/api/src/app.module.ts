@@ -7,6 +7,7 @@ import { CharacterModule } from './character/character.module';
 import { ProgressionModule } from './progression/progression.module';
 import { RoadmapModule } from './roadmap/roadmap.module';
 import { AiModule } from './ai/ai.module';
+import { QuestModule } from './quest/quest.module';
 import { TrpcModule } from './trpc/trpc.module';
 
 @Module({
@@ -22,6 +23,7 @@ import { TrpcModule } from './trpc/trpc.module';
     ProgressionModule,
     RoadmapModule,
     AiModule,
+    QuestModule,
     TrpcModule,
   ],
 })

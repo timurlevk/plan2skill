@@ -56,4 +56,14 @@ export class UserService {
       data: { onboardingCompleted: true },
     });
   }
+
+  async updatePreferences(
+    userId: string,
+    prefs: { quietMode?: boolean; timezone?: string; locale?: string },
+  ) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: prefs,
+    });
+  }
 }

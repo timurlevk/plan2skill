@@ -22,9 +22,12 @@ export interface Streak {
   userId: string;
   currentStreak: number;
   longestStreak: number;
+  status: 'active' | 'at_risk' | 'frozen' | 'broken';
   lastActivityDate: string;
   freezesUsed: number;
+  freezesUsedMonth: number;
   maxFreezes: number;
+  frozenAt: string | null;
 }
 
 // ─── XP Event ────────────────────────────────────────────────────
