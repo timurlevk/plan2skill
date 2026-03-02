@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useAuthStore, useProgressionStore, useCharacterStore } from '@plan2skill/store';
+import { useAuthStore, useProgressionStore, useCharacterStore, useRoadmapStore } from '@plan2skill/store';
 import { trpc } from '@plan2skill/api-client';
 
 /**
@@ -39,6 +39,13 @@ export function useServerHydration() {
   });
 
   const { data: computedAttributes } = trpc.equipment.attributes.useQuery(undefined, {
+    enabled: isAuthenticated && !hydratedRef.current,
+    staleTime: 1000 * 60 * 5,
+    retry: 1,
+  });
+
+  // BL-007: Roadmap list hydration
+  const { data: roadmaps } = trpc.roadmap.list.useQuery(undefined, {
     enabled: isAuthenticated && !hydratedRef.current,
     staleTime: 1000 * 60 * 5,
     retry: 1,
@@ -93,7 +100,14 @@ export function useServerHydration() {
     if (computedAttributes) {
       useCharacterStore.getState().setComputedAttributes(computedAttributes as any);
     }
-  }, [profile, mastery, serverAchievements, inventory, computedAttributes]);
+
+    // BL-007: Hydrate roadmap store
+    if (roadmaps && Array.isArray(roadmaps)) {
+      useRoadmapStore.getState().setRoadmaps(roadmaps as any);
+      const active = (roadmaps as any[]).find((r: any) => r.status === 'active');
+      useRoadmapStore.getState().setActiveRoadmap(active ?? null);
+    }
+  }, [profile, mastery, serverAchievements, inventory, computedAttributes, roadmaps]);
 
   return { isHydrating: isAuthenticated && isLoading, isAuthenticated };
 }

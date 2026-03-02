@@ -291,8 +291,41 @@ const ECONOMY_ACHIEVEMENTS: Achievement[] = [
   },
 ];
 
+// ─── ROADMAP MILESTONES (BL-007) ────────────────────────────
+
+const ROADMAP_ACHIEVEMENTS: Achievement[] = [
+  {
+    id: 'roadmap_complete',
+    title: 'Quest Line Conqueror',
+    description: 'Complete your first quest line',
+    icon: 'trophy',
+    rarity: 'epic',
+    xpReward: 200,
+    // Server-triggered — check is for display/sync only
+    check: (s) => s.unlockedAchievements.includes('roadmap_complete'),
+  },
+  {
+    id: 'milestone_first',
+    title: 'First Milestone',
+    description: 'Complete your first milestone',
+    icon: 'medal',
+    rarity: 'uncommon',
+    xpReward: 50,
+    check: (s) => s.unlockedAchievements.includes('milestone_first'),
+  },
+  {
+    id: 'milestone_five',
+    title: 'Wayfinder',
+    description: 'Complete 5 milestones',
+    icon: 'compass',
+    rarity: 'rare',
+    xpReward: 100,
+    check: (s) => s.unlockedAchievements.includes('milestone_five'),
+  },
+];
+
 // ─── COMBINED CATALOG ─────────────────────────────────────────
-// 28 achievements across 6 categories.
+// 31 achievements across 7 categories.
 
 export const ACHIEVEMENTS: Achievement[] = [
   ...QUEST_ACHIEVEMENTS,
@@ -302,4 +335,5 @@ export const ACHIEVEMENTS: Achievement[] = [
   ...MASTERY_ACHIEVEMENTS,
   ...DAILY_ACHIEVEMENTS,
   ...ECONOMY_ACHIEVEMENTS,
+  ...ROADMAP_ACHIEVEMENTS,
 ];

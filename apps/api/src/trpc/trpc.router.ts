@@ -116,6 +116,16 @@ export class TrpcRouter implements OnModuleInit {
         .mutation(({ ctx, input }) => {
           return this.roadmapService.generateRoadmap(ctx.userId, input);
         }),
+      // BL-007: Completion stats for celebration screen
+      completionStats: protectedProcedure
+        .input(z.object({ roadmapId: z.string().uuid() }))
+        .query(({ ctx, input }) => {
+          return this.roadmapService.getCompletionStats(ctx.userId, input.roadmapId);
+        }),
+      // BL-007: Trending domains (GDPR min 50 users/group)
+      trending: protectedProcedure.query(() => {
+        return this.roadmapService.getTrendingDomains();
+      }),
     });
 
     const progressionRouter = router({

@@ -876,16 +876,16 @@ interface RoadmapGoal {
 
 ### Open Questions
 
-| # | Питання | Варіанти | Impact |
-|---|---------|----------|--------|
-| Q1 | Horizontal або vertical layout? | A (horizontal) / B (vertical) / C (mountain) / D (board game) | Core visual direction |
-| Q2 | Скільки milestones per goal? | 5 (phases) / 8-12 (finer-grained) / AI-generated | Data model, visual density |
-| Q3 | Чи показувати multiple goals на одній шкалі? | Tabs (current) / parallel tracks / merged timeline | Layout complexity |
-| Q4 | Чи character pixel art стоїть на поточному node? | Yes / No | Animation complexity, brand identity |
-| Q5 | Чи trophy shelf — real achievements або visual decoration? | Real (linked to achievement system, Phase 5E) / Visual only | Backend integration |
-| Q6 | Чи roadmap = daily quests source? | Yes (quests come from roadmap) / No (separate systems) | Architecture, quest engine changes |
-| Q7 | Mobile layout — що робити з horizontal? | Horizontal scroll / Switch to vertical / Compact mode | Responsive strategy |
-| Q8 | Як обробляти roadmap з AI latency? | Skeleton + progressive reveal / Pre-generate during onboarding / Cache | UX during generation |
+| # | Питання | Варіанти | Impact | **РІШЕННЯ** |
+|---|---------|----------|--------|-------------|
+| Q1 | Horizontal або vertical layout? | A (horizontal) / B (vertical) / C (mountain) / D (board game) | Core visual direction | **✅ ВИРІШЕНО: Card Grid + Drill-Down ("Quest Map").** Hub page = responsive card grid (2-3 cols desktop, 1 col mobile). Кожна картка = Quest Line Card з mini-timeline, XP bar, quest count, streak, rarity border, domain icon. Клік → drill-down до повного горизонтального timeline з Trophy Shelf. Індустрія підтвердила: Coursera, Codecademy, Khan Academy, Brilliant, roadmap.sh — всі використовують Card Grid. RPG ігри (WoW, Skyrim) — категоризований список + detail. Жодна навчальна платформа не використовує паралельні таймлайни. |
+| Q2 | Скільки milestones per goal? | 5 (phases) / 8-12 (finer-grained) / AI-generated | Data model, visual density | **✅ ВИРІШЕНО: AI-generated (динамічно).** AI визначає кількість milestones (5-12) залежно від goal складності, skill level юзера, estimated weeks. Prompt включає: min 5 / max 12 milestones, кожен milestone = 3-8 quests, останній milestone = Boss Challenge. Data model: `milestoneCount` не фіксований, timeline компонент рендерить динамічну кількість нод. |
+| Q3 | Чи показувати multiple goals на одній шкалі? | Tabs (current) / parallel tracks / merged timeline | Layout complexity | **✅ ВИРІШЕНО: Card Grid (з Q1).** Кожен goal = окрема картка на Quest Map hub. Ніяких tabs/parallel tracks/merged timeline. Масштабується 2-7+ goals. Optional: "This Week" merged view для cross-roadmap weekly overview. |
+| Q4 | Чи character pixel art стоїть на поточному node? | Yes / No | Animation complexity, brand identity | **✅ ВИРІШЕНО: Так.** Pixel art персонажа (обраний на онбордінгу) стоїть на активному milestone node з float анімацією. При завершенні milestone — персонаж переходить на наступний node (Meso анімація, 400-1200ms). Board game / Super Mario стиль. Підсилює emotional connection з прогресом. |
+| Q5 | Чи trophy shelf — real achievements або visual decoration? | Real (linked to achievement system, Phase 5E) / Visual only | Backend integration | **✅ ВИРІШЕНО: Real achievements.** Трофеї = повноцінні achievements з Phase 5E. Кожен завершений milestone → achievement unlock (badge + XP + celebration). Трофеї з'являються на Hero Card як pinned badges. Near-unlock teasing (UX-R105) при ~75% прогресу milestone. Інтеграція через існуючий achievement.service.ts + AchievementBadge компонент. |
+| Q6 | Чи roadmap = daily quests source? | Yes (quests come from roadmap) / No (separate systems) | Architecture, quest engine changes | **✅ ВИРІШЕНО: Так, roadmap = quest source.** Daily quests генеруються з активного milestone roadmap. Завершив всі quests milestone → milestone complete → персонаж йде далі → наступний milestone стає active → нові quests. Єдиний прогрес flow: daily home quests ↔ roadmap timeline — одна система. Quest engine змінюється: AI генерує quests по темі активного milestone. |
+| Q7 | Mobile layout — що робити з horizontal? | Horizontal scroll / Switch to vertical / Compact mode | Responsive strategy | **✅ ВИРІШЕНО: Horizontal scroll.** Той самий horizontal timeline на mobile з touch swipe. Auto-scroll до active node (персонажа) при відкритті. Snap scrolling (зупинка на milestone, не між). Peek edges — сусідні ноди видно частково (affordance). Індустріальний стандарт: Duolingo, Spotify, Netflix, iOS App Store — всі horizontal scroll на mobile. |
+| Q8 | Як обробляти roadmap з AI latency? | Skeleton + progressive reveal / Pre-generate during onboarding / Cache | UX during generation | **✅ ВИРІШЕНО: Комбінація всіх трьох.** 1) Pre-generate під час onboarding forge step (anvil анімація маскує latency). 2) Skeleton UI як fallback якщо AI не встигла. 3) Кешування в БД завжди — AI НЕ генерує щоразу заново. Roadmap генерується і оновлюється ТІЛЬКИ через wizard flow. Єдиний хто може впливати на roadmap поза wizard = AI Director (→ Phase 6+ backlog item). |
 
 ### Discovery Deliverables
 
@@ -1128,16 +1128,16 @@ interface TrendingDomain {
 
 ### Open Questions
 
-| # | Питання | Варіанти | Impact |
-|---|---------|----------|--------|
-| Q1 | Чи trophy = achievement badge чи окремий equipment slot? | Achievement (simpler) / Trophy Case slot (richer) | Phase 5E vs 5F integration |
-| Q2 | Скільки AI regenerations дозволяти? | 1 / 3 / unlimited | AI cost, UX |
-| Q3 | Чи "Continue Reviews" = full UX чи просто redirect? | Full card with stats / Just a text link | Design effort |
-| Q4 | Чи Option C (Alt Skills) = Phase 5F equipment unlock? | Yes (requires 5F) / No (just goals, no equipment) | Dependency |
-| Q5 | Чи trending data = real-time чи weekly snapshot? | Real-time / Weekly cache / Daily cache | Infra cost |
-| Q6 | Чи можна повернутись до "What's Next?" після вибору? | Yes (settings page) / No (one-time choice) | Re-entry UX |
-| Q7 | Як обробляти multiple completed roadmaps? | Trophy collection page / Timeline view / Achievement wall | Long-term UX |
-| Q8 | Free vs Premium: чи всі 4 опції доступні на free tier? | All free / Option A only premium / Option D only premium | Monetization |
+| # | Питання | Варіанти | Impact | **РІШЕННЯ** |
+|---|---------|----------|--------|-------------|
+| Q1 | Чи trophy = achievement badge чи окремий equipment slot? | Achievement (simpler) / Trophy Case slot (richer) | Phase 5E vs 5F integration | **✅ ВИРІШЕНО: Achievement badge.** Trophy = Epic achievement (roadmap_complete, +200XP). Badge на Hero Card. Використовує існуючу Phase 5E achievement систему. Без нового equipment slot. |
+| Q2 | Скільки AI regenerations дозволяти? | 1 / 3 / unlimited | AI cost, UX | **✅ ВИРІШЕНО: 3 рази.** Оригінал + 3 regenerations. Після 3 — пропонувати Option B (custom goals). RPG: "Три спроби долі, герою!". Баланс між user choice і AI cost. |
+| Q3 | Чи "Continue Reviews" = full UX чи просто redirect? | Full card with stats / Just a text link | Design effort | **✅ ВИРІШЕНО: Full card (рівна вага).** "Continue Reviews" = повноцінна 5-та картка нарівні з іншими 4 опціями. Той самий card component, RPG vocabulary ("Sharpen Your Skills"), mastery ring, due count badge, XP indicator. Порядок карток адаптивний: якщо є overdue SM-2 reviews → Review card першою; інакше → New Path першою. Обґрунтування: UX-R108 (equal prominence), UX-R163 (no confirmshaming), UX-R001 (Autonomy). 6/8 продуктів (Duolingo, Khan, Headspace, Peloton, FFXIV, WoW) показують practice з рівною вагою. Text link = dark pattern для spaced repetition платформи. |
+| Q4 | Чи Option C (Alt Skills) = Phase 5F equipment unlock? | Yes (requires 5F) / No (just goals, no equipment) | Dependency | **✅ ВИРІШЕНО: Так, equipment unlock.** Новий skill domain → "Domain Explorer" equipment set стає доступним. Domain card показує "Unlocks: [item]". Залежність від Phase 5F equipment system. |
+| Q5 | Чи trending data = real-time чи weekly snapshot? | Real-time / Weekly cache / Daily cache | Infra cost | **✅ ВИРІШЕНО: Weekly cache.** Перерахунок раз/тиждень (pg_cron), кеш в MART view. Мінімальний infra cost. GDPR k-anonymity: показуємо domain ТІЛЬКИ якщо ≥50 юзерів в ньому (Art. 89). На ранніх стадіях trending може бути порожнім — empty state: "Not enough heroes yet." |
+| Q6 | Чи можна повернутись до "What's Next?" після вибору? | Yes (settings page) / No (one-time choice) | Re-entry UX | **✅ ВИРІШЕНО: Так, через Quest Map.** Не one-time choice. Юзер будь-коли може додати новий roadmap через "+Add Quest Line" button на Quest Map hub page. What's Next? — це transition moment, не єдина точка входу. |
+| Q7 | Як обробляти multiple completed roadmaps? | Trophy collection page / Timeline view / Achievement wall | Long-term UX | **✅ ВИРІШЕНО: Trophy collection на Hero Card.** Завершені roadmaps = achievement badges на Hero Card (консистентно з Q5). Quest Map hub показує всі картки: active (кольорові) + completed (з золотим "✓ Complete" badge). Нема окремої Trophy Hall сторінки. |
+| Q8 | Free vs Premium: чи всі 4 опції доступні на free tier? | All free / Option A only premium / Option D only premium | Monetization | **✅ ВИРІШЕНО: Все безкоштовно.** Всі 5 опцій доступні на free tier (UX-R160: "free = повний продукт"). Premium = "more": більше AI regenerations, більше active roadmaps, rare cosmetics. Ніякого гейтингу на retention-critical moment. |
 
 ### Ethical Constraints (BLOCKER)
 
@@ -1166,6 +1166,7 @@ interface TrendingDomain {
 - **Phase 5F** — Equipment system (for Option C domain equipment unlock)
 - **Phase 7** — AI content pipeline (for Option A roadmap generation at scale)
 - **Trending data** — requires enough users (50+) per domain for GDPR-safe aggregation
+- **AI Director** — Phase 6+ backlog: AI Director може динамічно впливати на roadmap (рекомендувати зміни milestones, адаптувати складність). Потрібен окремий brainstorm. Зараз roadmap змінюється ТІЛЬКИ через wizard flow.
 
 ---
 

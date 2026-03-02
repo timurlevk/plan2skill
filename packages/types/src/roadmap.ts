@@ -91,3 +91,31 @@ export interface ForgeCompleteData {
 export interface ForgeErrorData {
   message: string;
 }
+
+// ─── Roadmap Completion Stats (BL-007/008) ──────────────────
+
+export interface RoadmapCompletionStats {
+  roadmapId: string;
+  completedAt: string;
+  totalQuestsCompleted: number;
+  totalXpEarned: number;
+  bestStreak: number;
+  skillsMastered: string[];
+  timeInvestedMinutes: number;
+  achievementsUnlockedCount: number;
+  trophyAchievementId: string;
+}
+
+export interface TrendingDomain {
+  skillDomain: string;
+  heroCount: number;
+  growthPercent: number;
+  avgCompletionWeeks: number;
+}
+
+export type WhatsNextOption =
+  | 'ai_generated'
+  | 'custom_goals'
+  | 'alternative_skills'
+  | 'trending_paths'
+  | 'continue_reviews';

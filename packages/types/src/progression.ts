@@ -76,6 +76,7 @@ export interface TaskCompletionResult {
   currentStreak: number;
   milestoneCompleted: boolean;
   roadmapProgress: number;
+  roadmapCompleted: boolean;
   lootDrop?: LootDrop | null;
 }
 

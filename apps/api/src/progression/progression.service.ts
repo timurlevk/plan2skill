@@ -2,6 +2,8 @@ import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { XPSource, TaskCompletionResult } from '@plan2skill/types';
 import { LootService } from '../loot/loot.service';
+import { RoadmapService } from '../roadmap/roadmap.service';
+import { AchievementService } from '../achievement/achievement.service';
 
 @Injectable()
 export class ProgressionService {
@@ -9,6 +11,10 @@ export class ProgressionService {
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => LootService))
     private readonly lootService: LootService,
+    @Inject(forwardRef(() => RoadmapService))
+    private readonly roadmapService: RoadmapService,
+    @Inject(forwardRef(() => AchievementService))
+    private readonly achievementService: AchievementService,
   ) {}
 
   /**
@@ -370,6 +376,19 @@ export class ProgressionService {
       data: { progress: roadmapProgress },
     });
 
+    // BL-007: Auto-complete roadmap when progress reaches 100%
+    let roadmapCompleted = false;
+    if (roadmapProgress >= 100) {
+      roadmapCompleted = true;
+      try {
+        await this.roadmapService.completeRoadmap(userId, task.milestone.roadmapId);
+        await this.awardXp(userId, 200, 'roadmap_complete');
+        await this.achievementService.unlockAchievement(userId, 'roadmap_complete', 200);
+      } catch {
+        // Non-blocking — roadmap completion failure should not block task completion
+      }
+    }
+
     // Auto-seed spaced repetition review item (Phase 5D)
     if (task.skillDomain) {
       const tomorrow = new Date();
@@ -397,6 +416,7 @@ export class ProgressionService {
       currentStreak: streakResult.currentStreak,
       milestoneCompleted,
       roadmapProgress,
+      roadmapCompleted,
       lootDrop,
     };
   }

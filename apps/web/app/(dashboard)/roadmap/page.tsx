@@ -1,66 +1,100 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { useOnboardingStore } from '@plan2skill/store';
+import React, { useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { useRoadmapStore, useOnboardingStore } from '@plan2skill/store';
+import type { Roadmap, Milestone, Task, Rarity, MilestoneStatus, TaskStatus, TaskType, RoadmapStatus } from '@plan2skill/types';
 import { NeonIcon } from '../../(onboarding)/_components/NeonIcon';
-import { t, rarity, skillLevelRarity } from '../../(onboarding)/_components/tokens';
+import { t } from '../../(onboarding)/_components/tokens';
+import { QuestLineCard } from './_components/QuestLineCard';
 
 // ═══════════════════════════════════════════
-// QUEST LOG — Roadmap page with goal tabs + vertical timeline
-// RPG vocabulary: milestones → phases, tasks → quests
+// QUEST MAP HUB — BL-007
+// Card grid of all roadmaps (replaces hardcoded PHASES[])
+// Data: useRoadmapStore (server) with fallback to onboarding store (localStorage)
 // ═══════════════════════════════════════════
 
-const PHASES = [
-  {
-    title: 'Foundations & Setup',
-    desc: 'Build your base knowledge and set up your environment',
-    rarity: 'common' as const, icon: 'book' as const, taskCount: 12,
-  },
-  {
-    title: 'Core Concepts',
-    desc: 'Master the fundamental skills and core patterns',
-    rarity: 'uncommon' as const, icon: 'code' as const, taskCount: 15,
-  },
-  {
-    title: 'Practical Projects',
-    desc: 'Apply your knowledge through hands-on building',
-    rarity: 'rare' as const, icon: 'rocket' as const, taskCount: 14,
-  },
-  {
-    title: 'Advanced Patterns',
-    desc: 'Level up with advanced techniques and edge cases',
-    rarity: 'epic' as const, icon: 'sparkle' as const, taskCount: 13,
-  },
-  {
-    title: 'Capstone Challenge',
-    desc: 'Prove your mastery with a final boss challenge',
-    rarity: 'legendary' as const, icon: 'crown' as const, taskCount: 5,
-  },
+// ─── Mock roadmap from onboarding data (pre-auth fallback) ──
+
+const MOCK_PHASES: { title: string; desc: string; rarity: Rarity; taskCount: number }[] = [
+  { title: 'Foundations & Setup', desc: 'Build your base knowledge and set up your environment', rarity: 'common', taskCount: 12 },
+  { title: 'Core Concepts', desc: 'Master the fundamental skills and core patterns', rarity: 'uncommon', taskCount: 15 },
+  { title: 'Practical Projects', desc: 'Apply your knowledge through hands-on building', rarity: 'rare', taskCount: 14 },
+  { title: 'Advanced Patterns', desc: 'Level up with advanced techniques and edge cases', rarity: 'epic', taskCount: 13 },
+  { title: 'Capstone Challenge', desc: 'Prove your mastery with a final boss challenge', rarity: 'legendary', taskCount: 5 },
 ];
 
-function distributeWeeks(totalWeeks: number) {
-  // Distribute weeks across 5 phases proportionally
+function buildMockRoadmap(goalLabel: string, goalId: string, totalWeeks: number, dailyMinutes: number): Roadmap {
   const proportions = [0.15, 0.2, 0.3, 0.2, 0.15];
-  let start = 1;
-  return proportions.map((p) => {
-    const weeks = Math.max(1, Math.round(totalWeeks * p));
-    const end = Math.min(start + weeks - 1, totalWeeks);
-    const range = start === end ? `W${start}` : `W${start}-W${end}`;
-    start = end + 1;
-    return range;
+  let weekStart = 1;
+
+  const milestones: Milestone[] = MOCK_PHASES.map((phase, i) => {
+    const weeks = Math.max(1, Math.round(totalWeeks * proportions[i]!));
+    const wEnd = Math.min(weekStart + weeks - 1, totalWeeks);
+    const tasks: Task[] = Array.from({ length: phase.taskCount }, (_, j) => ({
+      id: `mock-task-${goalId}-${i}-${j}`,
+      milestoneId: `mock-ms-${goalId}-${i}`,
+      title: `Quest ${j + 1}`,
+      description: '',
+      taskType: (['article', 'quiz', 'project', 'video', 'review'] as TaskType[])[j % 5]!,
+      estimatedMinutes: dailyMinutes,
+      xpReward: 20 + i * 10,
+      coinReward: 5 + i * 3,
+      rarity: phase.rarity,
+      status: 'locked' as TaskStatus,
+      order: j,
+      completedAt: null,
+    }));
+    // First milestone active, first task available
+    if (i === 0) tasks[0] = { ...tasks[0]!, status: 'available' };
+    const ms: Milestone = {
+      id: `mock-ms-${goalId}-${i}`,
+      roadmapId: `mock-roadmap-${goalId}`,
+      title: phase.title,
+      description: phase.desc,
+      weekStart,
+      weekEnd: wEnd,
+      order: i,
+      status: (i === 0 ? 'active' : 'locked') as MilestoneStatus,
+      progress: 0,
+      tasks,
+    };
+    weekStart = wEnd + 1;
+    return ms;
   });
+
+  return {
+    id: `mock-roadmap-${goalId}`,
+    userId: 'mock',
+    title: `${goalLabel} Roadmap`,
+    goal: goalLabel,
+    description: `Your ${totalWeeks}-week journey to master ${goalLabel}`,
+    durationDays: totalWeeks * 7,
+    dailyMinutes,
+    status: 'active' as RoadmapStatus,
+    progress: 0,
+    aiModel: 'mock',
+    milestones,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
 }
 
-export default function QuestLogPage() {
-  const { selectedGoals, skillAssessments, dailyMinutes, aiEstimateWeeks } = useOnboardingStore();
-  const [activeGoalIdx, setActiveGoalIdx] = useState(0);
+export default function QuestMapPage() {
+  const router = useRouter();
+  const serverRoadmaps = useRoadmapStore((s) => s.roadmaps);
+  const activeRoadmap = useRoadmapStore((s) => s.activeRoadmap);
 
-  const activeGoal = selectedGoals[activeGoalIdx];
-  const assessment = activeGoal ? skillAssessments.find(a => a.goalId === activeGoal.id) : null;
-  const levelRarity = assessment ? skillLevelRarity[assessment.level as keyof typeof skillLevelRarity] : rarity.common;
+  // Fallback: build mock roadmap from onboarding store when server data absent
+  const { selectedGoals, dailyMinutes, aiEstimateWeeks } = useOnboardingStore();
+  const roadmaps = useMemo<Roadmap[]>(() => {
+    if (serverRoadmaps.length > 0) return serverRoadmaps;
+    if (!selectedGoals.length) return [];
+    const weeks = aiEstimateWeeks || 12;
+    return selectedGoals.map((g) => buildMockRoadmap(g.label, g.id, weeks, dailyMinutes));
+  }, [serverRoadmaps, selectedGoals, dailyMinutes, aiEstimateWeeks]);
 
-  const totalWeeks = aiEstimateWeeks || 12;
-  const weekRanges = useMemo(() => distributeWeeks(totalWeeks), [totalWeeks]);
+  const hasCompleted = roadmaps.some((r) => r.status === 'completed');
 
   return (
     <div style={{ animation: 'fadeUp 0.5s ease-out' }}>
@@ -70,266 +104,112 @@ export default function QuestLogPage() {
         fontFamily: t.display, fontSize: 26, fontWeight: 900,
         color: t.text, marginBottom: 8,
       }}>
-        <NeonIcon type="map" size={24} color="cyan" />
-        Quest Log
+        <NeonIcon type="compass" size={24} color="cyan" />
+        Quest Map
       </h1>
       <p style={{
         fontFamily: t.body, fontSize: 14, color: t.textSecondary,
         marginBottom: 24,
       }}>
-        Your learning journey, mapped out phase by phase
+        Your quest lines, mapped and ready for adventure
       </p>
 
-      {/* ─── Goal Tabs (if multiple) ─── */}
-      {selectedGoals.length > 1 && (
+      {/* ─── Card Grid ─── */}
+      {roadmaps.length > 0 ? (
         <div style={{
-          display: 'flex', gap: 8, overflowX: 'auto',
-          paddingBottom: 12, marginBottom: 16,
-          scrollbarWidth: 'none',
-          WebkitOverflowScrolling: 'touch',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+          gap: 16,
         }}>
-          {selectedGoals.map((goal, idx) => {
-            const active = idx === activeGoalIdx;
-            return (
-              <button
-                key={goal.id}
-                onClick={() => setActiveGoalIdx(idx)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '8px 16px', borderRadius: 12,
-                  border: `1px solid ${active ? t.violet : t.border}`,
-                  background: active ? `${t.violet}12` : t.bgCard,
-                  cursor: 'pointer', flexShrink: 0,
-                  transition: 'all 0.2s ease',
-                  position: 'relative',
-                }}
-              >
-                <NeonIcon type="target" size={16} color={active ? 'violet' : 'muted'} />
-                <span style={{
-                  fontFamily: t.display, fontSize: 13, fontWeight: active ? 700 : 500,
-                  color: active ? t.text : t.textSecondary,
-                }}>
-                  {goal.label}
-                </span>
-                {active && (
-                  <div style={{
-                    position: 'absolute', bottom: -1, left: '20%', right: '20%',
-                    height: 2, borderRadius: 1, background: t.gradient,
-                  }} />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
+          {roadmaps.map((roadmap) => (
+            <QuestLineCard
+              key={roadmap.id}
+              roadmap={roadmap}
+              isActive={activeRoadmap?.id === roadmap.id}
+              onClick={() => router.push(`/roadmap/${roadmap.id}`)}
+            />
+          ))}
 
-      {/* ─── Active Roadmap Header ─── */}
-      {activeGoal && (
-        <div style={{
-          padding: 20, borderRadius: 16,
-          background: t.bgCard, border: `1px solid ${t.border}`,
-          marginBottom: 24,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-            <div style={{
-              width: 40, height: 40, borderRadius: 12,
-              background: `${t.violet}12`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <NeonIcon type="target" size={22} color="violet" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <h2 style={{
-                fontFamily: t.display, fontSize: 18, fontWeight: 800, color: t.text,
-                marginBottom: 4,
-              }}>
-                {activeGoal.label}
-              </h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <span style={{
-                  fontFamily: t.mono, fontSize: 10, fontWeight: 700,
-                  color: t.textMuted,
-                }}>
-                  ~{totalWeeks} weeks
-                </span>
-                <span style={{
-                  fontFamily: t.mono, fontSize: 10, fontWeight: 700,
-                  color: t.textMuted,
-                }}>
-                  {dailyMinutes} min/day
-                </span>
-                {/* Skill level badge */}
-                <span style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 3,
-                  fontFamily: t.mono, fontSize: 9, fontWeight: 700,
-                  padding: '2px 8px', borderRadius: 10,
-                  color: levelRarity.color,
-                  background: `${levelRarity.color}12`,
-                  textTransform: 'uppercase',
-                }}>
-                  {levelRarity.icon} {assessment?.level || 'beginner'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Progress bar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ flex: 1, height: 4, borderRadius: 2, background: '#252530', overflow: 'hidden' }}>
+          {/* +Add Quest Line — visible if ≥1 completed roadmap */}
+          {hasCompleted && (
+            <button
+              onClick={() => router.push('/intent')}
+              aria-label="Add a new quest line"
+              style={{
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center',
+                gap: 10, padding: 24, borderRadius: 16,
+                background: 'transparent',
+                border: `2px dashed ${t.border}`,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                minHeight: 140,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = t.violet;
+                e.currentTarget.style.background = `${t.violet}06`;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = t.border;
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
               <div style={{
-                width: '0%', height: '100%', borderRadius: 3,
-                background: t.gradient,
-                transition: 'width 0.6s ease-out',
-              }} />
-            </div>
-            <span style={{ fontFamily: t.mono, fontSize: 12, fontWeight: 800, color: t.cyan }}>
-              0%
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Vertical Timeline ─── */}
-      {activeGoal ? (
-        <div style={{ position: 'relative', paddingLeft: 40 }}>
-          {/* Vertical line — centered on node axis (14px from left) */}
-          <div style={{
-            position: 'absolute', left: 13, top: 0, bottom: 0,
-            width: 2, borderRadius: 1,
-            background: `linear-gradient(to bottom, ${t.violet}40, ${t.border}, ${t.border})`,
-          }} />
-
-          {PHASES.map((phase, i) => {
-            const isActive = i === 0;
-            const isLocked = i > 0;
-            const isCapstone = i === PHASES.length - 1;
-            const r = rarity[phase.rarity];
-
-            return (
-              <div
-                key={phase.title}
-                style={{
-                  position: 'relative', marginBottom: i < PHASES.length - 1 ? 16 : 0,
-                  animation: `fadeUp 0.4s ease-out ${i * 0.08}s both`,
-                }}
-              >
-                {/* Node — 28px circle, center at 14px from container left */}
-                <div style={{
-                  position: 'absolute', left: -40, top: 12,
-                  width: 28, height: 28,
-                  borderRadius: '50%', zIndex: 2,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: isActive ? t.violet : isLocked ? '#252530' : `${r.color}20`,
-                  border: `2px solid ${isActive ? t.violet : r.color}`,
-                  boxShadow: isActive ? `0 0 12px ${t.violet}40` : isCapstone ? `0 0 8px ${r.color}30` : 'none',
-                  animation: isActive ? 'pulse 2s ease-in-out infinite' : 'none',
-                }}>
-                  {isCapstone ? (
-                    <NeonIcon type="crown" size={14} color={isLocked ? 'muted' : r.color} />
-                  ) : isActive ? (
-                    <span style={{
-                      fontFamily: t.mono, fontSize: 11, fontWeight: 800, color: '#FFF',
-                    }}>
-                      {i + 1}
-                    </span>
-                  ) : (
-                    <span style={{
-                      fontFamily: t.mono, fontSize: 11, fontWeight: 800,
-                      color: isLocked ? t.textMuted : r.color,
-                    }}>
-                      {i + 1}
-                    </span>
-                  )}
-                </div>
-
-                {/* Card */}
-                <div style={{
-                  padding: 16, borderRadius: 16,
-                  background: t.bgCard,
-                  border: `1px solid ${isActive ? `${t.violet}40` : isCapstone ? `${r.color}30` : t.border}`,
-                  opacity: isLocked ? 0.6 : 1,
-                  transition: 'all 0.2s ease',
-                  animation: isCapstone ? 'glowPulse 3s ease-in-out infinite' : 'none',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <NeonIcon
-                      type={isLocked && !isCapstone ? 'lock' : phase.icon}
-                      size={18}
-                      color={isActive ? 'violet' : isLocked ? 'muted' : r.color}
-                      active={isActive}
-                    />
-                    <span style={{
-                      fontFamily: t.display, fontSize: 15, fontWeight: 700,
-                      color: isLocked ? t.textMuted : t.text, flex: 1,
-                    }}>
-                      {phase.title}
-                    </span>
-                    {/* Week badge */}
-                    <span style={{
-                      fontFamily: t.mono, fontSize: 10, fontWeight: 700,
-                      color: t.textMuted, padding: '2px 8px', borderRadius: 8,
-                      background: `${t.border}`,
-                    }}>
-                      {weekRanges[i]}
-                    </span>
-                  </div>
-
-                  <p style={{
-                    fontFamily: t.body, fontSize: 12, color: t.textMuted,
-                    marginBottom: 8, lineHeight: 1.4,
-                  }}>
-                    {phase.desc}
-                  </p>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {/* Rarity badge */}
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 3,
-                      fontFamily: t.mono, fontSize: 9, fontWeight: 700,
-                      padding: '2px 8px', borderRadius: 8,
-                      color: r.color, background: `${r.color}10`,
-                      textTransform: 'uppercase',
-                    }}>
-                      {r.icon} {r.label}
-                    </span>
-
-                    {/* Progress bar */}
-                    <div style={{ flex: 1, height: 4, borderRadius: 2, background: '#252530', overflow: 'hidden' }}>
-                      <div style={{
-                        width: '0%', height: '100%', borderRadius: 2,
-                        background: `linear-gradient(90deg, ${r.color}, ${t.cyan})`,
-                        transition: 'width 0.6s ease-out',
-                      }} />
-                    </div>
-
-                    {/* Quest count */}
-                    <span style={{
-                      fontFamily: t.mono, fontSize: 10, fontWeight: 700,
-                      color: t.textMuted, whiteSpace: 'nowrap',
-                    }}>
-                      0/{phase.taskCount} quests
-                    </span>
-                  </div>
-                </div>
+                width: 40, height: 40, borderRadius: 12,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: `${t.violet}10`,
+              }}>
+                <NeonIcon type="plus" size={20} color="violet" />
               </div>
-            );
-          })}
+              <span style={{
+                fontFamily: t.display, fontSize: 14, fontWeight: 700,
+                color: t.textSecondary,
+              }}>
+                Add Quest Line
+              </span>
+            </button>
+          )}
         </div>
       ) : (
+        /* ─── Empty State ─── */
         <div style={{
           padding: 40, borderRadius: 16,
           background: t.bgCard, border: `1px solid ${t.border}`,
           textAlign: 'center',
         }}>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
-            <NeonIcon type="map" size={40} color="muted" />
+            <NeonIcon type="compass" size={40} color="muted" />
           </div>
-          <p style={{ fontFamily: t.display, fontSize: 16, fontWeight: 700, color: t.textMuted, marginBottom: 4 }}>
-            No quests available
+          <p style={{
+            fontFamily: t.display, fontSize: 16, fontWeight: 700,
+            color: t.textMuted, marginBottom: 4,
+          }}>
+            No quest lines yet, hero!
           </p>
-          <p style={{ fontFamily: t.body, fontSize: 13, color: t.textMuted }}>
-            Complete onboarding to begin your quest log
+          <p style={{
+            fontFamily: t.body, fontSize: 13, color: t.textMuted,
+            marginBottom: 16,
+          }}>
+            Begin your journey by forging a quest line
           </p>
+          <button
+            onClick={() => router.push('/intent')}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '10px 20px', borderRadius: 12,
+              background: t.gradient, border: 'none',
+              cursor: 'pointer', transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+          >
+            <NeonIcon type="fire" size={16} color="#FFF" />
+            <span style={{
+              fontFamily: t.display, fontSize: 14, fontWeight: 700, color: '#FFF',
+            }}>
+              Forge Quest Line
+            </span>
+          </button>
         </div>
       )}
     </div>

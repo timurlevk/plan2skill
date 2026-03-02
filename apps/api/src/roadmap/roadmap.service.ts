@@ -118,6 +118,121 @@ export class RoadmapService {
     });
   }
 
+  // ─── BL-007: Roadmap Completion ──────────────────────────────
+
+  async completeRoadmap(userId: string, roadmapId: string) {
+    await this.prisma.roadmap.update({
+      where: { id: roadmapId },
+      data: { status: 'completed', progress: 100 },
+    });
+
+    // Activate next locked milestone's roadmap if any (auto-advance)
+    const nextActive = await this.prisma.milestone.findFirst({
+      where: { roadmapId, status: 'locked' },
+      orderBy: { order: 'asc' },
+    });
+    if (nextActive) {
+      await this.prisma.milestone.update({
+        where: { id: nextActive.id },
+        data: { status: 'active' },
+      });
+    }
+
+    return this.getCompletionStats(userId, roadmapId);
+  }
+
+  async getCompletionStats(userId: string, roadmapId: string) {
+    const roadmap = await this.prisma.roadmap.findFirst({
+      where: { id: roadmapId, userId },
+      include: {
+        milestones: {
+          include: { tasks: true },
+        },
+      },
+    });
+    if (!roadmap) return null;
+
+    const allTasks = roadmap.milestones.flatMap((m) => m.tasks);
+    const completedTasks = allTasks.filter((t) => t.status === 'completed');
+
+    // Aggregate XP earned for this roadmap's tasks
+    const xpEvents = await this.prisma.xPEvent.findMany({
+      where: {
+        userId,
+        source: { in: ['task_complete', 'milestone_complete'] },
+        createdAt: { gte: roadmap.createdAt },
+      },
+    });
+    const totalXpEarned = xpEvents.reduce((sum, e) => sum + e.amount, 0);
+
+    // Get time invested from quest completions
+    const completions = await this.prisma.questCompletion.findMany({
+      where: {
+        userId,
+        taskId: { in: completedTasks.map((t) => t.id) },
+      },
+    });
+    const timeInvestedMinutes = Math.round(
+      completions.reduce((sum, c) => sum + (c.timeSpentSeconds ?? 0), 0) / 60,
+    );
+
+    // Get streak info
+    const streak = await this.prisma.streak.findUnique({ where: { userId } });
+
+    // Get achievements count
+    const achievementCount = await this.prisma.achievementUnlock.count({
+      where: {
+        userId,
+        unlockedAt: { gte: roadmap.createdAt },
+      },
+    });
+
+    // Get mastered skills
+    const masteredReviews = await this.prisma.reviewItem.findMany({
+      where: { userId, masteryLevel: { gte: 5 } },
+      select: { skillDomain: true },
+    });
+    const skillsMastered = [...new Set(masteredReviews.map((r) => r.skillDomain).filter(Boolean))] as string[];
+
+    return {
+      roadmapId,
+      completedAt: new Date().toISOString(),
+      totalQuestsCompleted: completedTasks.length,
+      totalXpEarned,
+      bestStreak: streak?.longestStreak ?? 0,
+      skillsMastered,
+      timeInvestedMinutes,
+      achievementsUnlockedCount: achievementCount,
+      trophyAchievementId: 'roadmap_complete',
+    };
+  }
+
+  // ─── BL-007: Trending Domains (GDPR: min 50 users/group) ──
+
+  async getTrendingDomains() {
+    // Aggregate skill domains across all users — only show groups with ≥50 users
+    const trending = await this.prisma.$queryRaw<
+      { skillDomain: string; heroCount: number; growthPercent: number; avgCompletionWeeks: number }[]
+    >`
+      SELECT
+        t.skill_domain AS "skillDomain",
+        COUNT(DISTINCT r.user_id)::int AS "heroCount",
+        0 AS "growthPercent",
+        ROUND(AVG(r.duration_days) / 7.0)::int AS "avgCompletionWeeks"
+      FROM ods.task t
+      JOIN ods.milestone m ON m.id = t.milestone_id
+      JOIN ods.roadmap r ON r.id = m.roadmap_id
+      WHERE t.skill_domain IS NOT NULL
+        AND r.status IN ('active', 'completed')
+      GROUP BY t.skill_domain
+      HAVING COUNT(DISTINCT r.user_id) >= 50
+      ORDER BY "heroCount" DESC
+      LIMIT 5
+    `;
+
+    return trending;
+  }
+
   async getTodaysTasks(userId: string) {
     const roadmap = await this.prisma.roadmap.findFirst({
       where: { userId, status: 'active' },

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Roadmap, Task } from '@plan2skill/types';
+import type { Roadmap, Task, RoadmapCompletionStats, TrendingDomain } from '@plan2skill/types';
 
 interface RoadmapState {
   roadmaps: Roadmap[];
@@ -8,12 +8,17 @@ interface RoadmapState {
   isGenerating: boolean;
   forgeProgress: number;
   forgePhase: string;
+  // BL-007: Completion stats + trending
+  completionStats: RoadmapCompletionStats | null;
+  trendingDomains: TrendingDomain[];
 
   setRoadmaps: (roadmaps: Roadmap[]) => void;
   setActiveRoadmap: (roadmap: Roadmap | null) => void;
   setTodaysTasks: (tasks: Task[]) => void;
   setForgeState: (isGenerating: boolean, progress: number, phase: string) => void;
   updateTaskStatus: (taskId: string, status: string) => void;
+  setCompletionStats: (stats: RoadmapCompletionStats | null) => void;
+  setTrendingDomains: (domains: TrendingDomain[]) => void;
   reset: () => void;
 }
 
@@ -24,6 +29,8 @@ export const useRoadmapStore = create<RoadmapState>((set) => ({
   isGenerating: false,
   forgeProgress: 0,
   forgePhase: '',
+  completionStats: null,
+  trendingDomains: [],
 
   setRoadmaps: (roadmaps) => set({ roadmaps }),
   setActiveRoadmap: (activeRoadmap) => set({ activeRoadmap }),
@@ -36,6 +43,8 @@ export const useRoadmapStore = create<RoadmapState>((set) => ({
         t.id === taskId ? { ...t, status: status as Task['status'] } : t,
       ),
     })),
+  setCompletionStats: (completionStats) => set({ completionStats }),
+  setTrendingDomains: (trendingDomains) => set({ trendingDomains }),
   reset: () =>
     set({
       roadmaps: [],
@@ -44,5 +53,7 @@ export const useRoadmapStore = create<RoadmapState>((set) => ({
       isGenerating: false,
       forgeProgress: 0,
       forgePhase: '',
+      completionStats: null,
+      trendingDomains: [],
     }),
 }));

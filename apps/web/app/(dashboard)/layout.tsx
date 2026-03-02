@@ -19,7 +19,7 @@ import { RightSidebar } from './_components/RightSidebar';
 
 const NAV_ITEMS = [
   { href: '/home',      label: 'Command Center', icon: 'compass'   as const, badge: false },
-  { href: '/roadmap',   label: 'Quest Log',      icon: 'map'       as const, badge: false },
+  { href: '/roadmap',   label: 'Quest Map',       icon: 'compass'   as const, badge: false },
   { href: '/forge',     label: 'The Forge',       icon: 'fire'      as const, badge: false },
   { href: '/shop',      label: 'Merchant',        icon: 'gem'       as const, badge: false },
   { href: '/league',    label: 'Guild Arena',     icon: 'trophy'    as const, badge: true  },
