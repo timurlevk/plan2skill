@@ -10,6 +10,10 @@ import { AiModule } from './ai/ai.module';
 import { QuestModule } from './quest/quest.module';
 import { SpacedRepetitionModule } from './spaced-repetition/spaced-repetition.module';
 import { AchievementModule } from './achievement/achievement.module';
+import { EquipmentModule } from './equipment/equipment.module';
+import { LootModule } from './loot/loot.module';
+import { ForgeModule } from './forge/forge.module';
+import { ShopModule } from './shop/shop.module';
 import { TrpcModule } from './trpc/trpc.module';
 
 @Module({
@@ -28,6 +32,10 @@ import { TrpcModule } from './trpc/trpc.module';
     QuestModule,
     SpacedRepetitionModule,
     AchievementModule,
+    EquipmentModule,
+    LootModule,
+    ForgeModule,
+    ShopModule,
     TrpcModule,
   ],
 })

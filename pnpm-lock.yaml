@@ -217,6 +217,9 @@ importers:
       '@trpc/react-query':
         specifier: ^11.0.0
         version: 11.10.0(@tanstack/react-query@5.90.21(react@19.2.4))(@trpc/client@11.10.0(@trpc/server@11.10.0(typescript@5.9.3))(typescript@5.9.3))(@trpc/server@11.10.0(typescript@5.9.3))(react@19.2.4)(typescript@5.9.3)
+      '@xstate/react':
+        specifier: ^5.0.0
+        version: 5.0.5(@types/react@19.2.14)(react@19.2.4)(xstate@5.28.0)
       framer-motion:
         specifier: ^11.0.0
         version: 11.18.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -229,6 +232,9 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.2.4(react@19.2.4)
+      xstate:
+        specifier: ^5.19.0
+        version: 5.28.0
       zustand:
         specifier: ^5.0.0
         version: 5.0.11(@types/react@19.2.14)(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4))
@@ -2314,6 +2320,15 @@ packages:
   '@xmldom/xmldom@0.8.11':
     resolution: {integrity: sha512-cQzWCtO6C8TQiYl1ruKNn2U6Ao4o4WBBcbL61yJl84x+j5sOWWFU9X7DpND8XZG3daDppSsigMdfAIl2upQBRw==}
     engines: {node: '>=10.0.0'}
+
+  '@xstate/react@5.0.5':
+    resolution: {integrity: sha512-MfF/cPHa3lNKJmGFpUycMbNP25qBXyZXrxc8VYNroAu0Nnk0DV5WzAkTcQXma0xEC4dSwsoA+YQuKbZATtqvgg==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+      xstate: ^5.19.4
+    peerDependenciesMeta:
+      xstate:
+        optional: true
 
   '@xtuc/ieee754@1.2.0':
     resolution: {integrity: sha512-DX8nKgqcGwsc0eJSqYt5lwP4DH5FlHnmuWWBRy7X0NcaGR0ZtuyeESgMwTYVEtxmsNGY+qit4QYT/MIYTOTPeA==}
@@ -5432,6 +5447,15 @@ packages:
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
 
+  use-isomorphic-layout-effect@1.2.1:
+    resolution: {integrity: sha512-tpZZ+EX0gaghDAiFR37hj5MgY6ZN55kLiPkJsKxBMZ6GZdOSPJXiOzPM984oPYZ5AnehYx5WQp1+ME8I/P/pRA==}
+    peerDependencies:
+      '@types/react': '*'
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+
   use-latest-callback@0.2.6:
     resolution: {integrity: sha512-FvRG9i1HSo0wagmX63Vrm8SnlUU3LMM3WyZkQ76RnslpBrX694AdG4A0zQBx2B3ZifFA0yv/BaEHGBnEax5rZg==}
     peerDependencies:
@@ -5615,6 +5639,9 @@ packages:
   xmlbuilder@15.1.1:
     resolution: {integrity: sha512-yMqGBqtXyeN1e3TGYvgNgDVZ3j84W4cwkOXQswghol6APgZWaff9lnbvN7MHYJOiXsvGPXtjTYJEiC9J2wv9Eg==}
     engines: {node: '>=8.0'}
+
+  xstate@5.28.0:
+    resolution: {integrity: sha512-Iaqq6ZrUzqeUtA3hC5LQKZfR8ZLzEFTImMHJM3jWEdVvXWdKvvVLXZEiNQWm3SCA9ZbEou/n5rcsna1wb9t28A==}
 
   xtend@4.0.2:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
@@ -8334,6 +8361,16 @@ snapshots:
   '@xmldom/xmldom@0.7.13': {}
 
   '@xmldom/xmldom@0.8.11': {}
+
+  '@xstate/react@5.0.5(@types/react@19.2.14)(react@19.2.4)(xstate@5.28.0)':
+    dependencies:
+      react: 19.2.4
+      use-isomorphic-layout-effect: 1.2.1(@types/react@19.2.14)(react@19.2.4)
+      use-sync-external-store: 1.6.0(react@19.2.4)
+    optionalDependencies:
+      xstate: 5.28.0
+    transitivePeerDependencies:
+      - '@types/react'
 
   '@xtuc/ieee754@1.2.0': {}
 
@@ -11670,6 +11707,12 @@ snapshots:
     dependencies:
       punycode: 2.3.1
 
+  use-isomorphic-layout-effect@1.2.1(@types/react@19.2.14)(react@19.2.4):
+    dependencies:
+      react: 19.2.4
+    optionalDependencies:
+      '@types/react': 19.2.14
+
   use-latest-callback@0.2.6(react@19.2.4):
     dependencies:
       react: 19.2.4
@@ -11828,6 +11871,8 @@ snapshots:
   xmlbuilder@14.0.0: {}
 
   xmlbuilder@15.1.1: {}
+
+  xstate@5.28.0: {}
 
   xtend@4.0.2: {}
 

@@ -1,10 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { XPSource, TaskCompletionResult } from '@plan2skill/types';
+import { LootService } from '../loot/loot.service';
 
 @Injectable()
 export class ProgressionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => LootService))
+    private readonly lootService: LootService,
+  ) {}
 
   /**
    * XP needed to go from level n to level n+1.
@@ -115,6 +120,17 @@ export class ProgressionService {
           frozenAt: null,
         },
       });
+
+      // Phase 5F: Daily login bonus (10 coins) + streak milestone (25 coins at 7-day multiples)
+      let coinBonus = 10; // daily login
+      if (newStreak > 0 && newStreak % 7 === 0) {
+        coinBonus += 25; // streak milestone
+      }
+      await this.prisma.userProgression.update({
+        where: { userId },
+        data: { coins: { increment: coinBonus } },
+      });
+
       return { updated: true, currentStreak: newStreak, status: 'active' };
     }
 
@@ -290,6 +306,14 @@ export class ProgressionService {
       data: { coins: { increment: task.coinReward } },
     });
 
+    // Roll loot drop (Phase 5F — DEC-5F-01: guaranteed 100% drop)
+    let lootDrop: { itemId: string; slot: string; rarity: string; name: string; description: string; attributeBonus: Record<string, number> } | null = null;
+    try {
+      lootDrop = await this.lootService.rollLoot(userId, task.rarity ?? 'common', task.skillDomain ?? null);
+    } catch {
+      // Non-blocking — loot failure should not block quest completion
+    }
+
     // Record quest completion (DA-02)
     await this.prisma.questCompletion.create({
       data: {
@@ -373,6 +397,7 @@ export class ProgressionService {
       currentStreak: streakResult.currentStreak,
       milestoneCompleted,
       roadmapProgress,
+      lootDrop,
     };
   }
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useAuthStore, useProgressionStore } from '@plan2skill/store';
+import { useAuthStore, useProgressionStore, useCharacterStore } from '@plan2skill/store';
 import { trpc } from '@plan2skill/api-client';
 
 /**
@@ -26,6 +26,19 @@ export function useServerHydration() {
 
 
   const { data: serverAchievements } = trpc.achievement.list.useQuery(undefined, {
+    enabled: isAuthenticated && !hydratedRef.current,
+    staleTime: 1000 * 60 * 5,
+    retry: 1,
+  });
+
+  // Phase 5F: equipment inventory + computed attributes
+  const { data: inventory } = trpc.equipment.inventory.useQuery(undefined, {
+    enabled: isAuthenticated && !hydratedRef.current,
+    staleTime: 1000 * 60 * 5,
+    retry: 1,
+  });
+
+  const { data: computedAttributes } = trpc.equipment.attributes.useQuery(undefined, {
     enabled: isAuthenticated && !hydratedRef.current,
     staleTime: 1000 * 60 * 5,
     retry: 1,
@@ -72,7 +85,15 @@ export function useServerHydration() {
         useProgressionStore.setState({ unlockedAchievements: merged });
       }
     }
-  }, [profile, mastery, serverAchievements]);
+
+    // Hydrate equipment inventory + computed attributes (Phase 5F)
+    if (inventory) {
+      useCharacterStore.getState().setInventory(inventory as any);
+    }
+    if (computedAttributes) {
+      useCharacterStore.getState().setComputedAttributes(computedAttributes as any);
+    }
+  }, [profile, mastery, serverAchievements, inventory, computedAttributes]);
 
   return { isHydrating: isAuthenticated && isLoading, isAuthenticated };
 }

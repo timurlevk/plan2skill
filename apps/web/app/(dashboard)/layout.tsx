@@ -10,6 +10,7 @@ import { CHARACTERS, charArtStrings, charPalettes } from '../(onboarding)/_compo
 import { parseArt, PixelCanvas, AnimatedPixelCanvas } from '../(onboarding)/_components/PixelEngine';
 import { XPBar } from '../(onboarding)/_components/XPBar';
 import { ARCHETYPES } from '../(onboarding)/_data/archetypes';
+import { RightSidebar } from './_components/RightSidebar';
 
 // ═══════════════════════════════════════════
 // DASHBOARD LAYOUT — Gamified Command Center
@@ -17,10 +18,12 @@ import { ARCHETYPES } from '../(onboarding)/_data/archetypes';
 // ═══════════════════════════════════════════
 
 const NAV_ITEMS = [
-  { href: '/home',      label: 'Command Center', icon: 'compass' as const, badge: false },
-  { href: '/roadmap',   label: 'Quest Log',      icon: 'map'     as const, badge: false },
-  { href: '/league',    label: 'Guild Arena',     icon: 'trophy'  as const, badge: true  },
-  { href: '/hero-card', label: 'Hero Card',       icon: 'shield'  as const, badge: false },
+  { href: '/home',      label: 'Command Center', icon: 'compass'   as const, badge: false },
+  { href: '/roadmap',   label: 'Quest Log',      icon: 'map'       as const, badge: false },
+  { href: '/forge',     label: 'The Forge',       icon: 'fire'      as const, badge: false },
+  { href: '/shop',      label: 'Merchant',        icon: 'gem'       as const, badge: false },
+  { href: '/league',    label: 'Guild Arena',     icon: 'trophy'    as const, badge: true  },
+  { href: '/hero-card', label: 'Hero Card',       icon: 'shield'    as const, badge: false },
 ];
 
 // ─── User Menu (dropdown from bottom of sidebar) ───
@@ -266,11 +269,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Guard: if onboarding not complete, redirect to v2 onboarding
   // Backward-compatible: accept either v1 (forgeComplete) or v2 (onboardingCompletedAt)
   const onboardingDone = forgeComplete || !!onboardingCompletedAt;
-  if (!hydrated) return null; // Wait for store rehydration
-  if (!onboardingDone) {
-    router.replace('/intent');
-    return null;
-  }
+  useEffect(() => {
+    if (hydrated && !onboardingDone) {
+      router.replace('/intent');
+    }
+  }, [hydrated, onboardingDone, router]);
 
   const charMeta = CHARACTERS.find(c => c.id === characterId);
   const archetype = archetypeId ? ARCHETYPES[archetypeId] : null;
@@ -284,6 +287,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       art: parseArt(charArtStrings[characterId]!, charPalettes[characterId]!),
     };
   }, [characterId]);
+
+  // Early return AFTER all hooks (Rules of Hooks)
+  if (!hydrated || !onboardingDone) return null;
 
   return (
     <>
@@ -337,11 +343,55 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           0%, 100% { box-shadow: 0 0 6px rgba(157,122,255,0.2); }
           50%      { box-shadow: 0 0 14px rgba(157,122,255,0.5); }
         }
+        @keyframes hammerStrike {
+          0%   { transform: rotate(0deg) scale(1); }
+          40%  { transform: rotate(-30deg) scale(1.1); }
+          60%  { transform: rotate(10deg) scale(0.95); }
+          100% { transform: rotate(0deg) scale(1); }
+        }
+        @keyframes sparkBurst {
+          0%   { opacity: 1; transform: scale(0) rotate(0deg); }
+          50%  { opacity: 1; transform: scale(1.5) rotate(180deg); }
+          100% { opacity: 0; transform: scale(2) rotate(360deg); }
+        }
+        @keyframes cardFlip {
+          0%   { transform: perspective(800px) rotateY(180deg) scale(0.8); opacity: 0; }
+          60%  { transform: perspective(800px) rotateY(-10deg) scale(1.05); opacity: 1; }
+          100% { transform: perspective(800px) rotateY(0deg) scale(1); opacity: 1; }
+        }
+        @keyframes confettiFall {
+          0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+          100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+        }
         @media (prefers-reduced-motion: reduce) {
           *, *::before, *::after {
             animation-duration: 0.01ms !important;
             animation-iteration-count: 1 !important;
             transition-duration: 0.01ms !important;
+          }
+        }
+        /* BL-004: Right sidebar — visible only on wide desktop */
+        .dashboard-right-sidebar {
+          display: none;
+        }
+        /* BL-004: Sidebar content inline in main — hidden when sidebar visible */
+        .sidebar-content-inline {
+          display: block;
+        }
+        @media (min-width: 1200px) {
+          .dashboard-right-sidebar {
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            width: 300px;
+          }
+          .sidebar-content-inline {
+            display: none;
+          }
+        }
+        @media (min-width: 1200px) and (max-width: 1399px) {
+          .dashboard-right-sidebar {
+            width: 260px;
           }
         }
       `}</style>
@@ -573,14 +623,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
         </div>
 
-        {/* ═══ Main Content ═══ */}
-        <main style={{ flex: 1, position: 'relative', zIndex: 1, height: '100%', overflowY: 'auto' }}>
-          {/* Mobile top padding for sticky header */}
-          <div className="md:hidden" style={{ height: 56 }} />
-          <div style={{ maxWidth: 900, margin: '0 auto', padding: '32px 24px 96px' }}>
-            {children}
-          </div>
-        </main>
+        {/* ═══ Main Content + Right Sidebar ═══ */}
+        <div style={{ flex: 1, position: 'relative', zIndex: 1, height: '100%', overflowY: 'auto', display: 'flex' }}>
+          <main style={{ flex: 1, minWidth: 0 }}>
+            {/* Mobile top padding for sticky header */}
+            <div className="md:hidden" style={{ height: 56 }} />
+            <div style={{ maxWidth: 720, margin: '0 auto', padding: '32px 24px 96px' }}>
+              {children}
+            </div>
+          </main>
+
+          {/* ═══ Right Sidebar — BL-004: secondary content ═══ */}
+          <aside
+            className="dashboard-right-sidebar"
+            style={{
+              borderLeft: `1px solid ${t.border}`,
+              paddingLeft: 20,
+              paddingRight: 20,
+              overflowY: 'auto',
+              height: '100%',
+            }}
+          >
+            <RightSidebar />
+          </aside>
+        </div>
 
         {/* ═══ Mobile Bottom Tab Bar ═══ */}
         {/* NOTE: no inline display — Tailwind flex/hidden controls visibility */}

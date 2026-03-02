@@ -10,6 +10,10 @@ import { RoadmapService } from '../roadmap/roadmap.service';
 import { QuestService } from '../quest/quest.service';
 import { SpacedRepetitionService } from '../spaced-repetition/spaced-repetition.service';
 import { AchievementService } from '../achievement/achievement.service';
+import { EquipmentService } from '../equipment/equipment.service';
+import { LootService } from '../loot/loot.service';
+import { ForgeService } from '../forge/forge.service';
+import { ShopService } from '../shop/shop.service';
 
 @Injectable()
 export class TrpcRouter implements OnModuleInit {
@@ -25,6 +29,10 @@ export class TrpcRouter implements OnModuleInit {
     private readonly questService: QuestService,
     private readonly spacedRepetitionService: SpacedRepetitionService,
     private readonly achievementService: AchievementService,
+    private readonly equipmentService: EquipmentService,
+    private readonly lootService: LootService,
+    private readonly forgeService: ForgeService,
+    private readonly shopService: ShopService,
   ) {}
 
   private buildRouter() {
@@ -211,6 +219,70 @@ export class TrpcRouter implements OnModuleInit {
       }),
     });
 
+    // ─── Equipment (Phase 5F) ───────────────────────────────────
+
+    const equipmentRouter = router({
+      inventory: protectedProcedure.query(({ ctx }) => {
+        return this.equipmentService.getInventory(ctx.userId);
+      }),
+      equipped: protectedProcedure.query(({ ctx }) => {
+        return this.equipmentService.getEquipped(ctx.userId);
+      }),
+      equip: protectedProcedure
+        .input(z.object({
+          slot: z.enum(['weapon', 'shield', 'armor', 'helmet', 'boots', 'ring', 'companion']),
+          itemId: z.string().max(60),
+        }))
+        .mutation(({ ctx, input }) => {
+          return this.equipmentService.equip(ctx.userId, input.slot, input.itemId);
+        }),
+      unequip: protectedProcedure
+        .input(z.object({
+          slot: z.enum(['weapon', 'shield', 'armor', 'helmet', 'boots', 'ring', 'companion']),
+        }))
+        .mutation(({ ctx, input }) => {
+          return this.equipmentService.unequip(ctx.userId, input.slot);
+        }),
+      attributes: protectedProcedure.query(({ ctx }) => {
+        return this.equipmentService.computeAttributes(ctx.userId);
+      }),
+      forge: protectedProcedure
+        .input(z.object({
+          itemIds: z.tuple([z.string().max(60), z.string().max(60), z.string().max(60)]),
+        }))
+        .mutation(({ ctx, input }) => {
+          return this.forgeService.forge(ctx.userId, input.itemIds);
+        }),
+    });
+
+    // ─── Loot (Phase 5F) ─────────────────────────────────────────
+
+    const lootRouter = router({
+      roll: protectedProcedure
+        .input(z.object({
+          questRarity: z.enum(['common', 'uncommon', 'rare', 'epic', 'legendary']).default('common'),
+          skillDomain: z.string().max(50).nullable().default(null),
+        }))
+        .mutation(({ ctx, input }) => {
+          return this.lootService.rollLoot(ctx.userId, input.questRarity, input.skillDomain);
+        }),
+    });
+
+    // ─── Shop (Phase 5F) ───────────────────────────────────────────
+
+    const shopRouter = router({
+      catalog: protectedProcedure.query(() => {
+        return this.shopService.getCatalog();
+      }),
+      purchase: protectedProcedure
+        .input(z.object({
+          shopItemId: z.string().max(60),
+        }))
+        .mutation(({ ctx, input }) => {
+          return this.shopService.purchase(ctx.userId, input.shopItemId);
+        }),
+    });
+
     return this.trpc.mergeRouters(
       router({
         user: userRouter,
@@ -220,6 +292,9 @@ export class TrpcRouter implements OnModuleInit {
         quest: questRouter,
         review: reviewRouter,
         achievement: achievementRouter,
+        equipment: equipmentRouter,
+        loot: lootRouter,
+        shop: shopRouter,
       }),
     );
   }

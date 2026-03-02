@@ -26,6 +26,7 @@ export interface WelcomeBackProps {
   onCompleteQuest: (questId: string, xp: number) => void;
   onChooseDifferent: () => void;
   daysAbsent: number;
+  isFirstVisit?: boolean; // BL-001: onboardingCompletedAt exists AND lastActivityDate === null
 }
 
 export function getDaysSince(dateStr: string | null): number {
@@ -44,7 +45,15 @@ interface WelcomeConfig {
   showRefreshGoals: boolean;
 }
 
-function getWelcomeConfig(days: number, name: string): WelcomeConfig | null {
+function getWelcomeConfig(days: number, name: string, isFirstVisit: boolean): WelcomeConfig | null {
+  // BL-001: First visit after onboarding — unique celebration (UX-R105: endowed progress)
+  if (isFirstVisit) return {
+    greeting: `Your adventure begins, ${name}!`,
+    subtitle: 'Your first quest awaits, hero!',
+    showWarmup: true,
+    showBonus: false, // No bonus badge for first visit — no comparison baseline
+    showRefreshGoals: false,
+  };
   if (days < 1) return null; // Same day — no special greeting
   if (days <= 3) return {
     greeting: `Ready for more, ${name}?`,
@@ -80,12 +89,12 @@ export function WelcomeBack({
   lastActivityDate, characterId, characterName,
   warmupQuest, isQuestCompleted,
   onStartQuest, onCompleteQuest, onChooseDifferent,
-  daysAbsent,
+  daysAbsent, isFirstVisit = false,
 }: WelcomeBackProps) {
   const [dismissed, setDismissed] = useState(false);
   const [justCompleted, setJustCompleted] = useState(false);
   const days = daysAbsent;
-  const config = getWelcomeConfig(days, characterName);
+  const config = getWelcomeConfig(days, characterName, isFirstVisit);
 
   const charData = useMemo(() => {
     if (!characterId || !charArtStrings[characterId] || !charPalettes[characterId]) return null;
@@ -120,10 +129,10 @@ export function WelcomeBack({
       aria-label={config.greeting}
       style={{
         padding: '16px 20px', borderRadius: 16,
-        background: t.bgCard, border: `1px solid ${t.violet}20`,
-        boxShadow: `0 0 20px ${t.violet}08`,
+        background: t.bgCard, border: `1px solid ${isFirstVisit ? `${t.violet}40` : `${t.violet}20`}`,
+        boxShadow: isFirstVisit ? `0 0 30px ${t.violet}15, 0 0 60px ${t.cyan}08` : `0 0 20px ${t.violet}08`,
         marginBottom: 24,
-        animation: 'fadeUp 0.5s ease-out',
+        animation: isFirstVisit ? 'celebratePop 0.6s ease-out' : 'fadeUp 0.5s ease-out',
         position: 'relative',
       }}
     >

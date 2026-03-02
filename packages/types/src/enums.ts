@@ -61,4 +61,7 @@ export type XPSource =
   | 'milestone_complete'
   | 'daily_login'
   | 'review'
-  | 'first_task';
+  | 'first_task'
+  | 'loot_drop'
+  | 'forge'
+  | 'shop_purchase';

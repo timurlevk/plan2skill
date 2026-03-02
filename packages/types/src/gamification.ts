@@ -87,6 +87,41 @@ export interface SubGoalPreset {
 // ─── Equipment Item ─────────────────────────────────────────────
 // Re-exported from ./character (EquipmentItem)
 
+// ─── Inventory Item (Phase 5F) ──────────────────────────────────
+
+export interface InventoryItemFull {
+  id: string;
+  itemId: string;
+  slot: string;
+  rarity: Rarity;
+  quantity: number;
+  acquiredAt: string;
+  name: string;
+  description: string;
+  attributeBonus: Partial<Record<AttributeKey, number>>;
+}
+
+// ─── Equipped Item (Phase 5F) ───────────────────────────────────
+
+export interface EquippedItemFull {
+  id: string;
+  slot: string;
+  itemId: string;
+  rarity: string;
+  equippedAt: string;
+  name: string;
+  description: string;
+  attributeBonus: Partial<Record<AttributeKey, number>>;
+}
+
+// ─── Computed Attributes (Phase 5F) ─────────────────────────────
+
+export interface ComputedAttributes {
+  base: Record<AttributeKey, number>;
+  bonus: Record<AttributeKey, number>;
+  total: Record<AttributeKey, number>;
+}
+
 // ─── Onboarding — Skill Assessment ──────────────────────────────
 
 export interface SkillAssessment {

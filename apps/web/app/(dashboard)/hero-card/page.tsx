@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { useOnboardingStore, useProgressionStore, getLevelInfo } from '@plan2skill/store';
+import { useOnboardingStore, useProgressionStore, useCharacterStore, getLevelInfo } from '@plan2skill/store';
 import { NeonIcon } from '../../(onboarding)/_components/NeonIcon';
 import { t, rarity } from '../../(onboarding)/_components/tokens';
 import { CHARACTERS, charArtStrings, charPalettes } from '../../(onboarding)/_components/characters';
@@ -38,6 +38,15 @@ const EQUIPMENT_SLOTS = [
   { slot: 'companion', name: 'Companion', skill: 'Hobbies',         icon: 'sparkle'  as const },
 ];
 
+// ─── Rarity config lookup ─────────────────────────────────────
+const RARITY_MAP: Record<string, { color: string; icon: string; label: string }> = {
+  common:    { color: '#71717A', icon: '●',  label: 'Common' },
+  uncommon:  { color: '#6EE7B7', icon: '◆',  label: 'Uncommon' },
+  rare:      { color: '#3B82F6', icon: '⬡',  label: 'Rare' },
+  epic:      { color: '#9D7AFF', icon: '◈',  label: 'Epic' },
+  legendary: { color: '#FFD166', icon: '★',  label: 'Legendary' },
+};
+
 export default function HeroCardPage() {
   const { characterId, archetypeId, receivedEquipment } = useOnboardingStore();
   const {
@@ -46,6 +55,7 @@ export default function HeroCardPage() {
     energyCrystals, maxEnergyCrystals,
     unlockedAchievements,
   } = useProgressionStore();
+  const { computedAttributes, inventory } = useCharacterStore();
   const mastery = useSpacedRepetition();
 
   const charMeta = CHARACTERS.find(c => c.id === characterId);
@@ -241,38 +251,46 @@ export default function HeroCardPage() {
         </h3>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {ATTRIBUTES.map((attr, i) => (
-            <div key={attr.key} style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              animation: `fadeUp 0.3s ease-out ${0.3 + i * 0.05}s both`,
-            }}>
-              <NeonIcon type={attr.icon} size={16} color={attr.color} />
-              <span style={{
-                fontFamily: t.mono, fontSize: 11, fontWeight: 800,
-                color: attr.color, width: 30, flexShrink: 0,
+          {ATTRIBUTES.map((attr, i) => {
+            const totalVal = computedAttributes.total[attr.key as keyof typeof computedAttributes.total] ?? 10;
+            const bonusVal = computedAttributes.bonus[attr.key as keyof typeof computedAttributes.bonus] ?? 0;
+            const barPercent = Math.min(100, (totalVal / 100) * 100);
+
+            return (
+              <div key={attr.key} style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                animation: `fadeUp 0.3s ease-out ${0.3 + i * 0.05}s both`,
               }}>
-                {attr.key}
-              </span>
-              <div style={{
-                flex: 1, height: 6, borderRadius: 3,
-                background: '#252530', overflow: 'hidden',
-              }}>
+                <NeonIcon type={attr.icon} size={16} color={attr.color} />
+                <span style={{
+                  fontFamily: t.mono, fontSize: 11, fontWeight: 800,
+                  color: attr.color, width: 30, flexShrink: 0,
+                }}>
+                  {attr.key}
+                </span>
                 <div style={{
-                  width: '10%', height: '100%', borderRadius: 3,
-                  background: attr.color,
-                  transition: 'width 0.8s ease-out',
-                  boxShadow: `0 0 6px ${attr.color}40`,
-                }} />
+                  flex: 1, height: 6, borderRadius: 3,
+                  background: '#252530', overflow: 'hidden',
+                }}>
+                  <div style={{
+                    width: `${barPercent}%`, height: '100%', borderRadius: 3,
+                    background: attr.color,
+                    transition: 'width 0.8s ease-out',
+                    boxShadow: `0 0 6px ${attr.color}40`,
+                  }} />
+                </div>
+                <span style={{
+                  fontFamily: t.mono, fontSize: 10, fontWeight: 700,
+                  color: bonusVal > 0 ? attr.color : t.textMuted,
+                  width: 42, textAlign: 'right', flexShrink: 0,
+                }}>
+                  {totalVal}{bonusVal > 0 && (
+                    <span style={{ fontSize: 8, color: t.mint }}> +{bonusVal}</span>
+                  )}
+                </span>
               </div>
-              {/* TODO Phase 5F: compute from equipment + mastery */}
-              <span style={{
-                fontFamily: t.mono, fontSize: 10, fontWeight: 700,
-                color: t.textMuted, width: 24, textAlign: 'right', flexShrink: 0,
-              }}>
-                10
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -293,47 +311,54 @@ export default function HeroCardPage() {
         </h3>
 
         <div className="grid grid-cols-2 md:grid-cols-4" style={{ gap: 8 }}>
-          {EQUIPMENT_SLOTS.map((slot, i) => {
-            const equipped = receivedEquipment.includes(slot.slot);
-            const slotRarity = equipped ? rarity.rare : rarity.common;
+          {EQUIPMENT_SLOTS.map((slot) => {
+            // Phase 5F: check real equipped items from inventory
+            const equippedItem = inventory.find(
+              (item) => item.slot === slot.slot && item.quantity > 0
+            );
+            // Fallback to onboarding receivedEquipment for backward compat
+            const isEquipped = !!equippedItem || receivedEquipment.includes(slot.slot);
+            const itemRarity = equippedItem
+              ? (RARITY_MAP[equippedItem.rarity] ?? RARITY_MAP.common!)
+              : (isEquipped ? { color: '#3B82F6', icon: '⬡', label: 'Rare' } : RARITY_MAP.common!);
 
             return (
               <div
                 key={slot.slot}
                 style={{
                   padding: 14, borderRadius: 14, textAlign: 'center',
-                  background: equipped ? `${slotRarity.color}08` : t.bgElevated,
-                  border: `1px solid ${equipped ? `${slotRarity.color}30` : t.border}`,
-                  opacity: equipped ? 1 : 0.5,
-                  animation: equipped ? 'glowPulse 3s ease-in-out infinite' : 'none',
+                  background: isEquipped ? `${itemRarity.color}08` : t.bgElevated,
+                  border: `1px solid ${isEquipped ? `${itemRarity.color}30` : t.border}`,
+                  opacity: isEquipped ? 1 : 0.5,
+                  animation: isEquipped ? 'glowPulse 3s ease-in-out infinite' : 'none',
                   transition: 'all 0.3s ease',
                 }}
               >
                 <div style={{
                   width: 44, height: 44, borderRadius: 12, margin: '0 auto 8px',
-                  background: equipped ? `${slotRarity.color}15` : '#18181F',
+                  background: isEquipped ? `${itemRarity.color}15` : '#18181F',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   <NeonIcon
-                    type={equipped ? slot.icon : 'lock'}
+                    type={isEquipped ? slot.icon : 'lock'}
                     size={22}
-                    color={equipped ? slotRarity.color : 'muted'}
-                    active={equipped}
+                    color={isEquipped ? itemRarity.color : 'muted'}
+                    active={isEquipped}
                   />
                 </div>
                 <div style={{
                   fontFamily: t.display, fontSize: 12, fontWeight: 700,
-                  color: equipped ? t.text : t.textMuted, marginBottom: 2,
+                  color: isEquipped ? t.text : t.textMuted, marginBottom: 2,
                 }}>
-                  {slot.name}
+                  {equippedItem?.name ?? slot.name}
                 </div>
-                {equipped ? (
+                {isEquipped ? (
                   <span style={{
                     display: 'inline-flex', alignItems: 'center', gap: 3,
                     fontFamily: t.mono, fontSize: 8, fontWeight: 700,
-                    color: slotRarity.color, textTransform: 'uppercase',
+                    color: itemRarity.color, textTransform: 'uppercase',
                   }}>
-                    {slotRarity.icon} {slotRarity.label}
+                    {itemRarity.icon} {itemRarity.label}
                   </span>
                 ) : (
                   <div style={{ fontFamily: t.body, fontSize: 9, color: t.textMuted }}>

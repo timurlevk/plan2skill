@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { useOnboardingStore, useProgressionStore } from '@plan2skill/store';
+import { useOnboardingStore, useOnboardingV2Store, useProgressionStore } from '@plan2skill/store';
 import { t } from '../../(onboarding)/_components/tokens';
 import { CHARACTERS } from '../../(onboarding)/_components/characters';
 import { ARCHETYPES } from '../../(onboarding)/_data/archetypes';
@@ -32,6 +32,7 @@ import { NeonIcon } from '../../(onboarding)/_components/NeonIcon';
 
 export default function HomePage() {
   const { selectedGoals, skillAssessments, characterId, archetypeId } = useOnboardingStore();
+  const { onboardingCompletedAt } = useOnboardingV2Store();
   const { totalXp, level, currentStreak, energyCrystals, maxEnergyCrystals,
     lastActivityDate, quietMode, consumeCrystal } = useProgressionStore();
 
@@ -70,6 +71,16 @@ export default function HomePage() {
   // Daily progress (derived state)
   const { dailyTotal, dailyCompleted, allTasks, getNextQuest } =
     useDailyProgress(questGroups, engine.completedQuests);
+
+  // BL-001: First visit detection — onboarding done but never visited dashboard
+  const isFirstVisit = !!onboardingCompletedAt && !lastActivityDate;
+
+  // BL-001: Set lastActivityDate on first dashboard render (prevents repeat first-visit)
+  useEffect(() => {
+    if (hydrated && isFirstVisit) {
+      useProgressionStore.getState().updateStreak();
+    }
+  }, [hydrated, isFirstVisit]);
 
   // Warm-up quest — auto-select easiest uncompleted quest (UX-R100)
   const daysAbsent = getDaysSince(lastActivityDate);
@@ -151,6 +162,7 @@ export default function HomePage() {
         }}
         onChooseDifferent={scrollToDailyQuests}
         daysAbsent={daysAbsent}
+        isFirstVisit={isFirstVisit}
       />
 
       {/* Greeting */}
@@ -187,58 +199,7 @@ export default function HomePage() {
         maxEnergyCrystals={maxEnergyCrystals}
       />
 
-      {/* Skill Mastery — spaced repetition overview (Phase 5D) */}
-      {mastery.skills.length > 0 && (
-        <div style={{ marginBottom: 24, animation: 'fadeUp 0.4s ease-out 0.15s both' }}>
-          <h2 style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            fontFamily: t.display, fontSize: 13, fontWeight: 700,
-            color: t.textSecondary, textTransform: 'uppercase' as const,
-            letterSpacing: '0.08em', marginBottom: 12,
-          }}>
-            <NeonIcon type="book" size={14} color="cyan" />
-            Skill Mastery
-            {mastery.dueCount > 0 && (
-              <span style={{
-                marginLeft: 'auto',
-                fontFamily: t.mono, fontSize: 10, fontWeight: 700,
-                color: '#FF6B8A', padding: '2px 8px', borderRadius: 10,
-                background: '#FF6B8A15', border: '1px solid #FF6B8A25',
-              }}>
-                {mastery.dueCount} due
-              </span>
-            )}
-          </h2>
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' as const }}>
-            {mastery.skills.map((skill) => (
-              <MasteryRing
-                key={skill.skillId}
-                masteryLevel={skill.masteryLevel}
-                skillDomain={skill.skillDomain}
-                isOverdue={skill.isOverdue}
-                size="md"
-                showLabel
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Weekly Challenges — personal weekly goals (Phase 5E) */}
-      {weekly.challenges.length > 0 && (
-        <WeeklyChallenges challenges={weekly.challenges} weekEnd={weekly.weekEnd} />
-      )}
-
-      {/* Social Cards — opt-in social features (UX-R162) */}
-      {!quietMode && <SocialCards />}
-
-      {/* Active Quests */}
-      <ActiveQuests
-        selectedGoals={selectedGoals}
-        skillAssessments={skillAssessments}
-      />
-
-      {/* Today's Quests */}
+      {/* Today's Quests — BL-004: moved up as PRIMARY ACTION */}
       <div ref={dailyQuestsRef} />
       <DailyQuests
         questGroups={questGroups}
@@ -257,6 +218,60 @@ export default function HomePage() {
         }}
         onOpenQuest={setOpenQuestId}
       />
+
+      {/* Active Quests — BL-004: moved after daily quests */}
+      <ActiveQuests
+        selectedGoals={selectedGoals}
+        skillAssessments={skillAssessments}
+      />
+
+      {/* ═══ Sidebar content inline — visible only when right sidebar is hidden (<1200px) ═══ */}
+      <div className="sidebar-content-inline">
+        {/* Skill Mastery — spaced repetition overview (Phase 5D) */}
+        {mastery.skills.length > 0 && (
+          <div style={{ marginBottom: 24, animation: 'fadeUp 0.4s ease-out 0.15s both' }}>
+            <h2 style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontFamily: t.display, fontSize: 13, fontWeight: 700,
+              color: t.textSecondary, textTransform: 'uppercase' as const,
+              letterSpacing: '0.08em', marginBottom: 12,
+            }}>
+              <NeonIcon type="book" size={14} color="cyan" />
+              Skill Mastery
+              {mastery.dueCount > 0 && (
+                <span style={{
+                  marginLeft: 'auto',
+                  fontFamily: t.mono, fontSize: 10, fontWeight: 700,
+                  color: '#FF6B8A', padding: '2px 8px', borderRadius: 10,
+                  background: '#FF6B8A15', border: '1px solid #FF6B8A25',
+                }}>
+                  {mastery.dueCount} due
+                </span>
+              )}
+            </h2>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' as const }}>
+              {mastery.skills.map((skill) => (
+                <MasteryRing
+                  key={skill.skillId}
+                  masteryLevel={skill.masteryLevel}
+                  skillDomain={skill.skillDomain}
+                  isOverdue={skill.isOverdue}
+                  size="md"
+                  showLabel
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Weekly Challenges — personal weekly goals (Phase 5E) */}
+        {weekly.challenges.length > 0 && (
+          <WeeklyChallenges challenges={weekly.challenges} weekEnd={weekly.weekEnd} />
+        )}
+
+        {/* Social Cards — opt-in social features (UX-R162) */}
+        {!quietMode && <SocialCards />}
+      </div>
 
       {/* Error fallback — UX-R080: RPG error with CTA */}
       {selectedGoals.length > 0 && questGroups.length === 0 && (

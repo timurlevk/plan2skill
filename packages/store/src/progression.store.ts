@@ -69,6 +69,10 @@ interface ProgressionState {
   consumeCrystal: () => void;
   rechargeCrystals: () => void;
 
+  // Phase 5F: coin actions
+  awardCoins: (amount: number) => void;
+  spendCoins: (amount: number) => boolean; // returns false if insufficient
+
   // Animation helpers
   triggerXpAnimation: (amount: number) => void;
   clearXpAnimation: () => void;
@@ -216,6 +220,16 @@ export const useProgressionStore = create<ProgressionState>()(
       },
 
       toggleQuietMode: () => set((s) => ({ quietMode: !s.quietMode })),
+
+      // Phase 5F: coin actions
+      awardCoins: (amount) =>
+        set((s) => ({ coins: s.coins + amount })),
+      spendCoins: (amount) => {
+        const s = get();
+        if (s.coins < amount) return false;
+        set({ coins: s.coins - amount });
+        return true;
+      },
 
       consumeCrystal: () =>
         set((s) => ({ energyCrystals: Math.max(0, s.energyCrystals - 1) })),

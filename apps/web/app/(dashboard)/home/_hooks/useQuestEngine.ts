@@ -1,15 +1,16 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useProgressionStore, useAuthStore } from '@plan2skill/store';
+import { useProgressionStore, useAuthStore, useCharacterStore } from '@plan2skill/store';
 import { trpc } from '@plan2skill/api-client';
 import { rollBonusXP } from '../_utils/xp-utils';
 import type { BonusResult } from '../_utils/xp-utils';
 import { playCompleteSound } from './useSound';
 import { ACHIEVEMENTS, type Achievement } from '../_data/achievements';
+import type { LootDrop } from '@plan2skill/types';
 
 // ─── Quest Engine — persistence pipeline ─────────────────────────
 // Manages quest completion flow with progressionStore integration.
 // Optimistic UI: local store updates instantly, tRPC syncs to server in background.
-// Handles XP, bonus rolls, streaks, achievements, sound, and animations.
+// Handles XP, bonus rolls, streaks, achievements, loot drops, sound, and animations.
 
 export interface QuestEngineResult {
   completedQuests: Set<string>;
@@ -17,7 +18,9 @@ export interface QuestEngineResult {
   xpFloatId: string | null;
   xpFloatAmount: number;
   newlyUnlockedAchievements: Achievement[];
+  lastLootDrop: LootDrop | null;
   dismissAchievement: () => void;
+  dismissLootDrop: () => void;
   completeQuest: (taskId: string, goalId: string, xp: number) => void;
   undoQuest: (taskId: string, xp: number) => void;
 }
@@ -48,6 +51,9 @@ export function useQuestEngine(): QuestEngineResult {
 
   // Achievement toast queue
   const [newlyUnlockedAchievements, setNewlyUnlockedAchievements] = useState<Achievement[]>([]);
+
+  // Phase 5F: loot drop from server
+  const [lastLootDrop, setLastLootDrop] = useState<LootDrop | null>(null);
 
   // Check and reset daily on mount
   useEffect(() => {
@@ -147,6 +153,24 @@ export function useQuestEngine(): QuestEngineResult {
       completeTaskMutation.mutate(
         { taskId, validationResult: {}, timeSpentSeconds: undefined },
         {
+          onSuccess: (data: { lootDrop?: LootDrop | null }) => {
+            // Phase 5F: handle loot drop from server response
+            if (data?.lootDrop) {
+              setLastLootDrop(data.lootDrop);
+              // Add to inventory in character store
+              useCharacterStore.getState().addToInventory({
+                id: '',
+                itemId: data.lootDrop.itemId,
+                slot: data.lootDrop.slot,
+                rarity: data.lootDrop.rarity as any,
+                quantity: 1,
+                acquiredAt: new Date().toISOString(),
+                name: data.lootDrop.name,
+                description: data.lootDrop.description,
+                attributeBonus: data.lootDrop.attributeBonus,
+              });
+            }
+          },
           onError: (err: { message: string }) => {
             // Server sync failed — local state is still valid
             console.warn('[QuestEngine] Server sync failed:', err.message);
@@ -180,13 +204,19 @@ export function useQuestEngine(): QuestEngineResult {
     setNewlyUnlockedAchievements(prev => prev.slice(1));
   }, []);
 
+  const dismissLootDrop = useCallback(() => {
+    setLastLootDrop(null);
+  }, []);
+
   return {
     completedQuests,
     bonusResults,
     xpFloatId,
     xpFloatAmount,
     newlyUnlockedAchievements,
+    lastLootDrop,
     dismissAchievement,
+    dismissLootDrop,
     completeQuest,
     undoQuest,
   };

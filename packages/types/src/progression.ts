@@ -52,6 +52,17 @@ export interface LevelInfo {
   progress: number; // 0-1
 }
 
+// ─── Loot Drop (Phase 5F) ────────────────────────────────────────
+
+export interface LootDrop {
+  itemId: string;
+  slot: string;
+  rarity: string;
+  name: string;
+  description: string;
+  attributeBonus: Record<string, number>;
+}
+
 // ─── Task Completion Result ──────────────────────────────────────
 
 export interface TaskCompletionResult {
@@ -65,6 +76,7 @@ export interface TaskCompletionResult {
   currentStreak: number;
   milestoneCompleted: boolean;
   roadmapProgress: number;
+  lootDrop?: LootDrop | null;
 }
 
 // ─── Daily Summary ───────────────────────────────────────────────

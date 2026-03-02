@@ -43,11 +43,27 @@ export function QuestCardModal({
   const typeInfo = TYPE_ICONS[task.type] || { icon: 'sparkle' as NeonIconType, label: task.type };
   const tier = CHALLENGE_TIER[task.rarity] ?? { label: 'Tier I', color: rarity.common.color };
 
+  // BL-003: Desktop detection for two-column layout
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth >= 768
+  );
+  useEffect(() => {
+    const check = () => setIsDesktop(window.innerWidth >= 768);
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
   // Multi-step completion state
   const [phase, setPhase] = useState<'viewing' | 'celebrating' | 'summary'>('viewing');
 
-  // Collapsible sections state (progressive disclosure — default collapsed)
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  // Collapsible sections state
+  // BL-003: Desktop — expanded by default (enough space, no reason to hide)
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+      return { knowledge: true, aiTip: true, funFact: true } as Record<string, boolean>;
+    }
+    return {} as Record<string, boolean>;
+  });
   const toggleSection = (id: string) => setExpanded(p => ({ ...p, [id]: !p[id] }));
 
   // Knowledge Check state
@@ -162,7 +178,7 @@ export function QuestCardModal({
       }}
     >
       <div style={{
-        width: '100%', maxWidth: 440,
+        width: '100%', maxWidth: isDesktop ? 820 : 440,
         background: t.bgCard, borderRadius: 20,
         border: `1px solid ${r.color}30`,
         boxShadow: r.glow !== 'none'
@@ -543,8 +559,18 @@ export function QuestCardModal({
           </div>
         </div>
 
-        {/* ── BODY ZONE (scrollable) ── */}
-        <div style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
+        {/* ── BODY ZONE (scrollable) — BL-003: two-column on desktop ── */}
+        <div style={{
+          flex: 1, overflowY: 'auto', position: 'relative',
+          display: isDesktop ? 'flex' : 'block',
+        }}>
+
+        {/* ── LEFT COLUMN: Learning Material ── */}
+        <div style={{
+          flex: isDesktop ? '1 1 55%' : '1 1 100%',
+          overflowY: isDesktop ? 'auto' : 'visible',
+          borderRight: isDesktop ? `1px solid ${t.border}` : 'none',
+        }}>
         <div style={{ padding: '20px 24px' }}>
           {/* Character companion + description */}
           <div style={{
@@ -626,6 +652,19 @@ export function QuestCardModal({
               ))}
             </div>
           </div>
+        </div>
+        </div>
+
+          {/* ── RIGHT COLUMN: Interactive Content — BL-003 ── */}
+          <div style={{
+            flex: isDesktop ? '1 1 45%' : '1 1 100%',
+            position: isDesktop ? 'sticky' as const : 'static' as const,
+            top: 0,
+            overflowY: isDesktop ? 'auto' : 'visible',
+            alignSelf: isDesktop ? 'flex-start' : 'auto',
+            maxHeight: isDesktop ? '100%' : 'none',
+          }}>
+          <div style={{ padding: isDesktop ? '20px 24px' : '0 24px' }}>
 
           {/* ── Collapsible: AI Tip ── */}
           <div style={{ marginBottom: 8 }}>
@@ -908,16 +947,19 @@ export function QuestCardModal({
               </div>
             )}
           </div>
+          </div>
+          </div>
         </div>
 
         {/* Fade indicator at bottom of scrollable area */}
+        {!isDesktop && (
         <div style={{
           position: 'sticky', bottom: 0, left: 0, right: 0, height: 32,
           background: `linear-gradient(transparent, ${t.bgCard})`,
           pointerEvents: 'none',
           marginTop: -32,
         }} />
-        </div>
+        )}
 
         {/* ── FOOTER ZONE (sticky, no scroll) ── */}
         <div style={{
