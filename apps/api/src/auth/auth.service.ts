@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { OAuth2Client } from 'google-auth-library';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthProvider } from '@plan2skill/types';
 
@@ -127,8 +128,20 @@ export class AuthService {
   }
 
   private async verifyGoogleToken(idToken: string): Promise<string> {
-    // TODO: Implement Google Sign-In verification
-    // https://developers.google.com/identity/sign-in/web/backend-auth
-    throw new UnauthorizedException('Google Sign-In not configured');
+    const clientId = this.config.get<string>('GOOGLE_CLIENT_ID');
+    if (!clientId) {
+      throw new UnauthorizedException('Google Sign-In not configured: missing GOOGLE_CLIENT_ID');
+    }
+    const client = new OAuth2Client(clientId);
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: clientId,
+    });
+    const payload = ticket.getPayload();
+    if (!payload?.sub) {
+      throw new UnauthorizedException('Invalid Google token: missing sub claim');
+    }
+    // Zero-PII: return only Google's stable unique user ID
+    return payload.sub;
   }
 }

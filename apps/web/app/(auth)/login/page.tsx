@@ -1,7 +1,33 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuthStore, useOnboardingStore, useOnboardingV2Store } from '@plan2skill/store';
+
+// ─── Google Identity Services types ───
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string;
+            callback: (response: { credential: string; select_by: string }) => void;
+            auto_select?: boolean;
+            cancel_on_tap_outside?: boolean;
+          }) => void;
+          renderButton: (parent: HTMLElement, options: {
+            type?: 'standard' | 'icon';
+            theme?: 'outline' | 'filled_blue' | 'filled_black';
+            size?: 'large' | 'medium' | 'small';
+            width?: string;
+            text?: string;
+          }) => void;
+        };
+      };
+    };
+  }
+}
 
 // ═══════════════════════════════════════════
 // AUTH — Login Screen (Rebalanced)
@@ -155,13 +181,78 @@ function AppleIcon() {
   );
 }
 
-function SocialButton({ icon, label, height, onClick }: { icon: React.ReactNode; label: string; height: string; onClick?: () => void }) {
+function LoadingSpinner() {
+  return (
+    <div style={{
+      width: '20px',
+      height: '20px',
+      border: `2px solid ${t.border}`,
+      borderTopColor: t.violet,
+      borderRadius: '50%',
+      animation: 'spin 0.6s linear infinite',
+    }} />
+  );
+}
+
+// ─── Google Auth Button: invisible Google renderButton overlay on top of our styled button ───
+function GoogleAuthButton({ height, isLoading, gisReady, googleBtnRef }: {
+  height: string;
+  isLoading: boolean;
+  gisReady: boolean;
+  googleBtnRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  return (
+    <div style={{ position: 'relative', width: '100%', height }}>
+      {/* Our visible styled button underneath */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '12px',
+        width: '100%',
+        height,
+        background: t.bgElevated,
+        border: `1.5px solid ${t.border}`,
+        borderRadius: '16px',
+        fontFamily: t.body,
+        fontSize: '15px',
+        fontWeight: 500,
+        color: isLoading ? t.textMuted : t.text,
+        opacity: isLoading ? 0.6 : 1,
+        transition: 'all 0.15s ease',
+        pointerEvents: 'none',
+      }}>
+        {isLoading ? <LoadingSpinner /> : <GoogleIcon />}
+        {isLoading ? 'Forging connection...' : 'Continue with Google'}
+      </div>
+      {/* Invisible Google renderButton overlay — catches the click, opens real popup */}
+      <div
+        ref={googleBtnRef}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height,
+          opacity: 0.001,
+          overflow: 'hidden',
+          borderRadius: '16px',
+          cursor: gisReady && !isLoading ? 'pointer' : 'not-allowed',
+          pointerEvents: gisReady && !isLoading ? 'auto' : 'none',
+        }}
+      />
+    </div>
+  );
+}
+
+function SocialButton({ icon, label, height, onClick, disabled }: { icon: React.ReactNode; label: string; height: string; onClick?: () => void; disabled?: boolean }) {
   const [hov, setHov] = useState(false);
   return (
     <button
       onClick={onClick}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
+      disabled={disabled}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -169,14 +260,15 @@ function SocialButton({ icon, label, height, onClick }: { icon: React.ReactNode;
         gap: '12px',
         width: '100%',
         height,
-        background: hov ? '#1E1E28' : t.bgElevated,
-        border: `1.5px solid ${hov ? t.borderHover : t.border}`,
+        background: hov && !disabled ? '#1E1E28' : t.bgElevated,
+        border: `1.5px solid ${hov && !disabled ? t.borderHover : t.border}`,
         borderRadius: '16px',
-        cursor: 'pointer',
+        cursor: disabled ? 'not-allowed' : 'pointer',
         fontFamily: t.body,
         fontSize: '15px',
         fontWeight: 500,
-        color: t.text,
+        color: disabled ? t.textMuted : t.text,
+        opacity: disabled ? 0.6 : 1,
         transition: 'all 0.15s ease',
       }}
     >
@@ -390,7 +482,12 @@ function BrandPanel() {
 // MOBILE — Centered Layout
 // Uses AnimatedPixelCanvas with Aria (v7) idle
 // ═══════════════════════════════════════════
-function MobileAuth({ onBypassAuth }: { onBypassAuth: () => void }) {
+function MobileAuth({ onBypassAppleAuth, isLoading, gisReady, googleBtnRef }: {
+  onBypassAppleAuth: () => void;
+  isLoading: boolean;
+  gisReady: boolean;
+  googleBtnRef: React.RefObject<HTMLDivElement | null>;
+}) {
   return (
     <div
       style={{
@@ -526,9 +623,9 @@ function MobileAuth({ onBypassAuth }: { onBypassAuth: () => void }) {
           }}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <SocialButton icon={<GoogleIcon />} label="Continue with Google" height="56px" />
+            <GoogleAuthButton height="56px" isLoading={isLoading} gisReady={gisReady} googleBtnRef={googleBtnRef} />
             {/* TODO: Replace bypass with real Apple auth */}
-            <SocialButton icon={<AppleIcon />} label="Continue with Apple" height="56px" onClick={onBypassAuth} />
+            <SocialButton icon={<AppleIcon />} label="Continue with Apple" height="56px" onClick={onBypassAppleAuth} disabled={isLoading} />
           </div>
         </div>
 
@@ -583,14 +680,141 @@ function MobileAuth({ onBypassAuth }: { onBypassAuth: () => void }) {
   );
 }
 
+// ─── Error Toast ───
+function ErrorToast({ message, onClose }: { message: string; onClose: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 5000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: '24px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      background: '#1E1015',
+      border: `1px solid ${t.rose}40`,
+      borderRadius: '12px',
+      padding: '12px 20px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+      zIndex: 9999,
+      fontFamily: t.body,
+      fontSize: '14px',
+      color: t.rose,
+      boxShadow: `0 8px 32px ${t.rose}20`,
+      animation: 'fadeUp 0.3s ease',
+    }}>
+      <span style={{ fontSize: '16px' }}>&#9888;</span>
+      {message}
+      <button
+        onClick={onClose}
+        style={{
+          background: 'none',
+          border: 'none',
+          color: t.textMuted,
+          cursor: 'pointer',
+          fontSize: '16px',
+          marginLeft: '8px',
+          padding: 0,
+        }}
+      >
+        &#10005;
+      </button>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════
 // ROOT — LoginPage
 // ═══════════════════════════════════════════
 export default function LoginPage() {
   const router = useRouter();
+  const { setTokens, setUser, setLoading, isLoading } = useAuthStore();
+  const { forgeComplete } = useOnboardingStore();
+  const { onboardingCompletedAt } = useOnboardingV2Store();
+  const [error, setError] = useState<string | null>(null);
+  const [gisReady, setGisReady] = useState(false);
+  const gisInitialized = useRef(false);
+  const desktopGoogleBtnRef = useRef<HTMLDivElement>(null);
+  const mobileGoogleBtnRef = useRef<HTMLDivElement>(null);
 
-  // TODO: Remove bypass — replace with real auth (Apple Sign-In)
-  const bypassAuth = () => router.push('/goals');
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '';
+
+  // ─── Google credential callback ───
+  const handleGoogleResponse = useCallback(async (response: { credential: string }) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: 'google', idToken: response.credential }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.message || `Login failed (${res.status})`);
+      }
+      const data: { accessToken: string; refreshToken: string; userId: string; displayName: string } = await res.json();
+      setTokens(data.accessToken, data.refreshToken);
+      setUser(data.userId, data.displayName);
+      // Returning users skip onboarding, new users go through it
+      const onboardingDone = forgeComplete || !!onboardingCompletedAt;
+      router.push(onboardingDone ? '/home' : '/intent');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'The path is blocked. Try again, hero.');
+    } finally {
+      setLoading(false);
+    }
+  }, [apiUrl, setTokens, setUser, setLoading, router]);
+
+  // ─── Load GIS SDK + renderButton into overlay containers ───
+  useEffect(() => {
+    if (!googleClientId || gisInitialized.current) return;
+
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      if (!window.google) return;
+
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: handleGoogleResponse,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+      });
+
+      // Render invisible Google button into both desktop and mobile containers
+      const btnOpts = { type: 'standard' as const, theme: 'filled_blue' as const, size: 'large' as const, width: '400' };
+      if (desktopGoogleBtnRef.current) {
+        window.google.accounts.id.renderButton(desktopGoogleBtnRef.current, btnOpts);
+      }
+      if (mobileGoogleBtnRef.current) {
+        window.google.accounts.id.renderButton(mobileGoogleBtnRef.current, btnOpts);
+      }
+
+      gisInitialized.current = true;
+      setGisReady(true);
+    };
+    script.onerror = () => {
+      setError('Failed to load Google Sign-In. Check your connection.');
+    };
+    document.head.appendChild(script);
+
+    return () => {
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    };
+  }, [googleClientId, handleGoogleResponse]);
+
+  // TODO: Replace bypass with real Apple auth
+  const bypassAppleAuth = () => router.push('/intent');
 
   return (
     <>
@@ -617,7 +841,13 @@ export default function LoginPage() {
           70% { transform: scale(0.95); }
           100% { opacity: 1; transform: scale(1); }
         }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
       `}</style>
+
+      {/* Error Toast */}
+      {error && <ErrorToast message={error} onClose={() => setError(null)} />}
 
       {/* Desktop: split layout */}
       <div
@@ -671,9 +901,9 @@ export default function LoginPage() {
                 }}
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <SocialButton icon={<GoogleIcon />} label="Continue with Google" height="52px" />
+                  <GoogleAuthButton height="52px" isLoading={isLoading} gisReady={gisReady} googleBtnRef={desktopGoogleBtnRef} />
                   {/* TODO: Replace bypass with real Apple auth */}
-                  <SocialButton icon={<AppleIcon />} label="Continue with Apple" height="52px" onClick={bypassAuth} />
+                  <SocialButton icon={<AppleIcon />} label="Continue with Apple" height="52px" onClick={bypassAppleAuth} disabled={isLoading} />
                 </div>
               </div>
 
@@ -698,7 +928,12 @@ export default function LoginPage() {
 
         {/* Mobile (<1024px) */}
         <div className="lg:hidden">
-          <MobileAuth onBypassAuth={bypassAuth} />
+          <MobileAuth
+            onBypassAppleAuth={bypassAppleAuth}
+            isLoading={isLoading}
+            gisReady={gisReady}
+            googleBtnRef={mobileGoogleBtnRef}
+          />
         </div>
       </div>
     </>

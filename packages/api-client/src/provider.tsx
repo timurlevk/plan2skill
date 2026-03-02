@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { trpc, createTrpcReactClient } from './client';
+import type { TokenRefreshConfig } from './client';
 
 interface TrpcProviderProps {
   children: React.ReactNode;
   baseUrl: string;
   getToken: () => string | null;
+  refreshConfig?: TokenRefreshConfig;
 }
 
-export function TrpcProvider({ children, baseUrl, getToken }: TrpcProviderProps) {
+export function TrpcProvider({ children, baseUrl, getToken, refreshConfig }: TrpcProviderProps) {
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: {
@@ -18,7 +20,7 @@ export function TrpcProvider({ children, baseUrl, getToken }: TrpcProviderProps)
     },
   }));
 
-  const [trpcClient] = useState(() => createTrpcReactClient(baseUrl, getToken));
+  const [trpcClient] = useState(() => createTrpcReactClient(baseUrl, getToken, refreshConfig));
 
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>

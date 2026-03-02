@@ -1,8 +1,11 @@
 'use client';
 
+import { LocalePicker } from './_components/LocalePicker';
+
 // ═══════════════════════════════════════════
-// ONBOARDING — Shared Layout
-// Ambient glows, keyframes, dark background
+// ONBOARDING — Viewport-Locked Wizard Layout
+// Three-zone flex: header / scrollable content / pinned footer
+// 100svh with 100vh fallback — no page-level scroll
 // ═══════════════════════════════════════════
 
 export default function OnboardingLayout({ children }: { children: React.ReactNode }) {
@@ -111,15 +114,22 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
           0%, 100% { transform: translateY(0); }
           50%      { transform: translateY(-4px); }
         }
+        /* Viewport-locked shell */
+        .wizard-shell {
+          height: 100vh;
+          height: 100svh;
+        }
+        .wizard-content::-webkit-scrollbar {
+          display: none;
+        }
+        .wizard-footer {
+          padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        }
       `}</style>
       <main style={{
-        minHeight: '100vh',
         background: '#0C0C10',
         position: 'relative',
         overflow: 'hidden',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
       }}>
         {/* Ambient glow — top left (violet) */}
         <div style={{
@@ -145,18 +155,30 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
           pointerEvents: 'none',
           zIndex: 0,
         }} />
-        {/* Content */}
+        {/* Locale picker — top right */}
         <div style={{
-          position: 'relative',
-          zIndex: 1,
-          width: '100%',
-          maxWidth: 480,
-          margin: '0 auto',
-          padding: '40px 24px',
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
+          position: 'fixed',
+          top: 16,
+          right: 16,
+          zIndex: 50,
         }}>
+          <LocalePicker />
+        </div>
+        {/* Wizard shell — viewport-locked flex column */}
+        <div
+          className="wizard-shell"
+          style={{
+            position: 'relative',
+            zIndex: 1,
+            width: '100%',
+            maxWidth: 520,
+            margin: '0 auto',
+            padding: '0 24px',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
           {children}
         </div>
       </main>

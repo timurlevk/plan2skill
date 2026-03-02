@@ -1,10 +1,9 @@
 'use client';
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { useOnboardingStore, useProgressionStore } from '@plan2skill/store';
 import { t } from '../../(onboarding)/_components/tokens';
 import { CHARACTERS } from '../../(onboarding)/_components/characters';
-import { GOALS } from '../../(onboarding)/_data/goals';
 import { ARCHETYPES } from '../../(onboarding)/_data/archetypes';
 
 import { generateTasks } from './_utils/quest-templates';
@@ -17,7 +16,7 @@ import { StatsRow } from './_components/StatsRow';
 import { ActiveQuests } from './_components/ActiveQuests';
 import { DailyQuests } from './_components/DailyQuests';
 import { AchievementToast } from './_components/AchievementToast';
-import { WelcomeBack } from './_components/WelcomeBack';
+import { WelcomeBack, getDaysSince } from './_components/WelcomeBack';
 import { SkeletonLoader } from './_components/SkeletonLoader';
 import { SocialCards } from './_components/SocialCards';
 import { WeeklyChallenges } from './_components/WeeklyChallenges';
@@ -60,11 +59,10 @@ export default function HomePage() {
   // Generate quest groups from goals
   const questGroups = useMemo(() => {
     return selectedGoals.map(g => {
-      const goalData = GOALS.find(gd => gd.id === g.id);
       return {
         goal: g,
-        goalData,
-        tasks: generateTasks(g.label, g.id, goalData?.icon || 'target'),
+        goalData: null,
+        tasks: generateTasks(g.label, g.id, 'target'),
       };
     });
   }, [selectedGoals]);
@@ -72,6 +70,30 @@ export default function HomePage() {
   // Daily progress (derived state)
   const { dailyTotal, dailyCompleted, allTasks, getNextQuest } =
     useDailyProgress(questGroups, engine.completedQuests);
+
+  // Warm-up quest — auto-select easiest uncompleted quest (UX-R100)
+  const daysAbsent = getDaysSince(lastActivityDate);
+  const warmupQuest = useMemo(() => {
+    // Find first uncompleted task, prefer common rarity (easiest)
+    for (const { tasks } of questGroups) {
+      const common = tasks.find(tk =>
+        !engine.completedQuests.has(tk.id) && tk.rarity === 'common'
+      );
+      if (common) return common;
+    }
+    // Fallback: any uncompleted task
+    for (const { tasks } of questGroups) {
+      const any = tasks.find(tk => !engine.completedQuests.has(tk.id));
+      if (any) return any;
+    }
+    return null;
+  }, [questGroups, engine.completedQuests]);
+
+  // Ref for "Choose a different quest" scroll target
+  const dailyQuestsRef = useRef<HTMLDivElement>(null);
+  const scrollToDailyQuests = useCallback(() => {
+    dailyQuestsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
 
   // Modal state
   const [openQuestId, setOpenQuestId] = useState<string | null>(null);
@@ -115,11 +137,20 @@ export default function HomePage() {
         onDismiss={engine.dismissAchievement}
       />
 
-      {/* Welcome Back greeting (UX-R102) */}
+      {/* Welcome Back greeting + warm-up quest (UX-R102, UX-R100) */}
       <WelcomeBack
         lastActivityDate={lastActivityDate}
         characterId={characterId}
         characterName={charMeta?.name || 'Hero'}
+        warmupQuest={warmupQuest}
+        isQuestCompleted={warmupQuest ? engine.completedQuests.has(warmupQuest.id) : false}
+        onStartQuest={setOpenQuestId}
+        onCompleteQuest={(taskId, xp) => {
+          const task = allTasks.get(taskId);
+          engine.completeQuest(taskId, task?.goalLabel || '', xp);
+        }}
+        onChooseDifferent={scrollToDailyQuests}
+        daysAbsent={daysAbsent}
       />
 
       {/* Greeting */}
@@ -208,6 +239,7 @@ export default function HomePage() {
       />
 
       {/* Today's Quests */}
+      <div ref={dailyQuestsRef} />
       <DailyQuests
         questGroups={questGroups}
         completedQuests={engine.completedQuests}

@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useOnboardingStore, useProgressionStore } from '@plan2skill/store';
+import { useOnboardingStore, useOnboardingV2Store, useProgressionStore, isOnboardingV1Hydrated, isOnboardingV2Hydrated } from '@plan2skill/store';
 import { NeonIcon } from '../(onboarding)/_components/NeonIcon';
 import { t } from '../(onboarding)/_components/tokens';
 import { CHARACTERS, charArtStrings, charPalettes } from '../(onboarding)/_components/characters';
@@ -77,7 +77,7 @@ function UserMenu({ charMeta, archetype, level, xpTotal }: {
     } else if (item.id === 'restart') {
       if (typeof window !== 'undefined' && window.confirm('Restart your journey? All progress will be reset.')) {
         resetStore();
-        router.replace('/goals');
+        router.replace('/intent');
       }
     } else if (item.id === 'logout') {
       // Placeholder — wire to actual auth later
@@ -245,13 +245,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const router = useRouter();
   const { characterId, archetypeId, forgeComplete } = useOnboardingStore();
+  const { onboardingCompletedAt } = useOnboardingV2Store();
   const { totalXp, level, currentStreak, energyCrystals, maxEnergyCrystals, quietMode } = useProgressionStore();
 
-  // Guard: if onboarding not complete, redirect
-  if (!forgeComplete) {
-    if (typeof window !== 'undefined') {
-      router.replace('/goals');
-    }
+  // Hydration guard — wait for Zustand persist to rehydrate from localStorage
+  // Uses onRehydrateStorage callback (best practice, not generic useEffect)
+  const [hydrated, setHydrated] = useState(() => isOnboardingV1Hydrated() && isOnboardingV2Hydrated());
+  useEffect(() => {
+    if (hydrated) return;
+    // Poll briefly — onRehydrateStorage fires synchronously after persist reads localStorage
+    const id = setInterval(() => {
+      if (isOnboardingV1Hydrated() && isOnboardingV2Hydrated()) {
+        setHydrated(true);
+        clearInterval(id);
+      }
+    }, 10);
+    return () => clearInterval(id);
+  }, [hydrated]);
+
+  // Guard: if onboarding not complete, redirect to v2 onboarding
+  // Backward-compatible: accept either v1 (forgeComplete) or v2 (onboardingCompletedAt)
+  const onboardingDone = forgeComplete || !!onboardingCompletedAt;
+  if (!hydrated) return null; // Wait for store rehydration
+  if (!onboardingDone) {
+    router.replace('/intent');
     return null;
   }
 

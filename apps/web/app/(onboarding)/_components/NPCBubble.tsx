@@ -27,6 +27,49 @@ interface NPCBubbleProps {
   typing?: boolean;
 }
 
+/**
+ * NPCInline — Compact NPC with float-left avatar and wrapping text.
+ * Saves ~24px height vs full NPCBubble. Use on review screens (Pyramid, Proposal, Path).
+ */
+export function NPCInline({ characterId = 'sage', message, emotion = 'neutral' }: Omit<NPCBubbleProps, 'typing'>) {
+  const charId = charArtStrings[characterId] ? characterId : 'sage';
+  const artData = parseArt(charArtStrings[charId]!, charPalettes[charId]!);
+  const charMeta = CHARACTERS.find(c => c.id === charId);
+  const npcColor = charMeta?.color || (charId === 'sage' ? '#B8C4E0' : t.violet);
+  const borderColor = emotionColors[emotion];
+
+  return (
+    <div style={{
+      padding: '10px 12px',
+      borderRadius: 12,
+      border: `1px solid ${borderColor}40`,
+      background: `${borderColor}06`,
+      marginBottom: 12,
+      animation: 'fadeUp 0.3s ease-out',
+      overflow: 'hidden',
+    }}>
+      {/* Float-left avatar */}
+      <div style={{
+        float: 'left',
+        marginRight: 10,
+        marginBottom: 2,
+        filter: `drop-shadow(0 0 6px ${npcColor}44)`,
+      }}>
+        <PixelCanvas data={artData} size={3} />
+      </div>
+      <p style={{
+        fontFamily: t.body,
+        fontSize: 13,
+        color: t.text,
+        lineHeight: 1.45,
+        margin: 0,
+      }}>
+        {message}
+      </p>
+    </div>
+  );
+}
+
 export function NPCBubble({ characterId = 'sage', message, emotion = 'neutral', typing = false }: NPCBubbleProps) {
   const charId = charArtStrings[characterId] ? characterId : 'sage';
   const artData = parseArt(charArtStrings[charId]!, charPalettes[charId]!);

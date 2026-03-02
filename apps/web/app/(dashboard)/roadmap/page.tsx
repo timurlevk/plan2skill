@@ -4,7 +4,6 @@ import React, { useState, useMemo } from 'react';
 import { useOnboardingStore } from '@plan2skill/store';
 import { NeonIcon } from '../../(onboarding)/_components/NeonIcon';
 import { t, rarity, skillLevelRarity } from '../../(onboarding)/_components/tokens';
-import { GOALS } from '../../(onboarding)/_data/goals';
 
 // ═══════════════════════════════════════════
 // QUEST LOG — Roadmap page with goal tabs + vertical timeline
@@ -57,11 +56,10 @@ export default function QuestLogPage() {
   const [activeGoalIdx, setActiveGoalIdx] = useState(0);
 
   const activeGoal = selectedGoals[activeGoalIdx];
-  const activeGoalData = activeGoal ? GOALS.find(g => g.id === activeGoal.id) : null;
   const assessment = activeGoal ? skillAssessments.find(a => a.goalId === activeGoal.id) : null;
   const levelRarity = assessment ? skillLevelRarity[assessment.level as keyof typeof skillLevelRarity] : rarity.common;
 
-  const totalWeeks = activeGoalData?.estimatedWeeks || aiEstimateWeeks || 12;
+  const totalWeeks = aiEstimateWeeks || 12;
   const weekRanges = useMemo(() => distributeWeeks(totalWeeks), [totalWeeks]);
 
   return (
@@ -92,7 +90,6 @@ export default function QuestLogPage() {
         }}>
           {selectedGoals.map((goal, idx) => {
             const active = idx === activeGoalIdx;
-            const goalData = GOALS.find(g => g.id === goal.id);
             return (
               <button
                 key={goal.id}
@@ -107,7 +104,7 @@ export default function QuestLogPage() {
                   position: 'relative',
                 }}
               >
-                {goalData && <NeonIcon type={goalData.icon} size={16} color={active ? 'violet' : 'muted'} />}
+                <NeonIcon type="target" size={16} color={active ? 'violet' : 'muted'} />
                 <span style={{
                   fontFamily: t.display, fontSize: 13, fontWeight: active ? 700 : 500,
                   color: active ? t.text : t.textSecondary,
@@ -134,15 +131,13 @@ export default function QuestLogPage() {
           marginBottom: 24,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-            {activeGoalData && (
-              <div style={{
-                width: 40, height: 40, borderRadius: 12,
-                background: `${t.violet}12`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <NeonIcon type={activeGoalData.icon} size={22} color="violet" />
-              </div>
-            )}
+            <div style={{
+              width: 40, height: 40, borderRadius: 12,
+              background: `${t.violet}12`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <NeonIcon type="target" size={22} color="violet" />
+            </div>
             <div style={{ flex: 1 }}>
               <h2 style={{
                 fontFamily: t.display, fontSize: 18, fontWeight: 800, color: t.text,

@@ -3,7 +3,6 @@
 import React from 'react';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
 import { t, rarity, skillLevelRarity } from '../../../(onboarding)/_components/tokens';
-import { GOALS } from '../../../(onboarding)/_data/goals';
 import type { GoalSelection, SkillAssessment } from '@plan2skill/types';
 
 interface ActiveQuestsProps {
@@ -43,7 +42,6 @@ export function ActiveQuests({ selectedGoals, skillAssessments }: ActiveQuestsPr
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {selectedGoals.map((goal, i) => {
-            const goalData = GOALS.find(gd => gd.id === goal.id);
             const assessment = skillAssessments.find(a => a.goalId === goal.id);
             const lr = assessment ? skillLevelRarity[assessment.level as keyof typeof skillLevelRarity] : rarity.common;
 
@@ -58,15 +56,13 @@ export function ActiveQuests({ selectedGoals, skillAssessments }: ActiveQuestsPr
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                  {goalData && (
-                    <div style={{
-                      width: 40, height: 40, borderRadius: 12,
-                      background: `${t.violet}12`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <NeonIcon type={goalData.icon} size={22} color="violet" />
-                    </div>
-                  )}
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 12,
+                    background: `${t.violet}12`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <NeonIcon type="target" size={22} color="violet" />
+                  </div>
                   <div style={{ flex: 1 }}>
                     <div style={{
                       fontFamily: t.display, fontSize: 15, fontWeight: 700, color: t.text,
@@ -88,11 +84,6 @@ export function ActiveQuests({ selectedGoals, skillAssessments }: ActiveQuestsPr
                       >
                         {lr.icon} {assessment?.level || 'beginner'}
                       </span>
-                      {goalData && (
-                        <span style={{ fontFamily: t.body, fontSize: 11, color: t.textMuted }}>
-                          ~{goalData.estimatedWeeks} weeks
-                        </span>
-                      )}
                     </div>
                   </div>
                   <span style={{ fontFamily: t.mono, fontSize: 13, fontWeight: 800, color: t.cyan }}>

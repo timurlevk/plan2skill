@@ -1,4 +1,7 @@
-import type { ArchetypeId, AttributeKey, CompanionId, EquipmentSlot, Rarity } from './enums';
+import type {
+  ArchetypeId, AttributeKey, CompanionId, EquipmentSlot, Rarity,
+  OnboardingIntent, DiscoveryPath, AssessmentLevel, AssessmentMethod,
+} from './enums';
 
 // ─── Rarity Config ───────────────────────────────────────────────
 
@@ -55,7 +58,7 @@ export interface CompanionConfig {
 
 // ─── Onboarding — Goal Categories ───────────────────────────────
 
-export type GoalCategory = 'tech' | 'business' | 'creative' | 'personal' | 'emerging';
+export type GoalCategory = 'ai' | 'business' | 'tech' | 'creative' | 'data' | 'languages' | 'marketing' | 'leadership' | 'security';
 
 // ─── Onboarding — Skill Levels ──────────────────────────────────
 
@@ -91,6 +94,27 @@ export interface SkillAssessment {
   level: SkillLevel;
   answers: number[];
   freeTextNote?: string;
+}
+
+// ─── Onboarding v2 — Goal & Assessment Types ───────────────────
+
+export interface DreamGoal {
+  text: string;
+  domain?: string;
+}
+
+export interface PerformanceGoal {
+  id: string;
+  text: string;
+  isCustom: boolean;
+}
+
+export interface SkillAssessmentV2 {
+  domain: string;
+  level: AssessmentLevel;
+  method: AssessmentMethod;
+  score: number;
+  confidence: number;
 }
 
 // ─── Onboarding Data (legacy — kept for compatibility) ──────────

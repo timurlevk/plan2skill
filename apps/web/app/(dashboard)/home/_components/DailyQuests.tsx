@@ -4,14 +4,13 @@ import React, { useState } from 'react';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
 import { t, rarity } from '../../../(onboarding)/_components/tokens';
 import { XPFloat } from '../../../(onboarding)/_components/XPFloat';
-import { GOALS } from '../../../(onboarding)/_data/goals';
 import { getDailyProgressMessage } from '../_utils/xp-utils';
 import type { QuestTask } from '../_utils/quest-templates';
 import type { GoalSelection } from '@plan2skill/types';
 
 interface QuestGroup {
   goal: GoalSelection;
-  goalData: ReturnType<typeof GOALS.find>;
+  goalData: { icon?: string } | null;
   tasks: QuestTask[];
 }
 
@@ -99,7 +98,7 @@ export function DailyQuests({
                     textAlign: 'left',
                   }}
                 >
-                  {goalData && <NeonIcon type={goalData.icon} size={16} color={allDone ? 'cyan' : 'violet'} />}
+                  <NeonIcon type={goalData?.icon || 'target'} size={16} color={allDone ? 'cyan' : 'violet'} />
                   <span style={{
                     fontFamily: t.display, fontSize: 14, fontWeight: 700, color: t.text,
                     flex: 1,

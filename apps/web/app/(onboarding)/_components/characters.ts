@@ -30,8 +30,8 @@ export const charArtStrings: Record<string, string> = {
   alex:  '..HHHH......\n..HHHHHHH...\n..HHHhHHHH..\n..HSSSSSSH..\n..SEESSEES..\n..SEwSSEwS..\n..SrSSSSrS..\n...SSmmSS...\n....SSSS....\n...TTTTTT...\n..TTTTTTTT..\n.ATTTTTTTTA.\n.ATTTttTTTA.\n..TTTTTTTT..\n...PP..PP...\n..FFF..FFF..',
   priya: '....HHHH....\n...HHHHHH...\n..HHHhHHHH..\n.HHSSSSSSHH.\n.HSEESSEESH.\n.HSEwSSEwSH.\n..SrSSSSrSH.\n...SSmmSS.H.\n....SSSS.H..\n...TTTTTT...\n..TTTTTTTT..\n.ATTTTTTTTA.\n.ATTTttTTTA.\n..TTTTTTTT..\n...PP..PP...\n..FFF..FFF..',
   liam:  '.H..HHHH..H.\n.HHHHHHHHHH.\n..HHHhHHHH..\n..HSSSSSSH..\n..SEESSEES..\n..SEwSSEwS..\n..SrSSSSrS..\n...SSmmSS...\n....SSSS....\n...TTTTTT...\n..TTTTTTTT..\n.ATTTTTTTTA.\n.ATTTttTTTA.\n..TTTTTTTT..\n...PP..PP...\n..FFF..FFF..',
-  // ─── Sage: NPC guide — silver-blue hair, glasses, scholarly robe ───
-  sage:  '...HHHHHH...\n..HHHhHHHH..\n..HHHhHHHH..\n..HSSSSSSH..\n..SGESSGES..\n..SGwSSGwS..\n..SrSSSSrS..\n...SSmmSS...\n....SSSS....\n...TTTTTT...\n..TTTTTTTT..\n.ATTTTTTTTA.\n.ATTTttTTTA.\n..TTTTTTTT..\n...PP..PP...\n..FFF..FFF..',
+  // ─── Sage: NPC guide — silver-blue hair, no glasses, casual blazer, friendly ───
+  sage:  '...HHHHHH...\n..HHHhHHHH..\n..HHHhHHHH..\n..HSSSSSSH..\n..SEESSEES..\n..SEwSSEwS..\n..SrSSSSrS..\n...SSmSSS...\n....SSSS....\n...BBBBBB...\n..BTTTTTTTB.\n.BBTTTTTTTBB\n.BBTTttTTTBB\n..BTTTTTTTB.\n...PP..PP...\n..FFF..FFF..',
 };
 
 export const charPalettes: Record<string, Record<string, string>> = {
@@ -43,6 +43,6 @@ export const charPalettes: Record<string, Record<string, string>> = {
   alex:  { H: '#6B48A8', h: '#9D7AFF', S: '#D2A37C', E: '#1A1020', w: '#FFF', r: '#C0905A', m: '#A87848', T: '#4ECDC4', t: '#3AABA0', A: '#D2A37C', P: '#1A6A60', F: '#105A50' },
   priya: { H: '#1A1008', h: '#2A1810', S: '#C68642', E: '#0A0A1E', w: '#FFF', r: '#B87530', m: '#A06828', T: '#FFD166', t: '#E0B040', A: '#C68642', P: '#8A6A10', F: '#705808' },
   liam:  { H: '#CC4422', h: '#E85830', S: '#FFE0C0', E: '#1A2030', w: '#FFF', r: '#FFBBA0', m: '#E8907A', T: '#818CF8', t: '#6060D0', A: '#FFE0C0', P: '#3A3080', F: '#2A2070' },
-  // ─── Sage (NPC-only, not a selectable character) ───
-  sage:  { H: '#B8C4E0', h: '#D0D8F0', S: '#C8A882', E: '#1A2030', w: '#FFF', r: '#B89870', m: '#A08060', G: '#8899BB', T: '#4A5580', t: '#3A4568', A: '#C8A882', P: '#2A3050', F: '#202840' },
+  // ─── Sage (NPC-only, not a selectable character — friendly business guru) ───
+  sage:  { H: '#B8C4E0', h: '#D0D8F0', S: '#C8A882', E: '#1A2030', w: '#FFF', r: '#B89870', m: '#C87060', B: '#3A4568', T: '#5A6A90', t: '#4A5878', A: '#C8A882', P: '#2A3050', F: '#202840' },
 };

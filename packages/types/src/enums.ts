@@ -46,6 +46,12 @@ export type SubscriptionTier = 'free' | 'pro' | 'champion';
 // ─── Companion Types ─────────────────────────────────────────────
 export type CompanionId = 'cat' | 'plant' | 'guitar' | 'robot' | 'bird';
 
+// ─── Onboarding v2 ─────────────────────────────────────────────
+export type OnboardingIntent = 'know' | 'explore_guided' | 'career' | 'exploring';
+export type DiscoveryPath = 'direct' | 'guided' | 'career';
+export type AssessmentLevel = 'beginner' | 'familiar' | 'intermediate' | 'advanced';
+export type AssessmentMethod = 'quiz' | 'self_assessment';
+
 // ─── XP Source ───────────────────────────────────────────────────
 export type XPSource =
   | 'task_complete'

@@ -92,6 +92,12 @@ const initialState = {
   goalSubGoals: {} as Record<string, string[]>,
 };
 
+// Hydration tracking — resolves when localStorage is loaded
+let _v1Hydrated = false;
+let _v1HydratedResolve: () => void;
+export const onboardingV1HydratedPromise = new Promise<void>((r) => { _v1HydratedResolve = r; });
+export function isOnboardingV1Hydrated() { return _v1Hydrated; }
+
 export const useOnboardingStore = create<OnboardingState>()(
   persist(
     (set) => ({
@@ -185,6 +191,10 @@ export const useOnboardingStore = create<OnboardingState>()(
     }),
     {
       name: 'plan2skill-onboarding',
+      onRehydrateStorage: () => () => {
+        _v1Hydrated = true;
+        _v1HydratedResolve();
+      },
     }
   )
 );
