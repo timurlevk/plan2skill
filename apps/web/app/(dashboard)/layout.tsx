@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useOnboardingStore, useOnboardingV2Store, useProgressionStore, isOnboardingV1Hydrated, isOnboardingV2Hydrated } from '@plan2skill/store';
+import { useOnboardingStore, useOnboardingV2Store, useProgressionStore, isOnboardingV1Hydrated, isOnboardingV2Hydrated, getLevelInfo } from '@plan2skill/store';
 import { NeonIcon } from '../(onboarding)/_components/NeonIcon';
 import { t } from '../(onboarding)/_components/tokens';
 import { CHARACTERS, charArtStrings, charPalettes } from '../(onboarding)/_components/characters';
@@ -249,7 +249,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const { characterId, archetypeId, forgeComplete } = useOnboardingStore();
   const { onboardingCompletedAt } = useOnboardingV2Store();
-  const { totalXp, level, currentStreak, energyCrystals, maxEnergyCrystals, quietMode } = useProgressionStore();
+  const { totalXp, level, currentStreak, energyCrystals, maxEnergyCrystals, coins, quietMode } = useProgressionStore();
 
   // Hydration guard — wait for Zustand persist to rehydrate from localStorage
   // Uses onRehydrateStorage callback (best practice, not generic useEffect)
@@ -441,88 +441,164 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </Link>
 
-          {/* Hero Identity Card */}
-          <div
-            role="region"
-            aria-label="Hero status"
-            style={{
-              position: 'relative',
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              padding: '16px 12px 12px', marginBottom: 16,
-              borderRadius: 16, background: t.bgCard,
-              border: `1px solid ${t.border}`,
-            }}
-          >
-            {/* Streak — top left corner */}
-            <div
-              aria-label={`${currentStreak} day streak`}
-              style={{
-                position: 'absolute', top: 8, left: 10,
-                display: 'flex', alignItems: 'center', gap: 3,
-              }}
-            >
-              <NeonIcon type="fire" size={12} color="gold" />
-              <span style={{ fontFamily: t.mono, fontSize: 10, fontWeight: 700, color: t.gold }}>
-                {currentStreak}d
-              </span>
-            </div>
-            {/* Crystals — top right corner */}
-            <div
-              aria-label={`${energyCrystals} of ${maxEnergyCrystals} energy crystals`}
-              style={{
-                position: 'absolute', top: 8, right: 10,
-                display: 'flex', alignItems: 'center', gap: 3,
-              }}
-            >
-              <NeonIcon type="gem" size={12} color="cyan" />
-              <span style={{ fontFamily: t.mono, fontSize: 10, fontWeight: 700, color: t.cyan }}>
-                {energyCrystals}/{maxEnergyCrystals}
-              </span>
-            </div>
+          {/* Hero Identity Card — merged widget (avatar + stats) */}
+          {(() => {
+            const heroLevelInfo = getLevelInfo(totalXp);
+            const heroXpPct = Math.min(100, heroLevelInfo.progress * 100);
+            return (
+              <div
+                role="region"
+                aria-label="Hero status"
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  padding: '14px 12px 12px', marginBottom: 16,
+                  borderRadius: 16, background: t.bgCard,
+                  border: `1px solid ${t.border}`,
+                }}
+              >
+                {/* Avatar */}
+                {charData && (
+                  <div style={{ animation: 'float 3s ease-in-out infinite', marginBottom: 6 }}>
+                    <AnimatedPixelCanvas
+                      character={charData}
+                      size={3}
+                      glowColor={charMeta?.color}
+                    />
+                  </div>
+                )}
+                {/* Name + Level */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                  <span style={{ fontFamily: t.display, fontSize: 13, fontWeight: 700, color: t.text }}>
+                    {charMeta?.name || 'Hero'}
+                  </span>
+                  <span style={{
+                    fontFamily: t.mono, fontSize: 10, fontWeight: 700,
+                    color: t.violet, padding: '1px 6px', borderRadius: 6,
+                    background: `${t.violet}12`,
+                  }}>
+                    Lv.{level}
+                  </span>
+                </div>
+                {/* Archetype badge */}
+                {archetype && (
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    padding: '2px 10px', borderRadius: 20, marginBottom: 8,
+                    background: `${archetype.color}15`, border: `1px solid ${archetype.color}30`,
+                  }}>
+                    <span style={{ fontSize: 10, color: archetype.color }}>{archetype.icon}</span>
+                    <span style={{
+                      fontFamily: t.mono, fontSize: 10, fontWeight: 700, color: archetype.color,
+                    }}>
+                      {archetype.name}
+                    </span>
+                  </div>
+                )}
 
-            {/* Avatar */}
-            {charData && (
-              <div style={{ animation: 'float 3s ease-in-out infinite', marginBottom: 8 }}>
-                <AnimatedPixelCanvas
-                  character={charData}
-                  size={3}
-                  glowColor={charMeta?.color}
-                />
-              </div>
-            )}
-            {/* Name + Level */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-              <span style={{ fontFamily: t.display, fontSize: 13, fontWeight: 700, color: t.text }}>
-                {charMeta?.name || 'Hero'}
-              </span>
-              <span style={{
-                fontFamily: t.mono, fontSize: 10, fontWeight: 700,
-                color: t.violet, padding: '1px 6px', borderRadius: 6,
-                background: `${t.violet}12`,
-              }}>
-                Lv.{level}
-              </span>
-            </div>
-            {/* Archetype badge */}
-            {archetype && (
-              <div style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                padding: '2px 10px', borderRadius: 20, marginBottom: 10,
-                background: `${archetype.color}15`, border: `1px solid ${archetype.color}30`,
-              }}>
-                <span style={{ fontSize: 10, color: archetype.color }}>{archetype.icon}</span>
-                <span style={{
-                  fontFamily: t.mono, fontSize: 10, fontWeight: 700, color: archetype.color,
+                {/* XP progress bar with exact numbers */}
+                <div style={{ width: '100%', padding: '0 2px', marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{
+                      fontFamily: t.mono, fontSize: 9, fontWeight: 700, color: t.gold,
+                    }}>
+                      {heroLevelInfo.currentXp} / {heroLevelInfo.xpForNextLevel} XP
+                    </span>
+                    <span style={{
+                      fontFamily: t.mono, fontSize: 9, fontWeight: 700, color: t.textMuted,
+                    }}>
+                      Lv.{level + 1}
+                    </span>
+                  </div>
+                  <div
+                    role="progressbar"
+                    aria-valuenow={heroLevelInfo.currentXp}
+                    aria-valuemax={heroLevelInfo.xpForNextLevel}
+                    aria-label={`Level ${level}: ${heroLevelInfo.currentXp} of ${heroLevelInfo.xpForNextLevel} XP`}
+                    style={{
+                      height: 6, borderRadius: 3,
+                      background: '#252530', overflow: 'hidden',
+                    }}
+                  >
+                    <div style={{
+                      width: `${heroXpPct}%`, height: '100%', borderRadius: 3,
+                      background: t.gradient,
+                      transition: 'width 0.6s ease-out',
+                      boxShadow: heroXpPct > 85 ? `0 0 8px ${t.violet}60` : `0 0 4px ${t.violet}30`,
+                    }} />
+                  </div>
+                </div>
+
+                {/* Quick stats: Streak / Energy / Coins */}
+                <div style={{
+                  display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
+                  gap: 4, width: '100%',
                 }}>
-                  {archetype.name}
-                </span>
+                  {/* Streak */}
+                  <div
+                    aria-label={`${currentStreak} day streak`}
+                    style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center',
+                      gap: 1, padding: '6px 2px', borderRadius: 10,
+                      background: currentStreak > 0 ? `${t.gold}08` : 'transparent',
+                    }}
+                  >
+                    <NeonIcon type="fire" size={13} color={currentStreak > 0 ? 'gold' : 'muted'} />
+                    <span style={{
+                      fontFamily: t.mono, fontSize: 12, fontWeight: 800,
+                      color: currentStreak > 0 ? t.gold : t.textMuted,
+                    }}>
+                      {currentStreak}
+                    </span>
+                    <span style={{ fontFamily: t.body, fontSize: 7, color: t.textMuted }}>
+                      streak
+                    </span>
+                  </div>
+
+                  {/* Energy */}
+                  <div
+                    aria-label={`${energyCrystals} of ${maxEnergyCrystals} energy crystals`}
+                    style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center',
+                      gap: 1, padding: '6px 2px', borderRadius: 10,
+                      background: energyCrystals > 0 ? `${t.cyan}08` : `${t.rose}06`,
+                    }}
+                  >
+                    <NeonIcon type="gem" size={13} color={energyCrystals > 0 ? 'cyan' : 'rose'} />
+                    <span style={{
+                      fontFamily: t.mono, fontSize: 12, fontWeight: 800,
+                      color: energyCrystals > 0 ? t.cyan : t.rose,
+                    }}>
+                      {energyCrystals}/{maxEnergyCrystals}
+                    </span>
+                    <span style={{ fontFamily: t.body, fontSize: 7, color: t.textMuted }}>
+                      energy
+                    </span>
+                  </div>
+
+                  {/* Coins */}
+                  <div
+                    aria-label={`${coins} coins`}
+                    style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center',
+                      gap: 1, padding: '6px 2px', borderRadius: 10,
+                      background: coins > 0 ? `${t.gold}06` : 'transparent',
+                    }}
+                  >
+                    <NeonIcon type="coins" size={13} color="gold" />
+                    <span style={{
+                      fontFamily: t.mono, fontSize: 12, fontWeight: 800,
+                      color: t.gold,
+                    }}>
+                      {coins}
+                    </span>
+                    <span style={{ fontFamily: t.body, fontSize: 7, color: t.textMuted }}>
+                      coins
+                    </span>
+                  </div>
+                </div>
               </div>
-            )}
-            {/* XP Bar */}
-            <div style={{ width: '100%', padding: '0 4px' }}>
-              <XPBar xp={totalXp} level={level} />
-            </div>
-          </div>
+            );
+          })()}
 
           {/* ═══ ZONE 2 — NAV (4 items) ═══ */}
           <nav style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

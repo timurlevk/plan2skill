@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useProgressionStore, useCharacterStore, getLevelInfo } from '@plan2skill/store';
+import { useProgressionStore, useCharacterStore } from '@plan2skill/store';
 import { t } from '../../(onboarding)/_components/tokens';
 import { NeonIcon } from '../../(onboarding)/_components/NeonIcon';
 import type { NeonIconType } from '../../(onboarding)/_components/NeonIcon';
@@ -16,18 +16,12 @@ import { useSpacedRepetition } from '../home/_hooks/useSpacedRepetition';
 // BL-004: Secondary dashboard content
 //
 // Visual hierarchy (UX-R121):
-//   1. Hero Stats — XP bar, level, streak, energy, coins (Primary)
-//   2. Weekly Quests — compact challenge rows (Primary)
-//   3. Skill Mastery — limited rings + due CTA (Secondary)
-//   4. Equipment Preview — equipped items summary (Secondary)
-//   5. Community — vertical stack, compact (Tertiary)
+//   1. Weekly Quests — compact challenge rows (Primary)
+//   2. Skill Mastery — limited rings + due CTA (Secondary)
+//   3. Equipment Preview — equipped items summary (Secondary)
+//   4. Community — vertical stack, compact (Tertiary)
 //
-// Fixes:
-//   - Social cards stacked vertically (was 2-col in 260px — broken)
-//   - Added progression stats (UX-R110: XP bar in sidebar)
-//   - Added equipment preview (Phase 5F)
-//   - Mastery capped at 4 visible (UX-R144: overwhelm prevention)
-//   - Consistent section headers
+// Hero Stats moved to left sidebar (merged with Hero Identity Card).
 //   - Empty state with RPG CTA
 // ═══════════════════════════════════════════
 
@@ -98,13 +92,10 @@ const RARITY_COLORS: Record<string, string> = {
 // ═══════════════════════════════════════════
 
 export function RightSidebar() {
-  const { totalXp, level, currentStreak, energyCrystals, maxEnergyCrystals, coins, quietMode } = useProgressionStore();
+  const { quietMode } = useProgressionStore();
   const { equipment, inventory, computedAttributes } = useCharacterStore();
   const weekly = useWeeklyChallenges();
   const mastery = useSpacedRepetition();
-
-  const levelInfo = getLevelInfo(totalXp);
-  const xpPct = Math.min(100, levelInfo.progress * 100);
 
   const hasWeekly = weekly.challenges.length > 0;
   const hasMastery = mastery.skills.length > 0;
@@ -126,130 +117,7 @@ export function RightSidebar() {
         height: '100%',
       }}
     >
-      {/* ─── 1. Hero Stats (Primary — UX-R110, UX-R111) ─── */}
-      <SidebarCard>
-        {/* Level + XP Bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          {/* Level badge */}
-          <div style={{
-            width: 36, height: 36, borderRadius: 12,
-            background: `${t.violet}18`,
-            border: `1.5px solid ${t.violet}40`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-          }}>
-            <span style={{
-              fontFamily: t.mono, fontSize: 14, fontWeight: 900, color: t.violet,
-            }}>
-              {level}
-            </span>
-          </div>
-
-          {/* XP progress */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{
-                fontFamily: t.display, fontSize: 11, fontWeight: 700, color: t.text,
-              }}>
-                Level {level}
-              </span>
-              <span style={{
-                fontFamily: t.mono, fontSize: 9, fontWeight: 700, color: t.textMuted,
-              }}>
-                {levelInfo.currentXp}/{levelInfo.xpForNextLevel} XP
-              </span>
-            </div>
-            <div
-              role="progressbar"
-              aria-valuenow={levelInfo.currentXp}
-              aria-valuemax={levelInfo.xpForNextLevel}
-              aria-label={`Level ${level}: ${levelInfo.currentXp} of ${levelInfo.xpForNextLevel} XP`}
-              style={{
-                height: 6, borderRadius: 3,
-                background: '#252530', overflow: 'hidden',
-              }}
-            >
-              <div style={{
-                width: `${xpPct}%`, height: '100%', borderRadius: 3,
-                background: t.gradient,
-                transition: 'width 0.8s ease-out',
-                boxShadow: xpPct > 85 ? `0 0 8px ${t.violet}60` : 'none',
-              }} />
-            </div>
-          </div>
-        </div>
-
-        {/* Quick stats row */}
-        <div style={{
-          display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
-          gap: 8,
-        }}>
-          {/* Streak */}
-          <div
-            aria-label={`Current streak: ${currentStreak} days`}
-            style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              gap: 2, padding: '8px 4px', borderRadius: 10,
-              background: currentStreak > 0 ? `${t.gold}08` : 'transparent',
-            }}
-          >
-            <NeonIcon type="fire" size={14} color={currentStreak > 0 ? 'gold' : 'muted'} />
-            <span style={{
-              fontFamily: t.mono, fontSize: 13, fontWeight: 800,
-              color: currentStreak > 0 ? t.gold : t.textMuted,
-            }}>
-              {currentStreak}
-            </span>
-            <span style={{ fontFamily: t.body, fontSize: 8, color: t.textMuted }}>
-              streak
-            </span>
-          </div>
-
-          {/* Energy */}
-          <div
-            aria-label={`Energy crystals: ${energyCrystals} of ${maxEnergyCrystals}`}
-            style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              gap: 2, padding: '8px 4px', borderRadius: 10,
-              background: energyCrystals > 0 ? `${t.cyan}08` : `${t.rose}06`,
-            }}
-          >
-            <NeonIcon type="gem" size={14} color={energyCrystals > 0 ? 'cyan' : 'rose'} />
-            <span style={{
-              fontFamily: t.mono, fontSize: 13, fontWeight: 800,
-              color: energyCrystals > 0 ? t.cyan : t.rose,
-            }}>
-              {energyCrystals}/{maxEnergyCrystals}
-            </span>
-            <span style={{ fontFamily: t.body, fontSize: 8, color: t.textMuted }}>
-              energy
-            </span>
-          </div>
-
-          {/* Coins */}
-          <div
-            aria-label={`Coins: ${coins}`}
-            style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              gap: 2, padding: '8px 4px', borderRadius: 10,
-              background: coins > 0 ? `${t.gold}06` : 'transparent',
-            }}
-          >
-            <NeonIcon type="coins" size={14} color="gold" />
-            <span style={{
-              fontFamily: t.mono, fontSize: 13, fontWeight: 800,
-              color: t.gold,
-            }}>
-              {coins}
-            </span>
-            <span style={{ fontFamily: t.body, fontSize: 8, color: t.textMuted }}>
-              coins
-            </span>
-          </div>
-        </div>
-      </SidebarCard>
-
-      {/* ─── 2. Weekly Quests (Primary — Phase 5E, BL-005) ─── */}
+      {/* ─── 1. Weekly Quests (Primary — Phase 5E, BL-005) ─── */}
       {hasWeekly && (
         <WeeklyChallenges
           challenges={weekly.challenges}
@@ -259,7 +127,7 @@ export function RightSidebar() {
         />
       )}
 
-      {/* ─── 3. Skill Mastery (Secondary — Phase 5D) ─── */}
+      {/* ─── 2. Skill Mastery (Secondary — Phase 5D) ─── */}
       {hasMastery && (
         <SidebarCard>
           <SectionHeader
@@ -317,7 +185,7 @@ export function RightSidebar() {
         </SidebarCard>
       )}
 
-      {/* ─── 4. Equipment Preview (Secondary — Phase 5F) ─── */}
+      {/* ─── 3. Equipment Preview (Secondary — Phase 5F) ─── */}
       {hasEquipment && (
         <SidebarCard>
           <SectionHeader icon="shield" color="violet" label="Equipment" />
@@ -423,7 +291,7 @@ export function RightSidebar() {
         </SidebarCard>
       )}
 
-      {/* ─── 5. Community (Tertiary — UX-R162: opt-in only) ─── */}
+      {/* ─── 4. Community (Tertiary — UX-R162: opt-in only) ─── */}
       {!quietMode && (
         <SidebarCard style={{ padding: 14 }}>
           <SectionHeader icon="trophy" color="gold" label="Community" />
