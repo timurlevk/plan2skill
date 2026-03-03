@@ -1,8 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { LLM_CLIENT_TOKEN } from '../ai/core/interfaces';
-import type { ILlmClient } from '../ai/core/interfaces';
-import { ModelTier } from '../ai/core/types';
+import { NarrativeGenerator } from '../ai/generators/narrative.generator';
 import { ProgressionService } from '../progression/progression.service';
 import type {
   NarrativeMode,
@@ -34,9 +32,11 @@ const DAILY_NARRATIVE_XP_CAP = 5;
 
 @Injectable()
 export class NarrativeService {
+  private readonly logger = new Logger(NarrativeService.name);
+
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(LLM_CLIENT_TOKEN) private readonly llmClient: ILlmClient,
+    private readonly narrativeGenerator: NarrativeGenerator,
     private readonly progressionService: ProgressionService,
   ) {}
 
@@ -328,57 +328,31 @@ export class NarrativeService {
       const episodeNum = nextEpisodeNum + i;
       const globalNum = nextGlobalNum + i;
 
-      const systemPrompt = `You are the narrative engine for Plan2Skill's world of Lumen.
-You write short, episodic fantasy stories (120-180 words per episode) that inspire learners.
-World: ${season.storyBible.worldName}. Rules: ${JSON.stringify(season.storyBible.worldRules)}.
-Tone: 70% epic grandeur, 30% warm humor. NEVER: violence, character death, deception by Sage.
-Characters: ${JSON.stringify(season.storyBible.characters)}.
-Geography: ${JSON.stringify(season.storyBible.geography)}.
-Output ONLY valid JSON. No markdown fences.`;
-
-      const userPrompt = `Generate Episode ${episodeNum} of Season "${season.title}".
-Arc outline: ${JSON.stringify(season.arcOutline)}
-Current state: Act ${stateTracker.currentAct}, Episode ${episodeNum}
-Recent summaries: ${JSON.stringify(recentSummaries)}
-Constraints: ${JSON.stringify(stateTracker.constraints)}
-
-Output JSON schema:
-{
-  "title": "string — 3-7 words, evocative",
-  "contextSentence": "string — 1 sentence setting the scene",
-  "body": "string — 120-180 words, narrative prose",
-  "cliffhanger": "string — 1-2 sentences ending with suspense",
-  "sageReflection": "string — 1-2 sentences in Sage's voice connecting to learning",
-  "summary": "string — 2-3 sentence plot summary for continuity",
-  "category": "standard|climax|lore_drop|character_focus"
-}`;
-
       try {
-        const llmResponse = await this.llmClient.call({
-          tier: ModelTier.QUALITY,
-          systemPrompt,
-          userPrompt,
-          maxTokens: 2048,
-          temperature: 0.7,
-          generatorType: 'narrative',
+        const result = await this.narrativeGenerator.generate('system', {
+          seasonId,
+          seasonTitle: season.title,
+          episodeNumber: episodeNum,
+          globalNumber: globalNum,
+          recentSummaries,
+          stateTracker,
+          storyBible: {
+            worldName: season.storyBible.worldName,
+            worldRules: season.storyBible.worldRules,
+            characters: season.storyBible.characters,
+            geography: season.storyBible.geography,
+          },
+          arcOutline: season.arcOutline,
         });
-        const result = JSON.parse(llmResponse.text) as {
-          title: string;
-          contextSentence: string;
-          body: string;
-          cliffhanger: string;
-          sageReflection: string;
-          summary: string;
-          category: string;
-        };
 
-        // Quality gates
+        // Post-validation word count quality gate
         const wordCount = result.body.split(/\s+/).length;
         if (wordCount < 80 || wordCount > 250) {
-          continue; // Skip episodes that fail word count gate
+          this.logger.warn(`Episode ${episodeNum}: word count ${wordCount} outside 80-250 range, skipping`);
+          continue;
         }
 
-        const readTimeSeconds = Math.ceil(wordCount / 3.5); // ~210 wpm reading speed
+        const readTimeSeconds = Math.ceil(wordCount / 3.5);
 
         const episode = await this.prisma.episode.create({
           data: {
@@ -391,10 +365,11 @@ Output JSON schema:
             cliffhanger: result.cliffhanger,
             sageReflection: result.sageReflection,
             summary: result.summary,
-            category: result.category || 'standard',
+            category: result.category,
+            toneProfile: result.tone,
             wordCount,
             readTimeSeconds,
-            act: stateTracker.currentAct,
+            act: result.act,
             status: 'draft',
             aiModelUsed: 'claude-sonnet-4-6',
             aiConfidence: 0.85,
@@ -402,8 +377,8 @@ Output JSON schema:
         });
 
         episodeIds.push(episode.id);
-      } catch {
-        // Continue generating remaining episodes even if one fails
+      } catch (err) {
+        this.logger.error(`Episode ${episodeNum} generation failed: ${err instanceof Error ? err.message : String(err)}`);
         continue;
       }
     }

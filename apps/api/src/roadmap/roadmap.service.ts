@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RoadmapGenerator } from '../ai/generators/roadmap.generator';
+import { RoadmapGateway } from './roadmap.gateway';
 import type { GenerateRoadmapInput } from '@plan2skill/types';
 
 @Injectable()
@@ -14,6 +15,8 @@ export class RoadmapService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly roadmapGenerator: RoadmapGenerator,
+    @Inject(forwardRef(() => RoadmapGateway))
+    private readonly gateway: RoadmapGateway,
   ) {}
 
   async validateRoadmapLimit(userId: string) {
@@ -96,6 +99,18 @@ export class RoadmapService {
     userId: string,
     input: GenerateRoadmapInput,
   ) {
+    // SSE: context enrichment phase
+    this.gateway.emitProgress(roadmapId, {
+      type: 'progress',
+      data: { phase: 'context', percent: 10, message: 'Building hero context...' },
+    });
+
+    // SSE: generation phase
+    this.gateway.emitProgress(roadmapId, {
+      type: 'progress',
+      data: { phase: 'generating', percent: 30, message: 'Forging quest line...' },
+    });
+
     const aiResult = await this.roadmapGenerator.generate(userId, {
       goal: input.goal,
       dailyMinutes: input.dailyMinutes,
@@ -103,6 +118,12 @@ export class RoadmapService {
       experienceLevel: input.experienceLevel,
       selectedTools: input.selectedTools,
       superpower: input.superpower,
+    });
+
+    // SSE: saving phase
+    this.gateway.emitProgress(roadmapId, {
+      type: 'progress',
+      data: { phase: 'saving', percent: 60, message: 'Inscribing milestones...' },
     });
 
     // Create milestones and tasks from AI result
@@ -139,6 +160,13 @@ export class RoadmapService {
           },
         });
       }
+
+      // SSE: emit milestone progress
+      const percent = 60 + Math.round((i + 1) / aiResult.milestones.length * 30);
+      this.gateway.emitProgress(roadmapId, {
+        type: 'milestone',
+        data: { index: i, title: ms.title, taskCount: ms.tasks.length, percent },
+      });
     }
 
     // Update roadmap
@@ -149,6 +177,12 @@ export class RoadmapService {
         description: aiResult.description,
         status: 'active',
       },
+    });
+
+    // SSE: complete
+    this.gateway.emitProgress(roadmapId, {
+      type: 'complete',
+      data: { roadmapId, percent: 100 },
     });
   }
 

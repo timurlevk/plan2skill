@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { t } from '../(onboarding)/_components/tokens';
 import { NeonIcon } from '../(onboarding)/_components/NeonIcon';
+import { trpc } from '@plan2skill/api-client';
+import { useAuthStore } from '@plan2skill/store';
 
 // ═══════════════════════════════════════════════════════
 // ADMIN LAYOUT — Clean, functional, data-dense
@@ -45,6 +47,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: '/admin/equipment', label: 'Equipment Catalog' },
           { href: '/admin/content', label: 'Quest Moderation' },
           { href: '/admin/characters', label: 'Characters' },
+          { href: '/admin/narrative', label: 'Narrative Episodes' },
         ],
       },
     ],
@@ -86,6 +89,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/admin/analytics', label: 'Analytics', icon: 'chart' },
       { href: '/admin/ops', label: 'Operations', icon: 'lightning' },
+      { href: '/admin/ai-ops', label: 'AI Ops', icon: 'lightning' },
     ],
   },
 ];
@@ -202,9 +206,34 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
 
-  // TODO: Wire to real auth — check ctx.user.role via tRPC
-  const userRole: string = 'admin';
-  const userName: string = 'Admin';
+  // Auth: fetch user profile for role-based access control
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const { data: profile, isLoading: profileLoading } = trpc.user.profile.useQuery(undefined, {
+    enabled: isAuthenticated,
+    staleTime: 1000 * 60 * 5,
+    retry: 1,
+  });
+  const userRole = profile?.role ?? 'user';
+  const userName = profile?.displayName ?? 'Admin';
+
+  // Auth guard: redirect non-admin users
+  useEffect(() => {
+    if (!profileLoading && profile && !['admin', 'moderator', 'superadmin'].includes(userRole)) {
+      router.push('/home');
+    }
+  }, [profileLoading, profile, userRole, router]);
+
+  if (profileLoading || !profile) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: '100vh', background: t.bg,
+        fontFamily: t.body, fontSize: 14, color: t.textMuted,
+      }}>
+        Verifying access...
+      </div>
+    );
+  }
 
   const roleBadgeColor: Record<string, string> = {
     moderator: t.mint,

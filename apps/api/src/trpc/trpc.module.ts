@@ -14,6 +14,10 @@ import { EquipmentModule } from '../equipment/equipment.module';
 import { LootModule } from '../loot/loot.module';
 import { ForgeModule } from '../forge/forge.module';
 import { ShopModule } from '../shop/shop.module';
+import { NarrativeModule } from '../narrative/narrative.module';
+import { AdminAiModule } from '../admin/admin-ai.module';
+import { AssessmentModule } from '../assessment/assessment.module';
+import { SkillEloModule } from '../skill-elo/skill-elo.module';
 
 @Module({
   imports: [
@@ -21,6 +25,8 @@ import { ShopModule } from '../shop/shop.module';
     RoadmapModule, AiModule, QuestModule,
     SpacedRepetitionModule, AchievementModule,
     EquipmentModule, LootModule, ForgeModule, ShopModule,
+    NarrativeModule,
+    AdminAiModule, AssessmentModule, SkillEloModule,
   ],
   providers: [TrpcService, TrpcRouter],
 })

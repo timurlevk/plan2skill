@@ -28,8 +28,8 @@ export type ContinuityCheck = z.infer<typeof ContinuityCheckSchema>;
 export const AiEpisodeSchema = z.object({
   title: z.string().min(3).max(120),
   contextSentence: z.string().min(10).max(300),
-  /** Body: 400-800 words ≈ 2400-4800 chars */
-  body: z.string().min(2400).max(4800),
+  /** Body: 80-800 words — word count gate applied post-validation in service */
+  body: z.string().min(300).max(6000),
   cliffhanger: z.string().min(20).max(400),
   sageReflection: z.string().min(20).max(400),
   summary: z.string().min(20).max(500),

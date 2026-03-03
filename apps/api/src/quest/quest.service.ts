@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { QuestGenerator } from '../ai/generators/quest.generator';
 
 /**
  * Quest Engine v2 (Phase 5C)
@@ -25,7 +26,12 @@ const DAILY_QUEST_COUNT = 5;
 
 @Injectable()
 export class QuestService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(QuestService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly questGenerator: QuestGenerator,
+  ) {}
 
   /**
    * DA-06: Get today's quests for a user with diversity enforcement.
@@ -266,6 +272,100 @@ export class QuestService {
       qualityScore,
       feedback: wordCount >= 30 ? 'Deep reflection!' : 'Quest Complete!',
     };
+  }
+
+  /**
+   * Generate AI-powered daily quests for user's active milestone.
+   */
+  async generateDailyQuests(userId: string): Promise<Array<{
+    id: string;
+    title: string;
+    description: string;
+    taskType: string;
+    questType: string;
+    estimatedMinutes: number;
+    xpReward: number;
+    coinReward: number;
+    rarity: string;
+    skillDomain: string | null;
+  }>> {
+    // Find active roadmap + active milestone
+    const roadmap = await this.prisma.roadmap.findFirst({
+      where: { userId, status: 'active' },
+      include: {
+        milestones: {
+          where: { status: { in: ['active', 'in_progress'] } },
+          orderBy: { order: 'asc' },
+          take: 1,
+          include: {
+            tasks: {
+              where: { status: { in: ['available', 'locked'] } },
+              select: { title: true, skillDomain: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!roadmap || roadmap.milestones.length === 0) {
+      return [];
+    }
+
+    const milestone = roadmap.milestones[0]!;
+    const existingTitles = milestone.tasks.map((t) => t.title);
+
+    // Determine skill domains from milestone tasks
+    const domains = [...new Set(milestone.tasks.map((t) => t.skillDomain).filter(Boolean))] as string[];
+    const skillDomain = domains[0] ?? 'general';
+
+    const result = await this.questGenerator.generate(userId, {
+      skillDomain,
+      milestoneId: milestone.id,
+      count: Math.min(5, DAILY_QUEST_COUNT),
+      dailyMinutes: roadmap.dailyMinutes ?? 30,
+      existingTaskTitles: existingTitles,
+    });
+
+    // Persist generated quests as Task rows
+    const createdTasks = [];
+    for (let i = 0; i < result.quests.length; i++) {
+      const quest = result.quests[i]!;
+      const task = await this.prisma.task.create({
+        data: {
+          milestoneId: milestone.id,
+          title: quest.title,
+          description: quest.description,
+          taskType: quest.taskType,
+          questType: quest.questType,
+          estimatedMinutes: quest.estimatedMinutes,
+          xpReward: quest.xpReward,
+          coinReward: quest.coinReward,
+          rarity: quest.rarity,
+          skillDomain: quest.skillDomain,
+          bloomLevel: quest.bloomLevel,
+          difficultyTier: quest.difficultyTier,
+          knowledgeCheck: quest.knowledgeCheck as any,
+          validationType: quest.knowledgeCheck ? 'knowledge_quiz' : 'completion_attestation',
+          status: 'available',
+          order: 1000 + i,
+        },
+      });
+
+      createdTasks.push({
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        taskType: task.taskType,
+        questType: task.questType,
+        estimatedMinutes: task.estimatedMinutes,
+        xpReward: task.xpReward,
+        coinReward: task.coinReward,
+        rarity: task.rarity,
+        skillDomain: task.skillDomain,
+      });
+    }
+
+    return createdTasks;
   }
 
   private todayStartInTimezone(timezone: string): Date {

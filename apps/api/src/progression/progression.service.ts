@@ -4,6 +4,8 @@ import type { XPSource, TaskCompletionResult } from '@plan2skill/types';
 import { LootService } from '../loot/loot.service';
 import { RoadmapService } from '../roadmap/roadmap.service';
 import { AchievementService } from '../achievement/achievement.service';
+import { CharacterService } from '../character/character.service';
+import { SkillEloService } from '../skill-elo/skill-elo.service';
 
 @Injectable()
 export class ProgressionService {
@@ -15,6 +17,9 @@ export class ProgressionService {
     private readonly roadmapService: RoadmapService,
     @Inject(forwardRef(() => AchievementService))
     private readonly achievementService: AchievementService,
+    @Inject(forwardRef(() => CharacterService))
+    private readonly characterService: CharacterService,
+    private readonly skillEloService: SkillEloService,
   ) {}
 
   /**
@@ -223,12 +228,12 @@ export class ProgressionService {
             archetypeId: character.archetypeId,
             evolutionTier: character.evolutionTier,
             attributes: {
-              mastery: character.mastery,
-              insight: character.insight,
-              influence: character.influence,
-              resilience: character.resilience,
-              versatility: character.versatility,
-              discovery: character.discovery,
+              STR: character.strength,
+              INT: character.intelligence,
+              CHA: character.charisma,
+              CON: character.constitution,
+              DEX: character.dexterity,
+              WIS: character.wisdom,
             },
             equipment: character.equipment.map((e) => ({
               slot: e.slot,
@@ -334,6 +339,14 @@ export class ProgressionService {
       },
     });
 
+    // Update skill Elo (Phase J — adaptive difficulty)
+    if (task.skillDomain) {
+      const qualityScore = (validationResult as any)?.qualityScore ?? 0.5;
+      this.skillEloService
+        .updateAfterQuest(userId, task.skillDomain, qualityScore, task.difficultyTier ?? 3)
+        .catch(() => { /* non-blocking */ });
+    }
+
     // Update streak with timezone
     const streakResult = await this.updateStreak(userId, timezone);
 
@@ -344,12 +357,47 @@ export class ProgressionService {
     const totalTasks = task.milestone.tasks.length;
     const milestoneCompleted = completedTasks >= totalTasks;
 
+    // Phase 5H: Attribute growth on milestone completion
+    let attributeGrowthResult: { attribute: string; amount: number }[] | null = null;
+    let evolutionTierChange: string | null = null;
+
     if (milestoneCompleted) {
       await this.prisma.milestone.update({
         where: { id: task.milestoneId },
         data: { status: 'completed', progress: 100 },
       });
       await this.awardXp(userId, 100, 'milestone_complete');
+
+      // Find dominant skill domain from milestone tasks
+      const domainCounts = new Map<string, number>();
+      for (const t of task.milestone.tasks) {
+        if (t.skillDomain) domainCounts.set(t.skillDomain, (domainCounts.get(t.skillDomain) ?? 0) + 1);
+      }
+      let dominantDomain: string | null = null;
+      let maxCount = 0;
+      for (const [domain, count] of domainCounts) {
+        if (count > maxCount) { dominantDomain = domain; maxCount = count; }
+      }
+
+      // Lookup mapping from ref_skill_domain_attributes (DB, not hardcoded)
+      if (dominantDomain) {
+        try {
+          const mapping = await this.prisma.skillDomainAttribute.findFirst({
+            where: { skillDomain: dominantDomain, validTo: null },
+          });
+          if (mapping) {
+            await this.characterService.addAttribute(userId, mapping.primaryAttr, mapping.primaryGrowth);
+            await this.characterService.addAttribute(userId, mapping.secondaryAttr, mapping.secondaryGrowth);
+            evolutionTierChange = await this.characterService.checkEvolution(userId);
+            attributeGrowthResult = [
+              { attribute: mapping.primaryAttr, amount: mapping.primaryGrowth },
+              { attribute: mapping.secondaryAttr, amount: mapping.secondaryGrowth },
+            ];
+          }
+        } catch {
+          // Non-blocking — attribute growth failure should not block task completion
+        }
+      }
     } else {
       await this.prisma.milestone.update({
         where: { id: task.milestoneId },
@@ -418,6 +466,8 @@ export class ProgressionService {
       roadmapProgress,
       roadmapCompleted,
       lootDrop,
+      attributeGrowth: attributeGrowthResult,
+      evolutionTierChange,
     };
   }
 

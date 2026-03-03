@@ -14,6 +14,10 @@ import { EquipmentService } from '../equipment/equipment.service';
 import { LootService } from '../loot/loot.service';
 import { ForgeService } from '../forge/forge.service';
 import { ShopService } from '../shop/shop.service';
+import { NarrativeService } from '../narrative/narrative.service';
+import { AdminAiService } from '../admin/admin-ai.service';
+import { AssessmentService } from '../assessment/assessment.service';
+import { SkillEloService } from '../skill-elo/skill-elo.service';
 
 @Injectable()
 export class TrpcRouter implements OnModuleInit {
@@ -33,6 +37,10 @@ export class TrpcRouter implements OnModuleInit {
     private readonly lootService: LootService,
     private readonly forgeService: ForgeService,
     private readonly shopService: ShopService,
+    private readonly narrativeService: NarrativeService,
+    private readonly adminAiService: AdminAiService,
+    private readonly assessmentService: AssessmentService,
+    private readonly skillEloService: SkillEloService,
   ) {}
 
   private buildRouter() {
@@ -126,6 +134,36 @@ export class TrpcRouter implements OnModuleInit {
       trending: protectedProcedure.query(() => {
         return this.roadmapService.getTrendingDomains();
       }),
+      // Phase 5H: Roadmap Adjust/Pause/Resume
+      adjust: protectedProcedure
+        .input(z.object({
+          roadmapId: z.string().uuid(),
+          type: z.enum(['goals', 'pace', 'regen', 'add_topic']),
+          newGoal: z.string().min(5).max(500).optional(),
+          newDailyMinutes: z.union([z.literal(15), z.literal(30), z.literal(60), z.literal(90)]).optional(),
+          newInterests: z.array(z.string().max(100)).max(5).optional(),
+        }))
+        .mutation(({ ctx, input }) => {
+          return this.roadmapService.adjustRoadmap(ctx.userId, input.roadmapId, {
+            type: input.type,
+            newGoal: input.newGoal,
+            newDailyMinutes: input.newDailyMinutes,
+            newInterests: input.newInterests,
+          });
+        }),
+      pause: protectedProcedure
+        .input(z.object({ roadmapId: z.string().uuid() }))
+        .mutation(({ ctx, input }) => {
+          return this.roadmapService.pauseRoadmap(ctx.userId, input.roadmapId);
+        }),
+      resume: protectedProcedure
+        .input(z.object({ roadmapId: z.string().uuid() }))
+        .mutation(({ ctx, input }) => {
+          return this.roadmapService.resumeRoadmap(ctx.userId, input.roadmapId);
+        }),
+      checkLimit: protectedProcedure.query(({ ctx }) => {
+        return this.roadmapService.validateRoadmapLimit(ctx.userId);
+      }),
     });
 
     const progressionRouter = router({
@@ -156,6 +194,9 @@ export class TrpcRouter implements OnModuleInit {
     const questRouter = router({
       daily: protectedProcedure.query(({ ctx }) => {
         return this.questService.getDailyQuests(ctx.userId);
+      }),
+      generateDaily: protectedProcedure.mutation(({ ctx }) => {
+        return this.questService.generateDailyQuests(ctx.userId);
       }),
       validate: protectedProcedure
         .input(
@@ -293,6 +334,161 @@ export class TrpcRouter implements OnModuleInit {
         }),
     });
 
+    // ─── Narrative & Lore (Phase P) ────────────────────────────
+
+    const narrativeRouter = router({
+      todayEpisode: protectedProcedure.query(({ ctx }) => {
+        return this.narrativeService.getTodayEpisode(ctx.userId);
+      }),
+      markRead: protectedProcedure
+        .input(z.object({
+          episodeId: z.string().uuid(),
+          source: z.enum(['home', 'archive', 'notification']),
+          durationSec: z.number().int().min(0).optional(),
+        }))
+        .mutation(({ ctx, input }) => {
+          return this.narrativeService.markEpisodeRead(
+            ctx.userId, input.episodeId, input.source, input.durationSec,
+          );
+        }),
+      dismiss: protectedProcedure
+        .input(z.object({ episodeId: z.string().uuid() }))
+        .mutation(({ ctx, input }) => {
+          return this.narrativeService.dismissEpisode(ctx.userId, input.episodeId);
+        }),
+      preference: protectedProcedure.query(({ ctx }) => {
+        return this.narrativeService.getNarrativePreference(ctx.userId);
+      }),
+      setMode: protectedProcedure
+        .input(z.object({ mode: z.enum(['full', 'minimal', 'off']) }))
+        .mutation(({ ctx, input }) => {
+          return this.narrativeService.setNarrativeMode(ctx.userId, input.mode);
+        }),
+      seasons: protectedProcedure.query(() => {
+        return this.narrativeService.getSeasons();
+      }),
+      seasonEpisodes: protectedProcedure
+        .input(z.object({ seasonId: z.string().uuid() }))
+        .query(({ ctx, input }) => {
+          return this.narrativeService.getSeasonEpisodes(input.seasonId, ctx.userId);
+        }),
+      completeLegend: protectedProcedure.mutation(({ ctx }) => {
+        return this.narrativeService.completeLegend(ctx.userId);
+      }),
+      // Admin endpoints
+      reviewQueue: protectedProcedure.query(() => {
+        return this.narrativeService.getReviewQueue();
+      }),
+      review: protectedProcedure
+        .input(z.object({
+          episodeId: z.string().uuid(),
+          action: z.enum(['approve', 'reject']),
+          edits: z.object({
+            title: z.string().optional(),
+            body: z.string().optional(),
+            sageReflection: z.string().optional(),
+          }).optional(),
+        }))
+        .mutation(({ input }) => {
+          return this.narrativeService.reviewEpisode(
+            input.episodeId, input.action, input.edits,
+          );
+        }),
+      generateBatch: protectedProcedure
+        .input(z.object({
+          seasonId: z.string().uuid(),
+          count: z.number().int().min(1).max(7),
+        }))
+        .mutation(({ input }) => {
+          return this.narrativeService.generateEpisodeBatch(input.seasonId, input.count);
+        }),
+    });
+
+    // ─── Assessment (Phase G) ──────────────────────────────────
+
+    const assessmentRouter = router({
+      generate: protectedProcedure
+        .input(z.object({
+          skillDomain: z.string().max(50),
+          experienceLevel: z.enum(['beginner', 'intermediate', 'advanced', 'expert']),
+          goal: z.string().max(500),
+          questionCount: z.number().int().min(3).max(10).default(5),
+        }))
+        .mutation(({ ctx, input }) => {
+          return this.assessmentService.generateAssessment(ctx.userId, input);
+        }),
+      submit: protectedProcedure
+        .input(z.object({
+          skillDomain: z.string().max(50),
+          questions: z.array(z.object({
+            question: z.string(),
+            options: z.array(z.string()),
+            correctIndex: z.number().int(),
+            explanation: z.string(),
+            bloomLevel: z.string(),
+            skillDomain: z.string(),
+            difficultyElo: z.number().int(),
+            distractorTypes: z.array(z.string()),
+          })),
+          answers: z.array(z.object({
+            questionIndex: z.number().int(),
+            selectedIndex: z.number().int().min(0).max(3),
+          })),
+        }))
+        .mutation(({ ctx, input }) => {
+          return this.assessmentService.submitAssessment(
+            ctx.userId,
+            input.skillDomain,
+            input.questions as any,
+            input.answers,
+          );
+        }),
+    });
+
+    // ─── Admin AI Observability (Phase H) ────────────────────
+
+    const adminRouter = router({
+      llmCosts: protectedProcedure
+        .input(z.object({ days: z.number().int().min(1).max(90).default(30) }))
+        .query(({ input }) => {
+          return this.adminAiService.getCostSummary(input.days);
+        }),
+      llmUsage: protectedProcedure
+        .input(z.object({ days: z.number().int().min(1).max(90).default(30) }))
+        .query(({ input }) => {
+          return this.adminAiService.getUsageStats(input.days);
+        }),
+      llmErrors: protectedProcedure
+        .input(z.object({ limit: z.number().int().min(1).max(100).default(20) }))
+        .query(({ input }) => {
+          return this.adminAiService.getRecentErrors(input.limit);
+        }),
+      llmCacheStats: protectedProcedure.query(() => {
+        return this.adminAiService.getCacheStats();
+      }),
+      llmTopUsers: protectedProcedure
+        .input(z.object({
+          days: z.number().int().min(1).max(90).default(30),
+          limit: z.number().int().min(1).max(50).default(10),
+        }))
+        .query(({ input }) => {
+          return this.adminAiService.getTopUsersByCost(input.days, input.limit);
+        }),
+    });
+
+    // ─── Skill Elo (Phase J) ─────────────────────────────────
+
+    const skillEloRouter = router({
+      list: protectedProcedure.query(({ ctx }) => {
+        return this.skillEloService.getAllElos(ctx.userId);
+      }),
+      get: protectedProcedure
+        .input(z.object({ skillDomain: z.string().max(50) }))
+        .query(({ ctx, input }) => {
+          return this.skillEloService.getElo(ctx.userId, input.skillDomain);
+        }),
+    });
+
     return this.trpc.mergeRouters(
       router({
         user: userRouter,
@@ -305,6 +501,10 @@ export class TrpcRouter implements OnModuleInit {
         equipment: equipmentRouter,
         loot: lootRouter,
         shop: shopRouter,
+        narrative: narrativeRouter,
+        assessment: assessmentRouter,
+        admin: adminRouter,
+        skillElo: skillEloRouter,
       }),
     );
   }
