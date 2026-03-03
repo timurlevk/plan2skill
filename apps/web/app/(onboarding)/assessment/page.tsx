@@ -52,6 +52,7 @@ export default function AssessmentPage() {
   const [npcEmotion, setNpcEmotion] = useState<'neutral' | 'happy' | 'impressed' | 'thinking'>('happy');
   const [showXP, setShowXP] = useState(false);
   const [xpAmount, setXpAmount] = useState(0);
+  const [totalXpEarned, setTotalXpEarned] = useState(0);
   const [complete, setComplete] = useState(false);
   const [selfLevel, setSelfLevel] = useState<string | null>(null);
 
@@ -93,6 +94,7 @@ export default function AssessmentPage() {
       setNpcEmotion(q.npcReaction.correctEmotion);
       setXpAmount(5);
       setShowXP(true);
+      setTotalXpEarned((prev) => prev + 5);
       addXP(5);
       setTimeout(() => setShowXP(false), 1200);
     } else {
@@ -115,6 +117,7 @@ export default function AssessmentPage() {
           confidence: 0.8,
         };
         setAssessment(assessment);
+        setTotalXpEarned((prev) => prev + 5);
         addXP(5); // completion bonus
       }, 1000);
     }
@@ -133,6 +136,7 @@ export default function AssessmentPage() {
       confidence: 0.5,
     };
     setAssessment(assessment);
+    setTotalXpEarned(5);
     addXP(5);
     setComplete(true);
     setNpcMessage('Self-assessment noted! Every hero knows their starting point.');
@@ -141,19 +145,32 @@ export default function AssessmentPage() {
 
   const domainData = DOMAINS.find((d) => d.id === assessDomain);
 
-  // ─── Complete State ───
+  // ─── Complete State — matches prototype: icon + level + description + 3 stat cards ───
   if (complete) {
     const level = selfLevel
       ? SELF_ASSESSMENT_OPTIONS.find((o) => o.id === selfLevel)?.level || 'beginner'
       : computeAssessmentLevel(answered);
     const levelLabel = level.charAt(0).toUpperCase() + level.slice(1);
+    const correctCount = answered.filter((a) => a.correct).length;
+
+    // Level description — RPG vocabulary (UX-R141: positive framing)
+    const LEVEL_DESCRIPTIONS: Record<string, string> = {
+      beginner: 'Every hero starts somewhere! Your quests will guide you from the basics.',
+      familiar: 'You know the terrain! Your quests will build on your existing awareness.',
+      intermediate: 'Solid foundations! Your quests will build on what you already know.',
+      advanced: 'Impressive power level! Your quests will challenge you at a high tier.',
+    };
+    const levelDesc = LEVEL_DESCRIPTIONS[level] || LEVEL_DESCRIPTIONS.intermediate;
+
+    // Self-assessment description — different from quiz
+    const selfOption = selfLevel ? SELF_ASSESSMENT_OPTIONS.find((o) => o.id === selfLevel) : null;
 
     return (
       <WizardShell
         header={<StepBarV2 current={2} />}
         footer={
           <ContinueButton onClick={() => router.push('/character')}>
-            Continue to Hero Selection
+            Onward!
           </ContinueButton>
         }
       >
@@ -167,8 +184,19 @@ export default function AssessmentPage() {
           borderRadius: 16,
           background: t.bgCard,
           border: `1px solid ${t.border}`,
-          animation: reducedMotion ? 'none' : 'bounceIn 0.6s ease-out',
+          animation: reducedMotion ? 'none' : 'bounceIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
         }}>
+          {/* Icon */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            marginBottom: 16,
+            animation: reducedMotion ? 'none' : 'float 3s ease-in-out infinite',
+          }}>
+            <NeonIcon type="swords" size={48} color="violet" active />
+          </div>
+
+          {/* Domain label */}
           <p style={{
             fontFamily: t.mono,
             fontSize: 11,
@@ -181,6 +209,7 @@ export default function AssessmentPage() {
             {domainData?.name || 'Skill'} assessment
           </p>
 
+          {/* Level title */}
           <h2 style={{
             fontFamily: t.display,
             fontSize: 28,
@@ -188,20 +217,154 @@ export default function AssessmentPage() {
             background: t.gradient,
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
-            marginBottom: 4,
+            marginBottom: 8,
           }}>
             {levelLabel}
           </h2>
 
-          {mode === 'quiz' && (
-            <p style={{
-              fontFamily: t.body,
-              fontSize: 13,
-              color: t.textSecondary,
-            }}>
-              {answered.filter((a) => a.correct).length}/{answered.length} correct
-            </p>
-          )}
+          {/* Description */}
+          <p style={{
+            fontFamily: t.body,
+            fontSize: 14,
+            color: t.textSecondary,
+            lineHeight: 1.5,
+            marginBottom: 16,
+          }}>
+            {levelDesc}
+          </p>
+
+          {/* Stat cards — 3 columns (prototype lines 896-909) */}
+          <div style={{
+            display: 'flex',
+            gap: 12,
+            justifyContent: 'center',
+          }}>
+            {mode === 'quiz' ? (
+              <>
+                {/* Trials */}
+                <div style={{
+                  background: t.bgElevated,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 12,
+                  padding: '12px 18px',
+                  textAlign: 'center',
+                  minWidth: 72,
+                }}>
+                  <div style={{
+                    fontFamily: t.mono, fontSize: 20, fontWeight: 700, color: t.cyan,
+                  }}>
+                    {answered.length}
+                  </div>
+                  <div style={{
+                    fontSize: 10, color: t.textMuted, marginTop: 2, letterSpacing: '0.03em',
+                  }}>
+                    Trials
+                  </div>
+                </div>
+                {/* Correct */}
+                <div style={{
+                  background: t.bgElevated,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 12,
+                  padding: '12px 18px',
+                  textAlign: 'center',
+                  minWidth: 72,
+                }}>
+                  <div style={{
+                    fontFamily: t.mono, fontSize: 20, fontWeight: 700, color: t.violet,
+                  }}>
+                    {correctCount}/{answered.length}
+                  </div>
+                  <div style={{
+                    fontSize: 10, color: t.textMuted, marginTop: 2, letterSpacing: '0.03em',
+                  }}>
+                    Correct
+                  </div>
+                </div>
+                {/* XP earned */}
+                <div style={{
+                  background: t.bgElevated,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 12,
+                  padding: '12px 18px',
+                  textAlign: 'center',
+                  minWidth: 72,
+                }}>
+                  <div style={{
+                    fontFamily: t.mono, fontSize: 20, fontWeight: 700, color: t.gold,
+                  }}>
+                    +{totalXpEarned}
+                  </div>
+                  <div style={{
+                    fontSize: 10, color: t.textMuted, marginTop: 2, letterSpacing: '0.03em',
+                  }}>
+                    XP
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Self-assessment: Level + Method + XP */}
+                <div style={{
+                  background: t.bgElevated,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 12,
+                  padding: '12px 18px',
+                  textAlign: 'center',
+                  minWidth: 72,
+                }}>
+                  <div style={{
+                    fontFamily: t.mono, fontSize: 20, fontWeight: 700, color: t.violet,
+                  }}>
+                    {selfOption?.icon || '⚡'}
+                  </div>
+                  <div style={{
+                    fontSize: 10, color: t.textMuted, marginTop: 2, letterSpacing: '0.03em',
+                  }}>
+                    Level
+                  </div>
+                </div>
+                <div style={{
+                  background: t.bgElevated,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 12,
+                  padding: '12px 18px',
+                  textAlign: 'center',
+                  minWidth: 72,
+                }}>
+                  <div style={{
+                    fontFamily: t.mono, fontSize: 20, fontWeight: 700, color: t.cyan,
+                  }}>
+                    ✓
+                  </div>
+                  <div style={{
+                    fontSize: 10, color: t.textMuted, marginTop: 2, letterSpacing: '0.03em',
+                  }}>
+                    Self-rated
+                  </div>
+                </div>
+                <div style={{
+                  background: t.bgElevated,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 12,
+                  padding: '12px 18px',
+                  textAlign: 'center',
+                  minWidth: 72,
+                }}>
+                  <div style={{
+                    fontFamily: t.mono, fontSize: 20, fontWeight: 700, color: t.gold,
+                  }}>
+                    +{totalXpEarned}
+                  </div>
+                  <div style={{
+                    fontSize: 10, color: t.textMuted, marginTop: 2, letterSpacing: '0.03em',
+                  }}>
+                    XP
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </WizardShell>
     );
@@ -238,7 +401,7 @@ export default function AssessmentPage() {
           color: t.text,
           marginBottom: 4,
         }}>
-          Rate your experience
+          Gauge your mastery
         </h2>
         <p style={{
           fontFamily: t.body,
@@ -269,8 +432,8 @@ export default function AssessmentPage() {
                   background: isSelected ? `${opt.color}10` : t.bgCard,
                   cursor: 'pointer',
                   textAlign: 'center',
-                  transition: 'all 0.2s ease',
-                  animation: `fadeUp 0.35s ease-out ${i * 0.06}s both`,
+                  transition: 'border-color 0.2s ease, background 0.2s ease',
+                  animation: reducedMotion ? 'none' : `fadeUp 0.35s ease-out ${i * 0.06}s both`,
                 }}
               >
                 <div style={{
@@ -363,11 +526,13 @@ export default function AssessmentPage() {
           overflow: 'hidden',
         }}>
           <div style={{
-            width: `${(questionNum / maxQuestions) * 100}%`,
+            width: '100%',
             height: '100%',
             borderRadius: 2,
             background: t.gradient,
-            transition: 'width 0.4s ease',
+            transform: `scaleX(${questionNum / maxQuestions})`,
+            transformOrigin: 'left',
+            transition: reducedMotion ? 'none' : 'transform 0.4s ease',
           }} />
         </div>
       </div>

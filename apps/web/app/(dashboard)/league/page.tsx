@@ -1,11 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useOnboardingStore } from '@plan2skill/store';
 import { NeonIcon } from '../../(onboarding)/_components/NeonIcon';
-import { t, rarity } from '../../(onboarding)/_components/tokens';
+import type { NeonIconType } from '../../(onboarding)/_components/NeonIcon';
+import { t, rarity, LEAGUE_TIERS as LEAGUE_TOKEN_TIERS } from '../../(onboarding)/_components/tokens';
 import { CHARACTERS, charArtStrings, charPalettes } from '../../(onboarding)/_components/characters';
 import { parseArt, PixelCanvas } from '../../(onboarding)/_components/PixelEngine';
+import { useWeeklyChallenges } from '../home/_hooks/useWeeklyChallenges';
 
 // ═══════════════════════════════════════════
 // GUILD ARENA — Leagues + Friends + Party Quests
@@ -14,10 +17,10 @@ import { parseArt, PixelCanvas } from '../../(onboarding)/_components/PixelEngin
 
 // ─── League tiers (Duolingo model) ───
 const LEAGUE_TIERS = [
-  { id: 'bronze',  label: 'Bronze',  color: '#CD7F32', icon: '●', nextAt: 0 },
-  { id: 'silver',  label: 'Silver',  color: '#C0C0C0', icon: '◆', nextAt: 500 },
-  { id: 'gold',    label: 'Gold',    color: '#FFD700', icon: '⬡', nextAt: 1500 },
-  { id: 'diamond', label: 'Diamond', color: '#4ECDC4', icon: '★', nextAt: 3000 },
+  { id: 'bronze',  label: 'Bronze',  color: LEAGUE_TOKEN_TIERS.bronze.color, icon: '●', nextAt: 0 },
+  { id: 'silver',  label: 'Silver',  color: LEAGUE_TOKEN_TIERS.silver.color, icon: '◆', nextAt: 500 },
+  { id: 'gold',    label: 'Gold',    color: LEAGUE_TOKEN_TIERS.gold.color, icon: '⬡', nextAt: 1500 },
+  { id: 'diamond', label: 'Diamond', color: LEAGUE_TOKEN_TIERS.diamond.color, icon: '★', nextAt: 3000 },
 ] as const;
 
 // ─── Mock league members (30 per league) ───
@@ -61,12 +64,75 @@ const PARTY_BOSS = {
   ],
 };
 
+// ─── Challenge descriptions + hints (shared with WeeklyChallenges widget) ───
+const CHALLENGE_DESCRIPTIONS: Record<string, (target: number, domain?: string) => string> = {
+  quest_count: (n) => `Complete ${n} quests`,
+  quest_volume: (n) => `Complete ${n} quests`,
+  xp_earn: (n) => `Earn ${n} XP`,
+  xp_target: (n) => `Earn ${n} XP`,
+  review_count: (n) => `Review ${n} skills`,
+  review_sprint: (n) => `Review ${n} skills`,
+  streak_maintain: () => `Keep your streak all week`,
+  streak_guard: () => `Keep your streak all week`,
+  accuracy: (n) => `Score ${n}%+ accuracy`,
+  domain_variety: (n) => `Quest in ${n} domains`,
+  domain_focus: (n, d) => `Complete ${n} ${d ?? ''} quests`.trim(),
+  time_spent: (n) => `Train for ${n} minutes`,
+  perfect_day: (n) => `Have ${n} Perfect Day${n > 1 ? 's' : ''}`,
+  mastery_push: (n) => `Level up ${n} skill${n > 1 ? 's' : ''}`,
+};
+
+const CHALLENGE_HINTS: Record<string, string> = {
+  quest_count: 'Complete any quests — daily or roadmap',
+  quest_volume: 'Complete any quests — daily or roadmap',
+  xp_earn: 'Every quest, review, and challenge earns XP',
+  xp_target: 'Every quest, review, and challenge earns XP',
+  review_count: 'Practice your skills in the Mastery Hub',
+  review_sprint: 'Practice your skills in the Mastery Hub',
+  streak_maintain: 'Visit each day to keep your streak alive',
+  streak_guard: 'Visit each day to keep your streak alive',
+  accuracy: 'Aim for high scores on quest answers',
+  domain_variety: 'Try quests from different skill domains',
+  domain_focus: 'Focus on your target domain this week',
+  time_spent: 'Every minute of training counts',
+  perfect_day: 'Complete all 5 daily quests in one day',
+  mastery_push: 'Review skills to push them to the next level',
+};
+
+const CHALLENGE_ICONS: Record<string, NeonIconType> = {
+  quest_count: 'lightning', quest_volume: 'lightning',
+  xp_earn: 'star', xp_target: 'star',
+  review_count: 'book', review_sprint: 'book',
+  streak_maintain: 'fire', streak_guard: 'fire',
+  accuracy: 'target', domain_variety: 'atom', domain_focus: 'atom',
+  time_spent: 'clock', perfect_day: 'star', mastery_push: 'shield',
+};
+
+type DifficultyToken = { color: string; numeral: string; borderStyle: string };
+const DIFFICULTY_MAP: Record<string, DifficultyToken> = {
+  easy:   { color: t.mint,   numeral: 'Ⅰ', borderStyle: 'solid' },
+  medium: { color: t.indigo, numeral: 'Ⅱ', borderStyle: 'dashed' },
+  hard:   { color: t.violet, numeral: 'Ⅲ', borderStyle: 'double' },
+};
+
+function getChallengeDescription(type: string, target: number, domain?: string): string {
+  const fn = CHALLENGE_DESCRIPTIONS[type];
+  return fn ? fn(target, domain) : `Complete ${target} tasks`;
+}
+
+function getChallengeStatus(completed: boolean, currentValue: number): { label: string; color: string } {
+  if (completed) return { label: '✓ Complete — Claimed', color: t.cyan };
+  if (currentValue > 0) return { label: 'In progress', color: t.gold };
+  return { label: 'Not started', color: t.textMuted };
+}
+
 // ─── Tabs ───
-type TabId = 'league' | 'friends' | 'party';
-const TABS: { id: TabId; label: string; icon: 'trophy' | 'users' | 'lightning' }[] = [
-  { id: 'league',  label: 'League',       icon: 'trophy' },
-  { id: 'friends', label: 'Friends',      icon: 'users' },
-  { id: 'party',   label: 'Party Quest',  icon: 'lightning' },
+type TabId = 'league' | 'weekly' | 'friends' | 'party';
+const TABS: { id: TabId; label: string; icon: NeonIconType }[] = [
+  { id: 'league',  label: 'League',        icon: 'trophy' },
+  { id: 'weekly',  label: 'Weekly Quests',  icon: 'target' },
+  { id: 'friends', label: 'Friends',       icon: 'users' },
+  { id: 'party',   label: 'Party Quest',   icon: 'lightning' },
 ];
 
 function getCharArt(charId: string) {
@@ -75,15 +141,78 @@ function getCharArt(charId: string) {
 }
 
 export default function LeaguePage() {
+  // Reduced-motion check — §N MICRO_ANIMATION_GUIDELINES §10 (BLOCKER)
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setPrefersReducedMotion(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  const searchParams = useSearchParams();
   const { characterId, xpTotal, level } = useOnboardingStore();
-  const [activeTab, setActiveTab] = useState<TabId>('league');
+  const weekly = useWeeklyChallenges();
+
+  // Read initial tab from URL ?tab=weekly (deep link from dashboard widget)
+  const initialTab = searchParams.get('tab') as TabId | null;
+  const [activeTab, setActiveTab] = useState<TabId>(
+    initialTab && TABS.some(tab => tab.id === initialTab) ? initialTab : 'league',
+  );
   const [joined, setJoined] = useState(false);
+
+  // Button press states — §N Tier Micro (100–400ms)
+  const [pressedJoin, setPressedJoin] = useState(false);
+  const [pressedInvite, setPressedInvite] = useState(false);
+
+  // Tab exit animation state
+  const [tabExiting, setTabExiting] = useState(false);
+  const [pendingTab, setPendingTab] = useState<TabId | null>(null);
+
+  const handleTabSwitch = (newTab: TabId) => {
+    if (newTab === activeTab || tabExiting) return;
+    if (prefersReducedMotion) {
+      setActiveTab(newTab);
+      return;
+    }
+    setTabExiting(true);
+    setPendingTab(newTab);
+    setTimeout(() => {
+      setActiveTab(newTab);
+      setTabExiting(false);
+      setPendingTab(null);
+    }, 200);
+  };
+
+  // Friend card hover state
+  const [hoveredFriend, setHoveredFriend] = useState<string | null>(null);
 
   const charMeta = CHARACTERS.find(c => c.id === characterId);
   const currentTier = LEAGUE_TIERS[0]; // Bronze — placeholder
 
   return (
-    <div style={{ animation: 'fadeUp 0.5s ease-out' }}>
+    <div style={{ animation: prefersReducedMotion ? 'none' : 'fadeUp 0.4s ease-out' }}>
+      {/* Background glow orbs — gold-tinted, §N §6 Ambient */}
+      {!prefersReducedMotion && (
+        <>
+          <div aria-hidden="true" style={{
+            position: 'fixed', top: '18%', right: '12%',
+            width: 200, height: 200, borderRadius: '50%',
+            background: `radial-gradient(circle, ${t.gold}08 0%, transparent 70%)`,
+            pointerEvents: 'none', zIndex: 0,
+            filter: 'blur(40px)',
+          }} />
+          <div aria-hidden="true" style={{
+            position: 'fixed', bottom: '22%', left: '8%',
+            width: 160, height: 160, borderRadius: '50%',
+            background: `radial-gradient(circle, ${t.gold}06 0%, transparent 70%)`,
+            pointerEvents: 'none', zIndex: 0,
+            filter: 'blur(40px)',
+          }} />
+        </>
+      )}
+
       {/* ─── Title ─── */}
       <h1 style={{
         display: 'flex', alignItems: 'center', gap: 10,
@@ -112,14 +241,14 @@ export default function LeaguePage() {
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabSwitch(tab.id)}
               style={{
                 flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                 padding: '10px 0', borderRadius: 10,
                 background: active ? t.bgCard : 'transparent',
                 border: active ? `1px solid ${t.border}` : '1px solid transparent',
                 boxShadow: active ? `0 2px 8px rgba(0,0,0,0.2)` : 'none',
-                cursor: 'pointer', transition: 'all 0.2s ease',
+                cursor: 'pointer', transition: 'background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
               }}
             >
               <NeonIcon type={tab.icon} size={14} color={active ? 'gold' : 'muted'} />
@@ -138,7 +267,9 @@ export default function LeaguePage() {
       {/* TAB: LEAGUE — Opt-in weekly competition    */}
       {/* ═══════════════════════════════════════════ */}
       {activeTab === 'league' && (
-        <div style={{ animation: 'fadeUp 0.3s ease-out' }}>
+        <div style={{
+          animation: tabExiting ? 'fadeUp 0.2s ease-in reverse forwards' : 'fadeUp 0.3s ease-out',
+        }}>
           {/* League tier progression */}
           <div style={{
             padding: 20, borderRadius: 16,
@@ -201,7 +332,7 @@ export default function LeaguePage() {
                     border: `2px solid ${i === 0 ? tier.color : t.border}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     boxShadow: i === 0 ? `0 0 10px ${tier.color}40` : 'none',
-                    transition: 'all 0.3s ease',
+                    transition: 'border-color 0.3s ease, background 0.3s ease, box-shadow 0.3s ease',
                   }}>
                     <span style={{
                       fontSize: 14, color: i === 0 ? tier.color : t.textMuted,
@@ -273,14 +404,18 @@ export default function LeaguePage() {
               </p>
               <button
                 onClick={() => setJoined(true)}
+                onMouseDown={() => setPressedJoin(true)}
+                onMouseUp={() => setPressedJoin(false)}
+                onMouseLeave={() => setPressedJoin(false)}
                 style={{
                   padding: '14px 40px', borderRadius: 14,
                   border: 'none', background: t.gradient,
                   cursor: 'pointer',
                   fontFamily: t.display, fontSize: 15, fontWeight: 800,
-                  color: '#FFF', transition: 'all 0.2s ease',
+                  color: '#FFF', transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                   borderBottom: '4px solid #6A50CC',
                   display: 'inline-flex', alignItems: 'center', gap: 8,
+                  transform: pressedJoin ? 'scale(0.98) translateY(1px)' : 'none',
                 }}
               >
                 <NeonIcon type="trophy" size={16} color="text" />
@@ -361,8 +496,13 @@ export default function LeaguePage() {
               {MOCK_MEMBERS.map((member, i) => {
                 const isPromoZone = member.rank <= 10;
                 const isDemoteZone = member.rank > 25;
+                const isTop3 = member.rank <= 3;
                 const art = getCharArt(member.charId);
                 const mc = CHARACTERS.find(c => c.id === member.charId);
+                // Top 3 podium glow colors: gold, silver, bronze
+                const podiumColor = isTop3
+                  ? [t.gold, LEAGUE_TOKEN_TIERS.silver.color, LEAGUE_TOKEN_TIERS.bronze.color][member.rank - 1]
+                  : undefined;
                 return (
                   <div
                     key={member.rank}
@@ -370,34 +510,37 @@ export default function LeaguePage() {
                       display: 'flex', alignItems: 'center', gap: 12,
                       padding: '10px 20px',
                       borderBottom: i < MOCK_MEMBERS.length - 1 ? `1px solid ${t.border}` : 'none',
-                      background: isDemoteZone ? `${t.rose}04` : 'transparent',
+                      background: isTop3 && !prefersReducedMotion ? `${podiumColor}06` : 'transparent', // UX-R162: no visual stress on demotion zone
                       animation: `fadeUp 0.3s ease-out ${i * 0.03}s both`,
+                      boxShadow: isTop3 && !prefersReducedMotion ? `inset 0 0 20px ${podiumColor}08` : 'none',
                     }}
                   >
                     {/* Rank */}
                     <span style={{
                       fontFamily: t.mono, fontSize: 13, fontWeight: 800,
                       color: member.rank <= 3
-                        ? [t.gold, '#C0C0C0', '#CD7F32'][member.rank - 1]
+                        ? [t.gold, LEAGUE_TOKEN_TIERS.silver.color, LEAGUE_TOKEN_TIERS.bronze.color][member.rank - 1]
                         : t.textMuted,
                       width: 28, textAlign: 'center',
                     }}>
                       {member.rank <= 3 ? ['🥇', '🥈', '🥉'][member.rank - 1] : `#${member.rank}`}
                     </span>
-                    {/* Avatar */}
+                    {/* Avatar — top 3 get subtle pulse §N §6 Ambient */}
                     <div style={{
                       width: 28, height: 28, borderRadius: '50%',
                       background: `${mc?.color || t.violet}15`,
-                      border: `1.5px solid ${mc?.color || t.violet}30`,
+                      border: `1.5px solid ${isTop3 ? podiumColor : (mc?.color || t.violet)}30`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       flexShrink: 0,
+                      boxShadow: isTop3 ? `0 0 8px ${podiumColor}30` : 'none',
+                      animation: isTop3 && !prefersReducedMotion ? 'pulse 2s ease-in-out infinite' : 'none',
                     }}>
                       {art ? <PixelCanvas data={art} size={2} /> : <NeonIcon type="shield" size={12} color="muted" />}
                     </div>
                     {/* Name */}
                     <span style={{
-                      fontFamily: t.body, fontSize: 13, fontWeight: 500,
-                      color: t.text, flex: 1,
+                      fontFamily: t.body, fontSize: 13, fontWeight: isTop3 ? 700 : 500,
+                      color: isTop3 ? podiumColor : t.text, flex: 1,
                     }}>
                       {member.name}
                     </span>
@@ -453,10 +596,303 @@ export default function LeaguePage() {
       )}
 
       {/* ═══════════════════════════════════════════ */}
+      {/* TAB: WEEKLY QUESTS — Expanded detail view  */}
+      {/* ═══════════════════════════════════════════ */}
+      {activeTab === 'weekly' && (
+        <div style={{
+          animation: tabExiting ? 'fadeUp 0.2s ease-in reverse forwards' : 'fadeUp 0.3s ease-out',
+        }}>
+          {/* Timer header — calm, no urgency (UX-R103) */}
+          {(() => {
+            const endDate = new Date(weekly.weekEnd);
+            const now = new Date();
+            const hoursLeft = Math.max(0, Math.floor((endDate.getTime() - now.getTime()) / 3600000));
+            const daysLeft = Math.floor(hoursLeft / 24);
+            const timeLabel = daysLeft > 0 ? `${daysLeft}d ${hoursLeft % 24}h remaining` : `${hoursLeft}h remaining`;
+            const timerColor = hoursLeft < 24 ? t.rose : (hoursLeft < 72 ? t.gold : t.textMuted);
+            const completedCount = weekly.challenges.filter(c => c.completed).length;
+
+            return (
+              <>
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '14px 20px', borderRadius: 16,
+                  background: t.bgCard, border: `1px solid ${t.border}`,
+                  marginBottom: 16,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <NeonIcon type="target" size={18} color="violet" />
+                    <div>
+                      <div style={{
+                        fontFamily: t.display, fontSize: 16, fontWeight: 800, color: t.text,
+                      }}>
+                        Weekly Quests
+                      </div>
+                      <div style={{ fontFamily: t.body, fontSize: 12, color: t.textMuted }}>
+                        Resets Monday • {completedCount}/{weekly.challenges.length} completed
+                      </div>
+                    </div>
+                  </div>
+                  <span style={{
+                    fontFamily: t.mono, fontSize: 11, fontWeight: 700,
+                    color: timerColor,
+                    padding: '4px 10px', borderRadius: 8,
+                    background: t.bgElevated,
+                  }}>
+                    {timeLabel}
+                  </span>
+                </div>
+
+                {/* Challenge cards — expanded detail */}
+                {weekly.challenges.map((c, idx) => {
+                  const diff = DIFFICULTY_MAP[c.difficulty] ?? DIFFICULTY_MAP.easy;
+                  const icon = CHALLENGE_ICONS[c.type] ?? 'target';
+                  const desc = getChallengeDescription(c.type, c.targetValue);
+                  const hint = CHALLENGE_HINTS[c.type] ?? '';
+                  const pct = Math.min(100, c.progress * 100);
+                  const status = getChallengeStatus(c.completed, c.currentValue);
+                  const nearComplete = c.progress >= 0.8 && !c.completed;
+
+                  return (
+                    <div
+                      key={c.id}
+                      style={{
+                        padding: 20, borderRadius: 16,
+                        background: t.bgCard,
+                        border: `1px solid ${c.completed ? `${t.cyan}30` : t.border}`,
+                        marginBottom: 12,
+                        animation: prefersReducedMotion ? 'none' : `fadeUp 0.3s ease-out ${idx * 0.08}s both`,
+                      }}
+                    >
+                      {/* Row 1: Icon + Title + Difficulty badge */}
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8,
+                      }}>
+                        <div style={{
+                          width: 36, height: 36, borderRadius: 10,
+                          background: `${diff.color}12`,
+                          border: `1.5px ${diff.borderStyle} ${diff.color}30`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          flexShrink: 0,
+                        }}>
+                          <NeonIcon
+                            type={c.completed ? 'check' : icon}
+                            size={18}
+                            color={c.completed ? 'cyan' : diff.color}
+                          />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{
+                            fontFamily: t.display, fontSize: 15, fontWeight: 700,
+                            color: c.completed ? t.cyan : t.text,
+                          }}>
+                            {c.completed ? '✓ ' : ''}{desc}
+                          </div>
+                          {hint && (
+                            <div style={{
+                              fontFamily: t.body, fontSize: 12, color: t.textMuted,
+                              marginTop: 2,
+                            }}>
+                              {hint}
+                            </div>
+                          )}
+                        </div>
+                        <span
+                          aria-label={`Difficulty: ${c.difficulty}`}
+                          style={{
+                            fontFamily: t.mono, fontSize: 10, fontWeight: 800,
+                            color: diff.color,
+                            padding: '2px 8px', borderRadius: 8,
+                            border: `1.5px ${diff.borderStyle} ${diff.color}50`,
+                            background: `${diff.color}08`,
+                          }}
+                        >
+                          {diff.numeral}
+                        </span>
+                      </div>
+
+                      {/* Row 2: Progress bar (wider, 8px) + fraction + percentage */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                        <div
+                          role="progressbar"
+                          aria-valuenow={c.currentValue}
+                          aria-valuemax={c.targetValue}
+                          aria-label={`${desc}: ${c.currentValue} of ${c.targetValue}`}
+                          style={{
+                            flex: 1, height: 8, borderRadius: 4,
+                            background: t.border, overflow: 'hidden',
+                          }}
+                        >
+                          <div style={{
+                            width: '100%', height: '100%', borderRadius: 4,
+                            background: c.completed
+                              ? t.cyan
+                              : `linear-gradient(90deg, ${diff.color}, ${diff.color}CC)`,
+                            transform: `scaleX(${pct / 100})`,
+                            transformOrigin: 'left',
+                            transition: 'transform 0.6s ease-out',
+                            boxShadow: nearComplete ? `0 0 8px ${diff.color}60` : 'none',
+                          }} />
+                        </div>
+                        <span style={{
+                          fontFamily: t.mono, fontSize: 12, fontWeight: 700,
+                          color: c.completed ? t.cyan : t.textMuted,
+                          minWidth: 80, textAlign: 'right' as const,
+                        }}>
+                          {c.currentValue}/{c.targetValue} ({Math.round(pct)}%)
+                        </span>
+                      </div>
+
+                      {/* Row 3: Reward + Status */}
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                      }}>
+                        <span style={{
+                          fontFamily: t.mono, fontSize: 12, fontWeight: 800,
+                          color: c.completed ? t.cyan : t.gold,
+                        }}>
+                          +{c.xpReward} XP
+                        </span>
+                        {c.coinReward > 0 && (
+                          <span style={{
+                            fontFamily: t.mono, fontSize: 12, fontWeight: 700,
+                            color: c.completed ? t.cyan : t.gold,
+                          }}>
+                            🪙 {c.coinReward}
+                          </span>
+                        )}
+                        <span style={{
+                          marginLeft: 'auto',
+                          fontFamily: t.body, fontSize: 11, fontWeight: 600,
+                          color: status.color,
+                        }}>
+                          {status.label}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Weekly Champion card */}
+                <div style={{
+                  padding: 20, borderRadius: 16,
+                  background: weekly.allCompleted ? `${t.gold}08` : t.bgCard,
+                  border: `1px solid ${weekly.allCompleted ? `${t.gold}40` : t.border}`,
+                  boxShadow: weekly.allCompleted ? `0 0 20px ${t.gold}15` : 'none',
+                }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10,
+                  }}>
+                    <span style={{ fontSize: 24 }}>🏆</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        fontFamily: t.display, fontSize: 16, fontWeight: 800,
+                        color: weekly.allCompleted ? t.gold : t.text,
+                      }}>
+                        {weekly.allCompleted
+                          ? (weekly.bonusClaimed ? 'Weekly Champion! Bonus claimed' : 'Weekly Champion!')
+                          : 'Weekly Champion Bonus'}
+                      </div>
+                      <div style={{
+                        fontFamily: t.body, fontSize: 12,
+                        color: weekly.allCompleted ? t.gold : t.textSecondary,
+                      }}>
+                        {weekly.allCompleted
+                          ? '+150 XP + 🪙 50 awarded'
+                          : `Complete all ${weekly.challenges.length} challenges for a bonus reward`}
+                      </div>
+                    </div>
+                    {weekly.allCompleted && (
+                      <NeonIcon type="check" size={20} color="gold" />
+                    )}
+                  </div>
+
+                  {/* Progress toward champion */}
+                  {!weekly.allCompleted && (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10,
+                    }}>
+                      <div style={{
+                        flex: 1, height: 6, borderRadius: 3,
+                        background: t.border, overflow: 'hidden',
+                      }}>
+                        <div style={{
+                          width: '100%', height: '100%', borderRadius: 3,
+                          background: `linear-gradient(90deg, ${t.gold}, ${t.gold}CC)`,
+                          transform: `scaleX(${completedCount / weekly.challenges.length})`,
+                          transformOrigin: 'left',
+                          transition: 'transform 0.6s ease-out',
+                        }} />
+                      </div>
+                      <span style={{
+                        fontFamily: t.mono, fontSize: 11, fontWeight: 700,
+                        color: t.textMuted,
+                      }}>
+                        {completedCount}/{weekly.challenges.length} challenges
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Reward breakdown */}
+                  <div style={{
+                    display: 'flex', gap: 12,
+                    padding: '10px 14px', borderRadius: 12,
+                    background: weekly.allCompleted ? `${t.gold}06` : t.bgElevated,
+                    border: `1px solid ${weekly.allCompleted ? `${t.gold}20` : t.border}`,
+                  }}>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <NeonIcon type="xp" size={16} color="gold" />
+                      <div>
+                        <div style={{
+                          fontFamily: t.mono, fontSize: 14, fontWeight: 800,
+                          color: t.gold,
+                        }}>
+                          +150 XP
+                        </div>
+                        <div style={{ fontFamily: t.body, fontSize: 9, color: t.textMuted }}>
+                          Champion Bonus
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ width: 1, background: t.border }} />
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 16 }}>🪙</span>
+                      <div>
+                        <div style={{
+                          fontFamily: t.mono, fontSize: 14, fontWeight: 800,
+                          color: t.gold,
+                        }}>
+                          +50
+                        </div>
+                        <div style={{ fontFamily: t.body, fontSize: 9, color: t.textMuted }}>
+                          Coins
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* History hint */}
+                <div style={{
+                  marginTop: 12,
+                  fontFamily: t.body, fontSize: 11, color: t.textMuted,
+                  textAlign: 'center' as const,
+                }}>
+                  This week: 1st attempt
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════ */}
       {/* TAB: FRIENDS — Private comparison boards   */}
       {/* ═══════════════════════════════════════════ */}
       {activeTab === 'friends' && (
-        <div style={{ animation: 'fadeUp 0.3s ease-out' }}>
+        <div style={{
+          animation: tabExiting ? 'fadeUp 0.2s ease-in reverse forwards' : 'fadeUp 0.3s ease-out',
+        }}>
           {/* Your card */}
           <div style={{
             padding: 16, borderRadius: 16,
@@ -522,14 +958,19 @@ export default function LeaguePage() {
               {MOCK_FRIENDS.map((friend, i) => {
                 const art = getCharArt(friend.charId);
                 const fc = CHARACTERS.find(c => c.id === friend.charId);
+                const isFriendHovered = hoveredFriend === friend.name;
                 return (
                   <div
                     key={friend.name}
+                    onMouseEnter={() => setHoveredFriend(friend.name)}
+                    onMouseLeave={() => setHoveredFriend(null)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 14,
                       padding: '14px 20px',
                       borderBottom: i < MOCK_FRIENDS.length - 1 ? `1px solid ${t.border}` : 'none',
                       animation: `fadeUp 0.3s ease-out ${i * 0.06}s both`,
+                      background: isFriendHovered ? '#121218' : 'transparent',
+                      transition: 'background 0.2s ease',
                     }}
                   >
                     {/* Avatar */}
@@ -587,14 +1028,19 @@ export default function LeaguePage() {
             }}>
               Invite friends to compare progress privately
             </p>
-            <button style={{
-              padding: '10px 24px', borderRadius: 12,
-              background: `${t.violet}12`, border: `1px solid ${t.violet}25`,
-              cursor: 'pointer',
-              fontFamily: t.display, fontSize: 13, fontWeight: 700,
-              color: t.violet, transition: 'all 0.2s ease',
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-            }}>
+            <button
+              onMouseDown={() => setPressedInvite(true)}
+              onMouseUp={() => setPressedInvite(false)}
+              onMouseLeave={() => setPressedInvite(false)}
+              style={{
+                padding: '10px 24px', borderRadius: 12,
+                background: `${t.violet}12`, border: `1px solid ${t.violet}25`,
+                cursor: 'pointer',
+                fontFamily: t.display, fontSize: 13, fontWeight: 700,
+                color: t.violet, transition: 'border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease',
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                transform: pressedInvite ? 'scale(0.98)' : 'none',
+              }}>
               <NeonIcon type="users" size={14} color="violet" />
               Invite a Friend
             </button>
@@ -612,7 +1058,9 @@ export default function LeaguePage() {
       {/* TAB: PARTY QUEST — Cooperative Boss Fight  */}
       {/* ═══════════════════════════════════════════ */}
       {activeTab === 'party' && (
-        <div style={{ animation: 'fadeUp 0.3s ease-out' }}>
+        <div style={{
+          animation: tabExiting ? 'fadeUp 0.2s ease-in reverse forwards' : 'fadeUp 0.3s ease-out',
+        }}>
           {/* Boss card */}
           <div style={{
             padding: 24, borderRadius: 16,
@@ -662,34 +1110,44 @@ export default function LeaguePage() {
               </div>
             </div>
 
-            {/* Boss HP bar */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{
-                display: 'flex', justifyContent: 'space-between', marginBottom: 6,
-              }}>
-                <span style={{
-                  fontFamily: t.mono, fontSize: 11, fontWeight: 700, color: t.rose,
-                  display: 'flex', alignItems: 'center', gap: 4,
-                }}>
-                  <NeonIcon type="lightning" size={12} color="rose" />
-                  Boss HP
-                </span>
-                <span style={{ fontFamily: t.mono, fontSize: 11, fontWeight: 700, color: t.textMuted }}>
-                  {PARTY_BOSS.hp} / {PARTY_BOSS.maxHp}
-                </span>
-              </div>
-              <div style={{
-                height: 10, borderRadius: 5, background: '#252530', overflow: 'hidden',
-              }}>
-                <div style={{
-                  width: `${(PARTY_BOSS.hp / PARTY_BOSS.maxHp) * 100}%`,
-                  height: '100%', borderRadius: 5,
-                  background: `linear-gradient(90deg, ${t.rose}, #FF8FA3)`,
-                  transition: 'width 0.6s ease-out',
-                  boxShadow: `0 0 8px ${t.rose}40`,
-                }} />
-              </div>
-            </div>
+            {/* Boss HP bar — anticipation glow when HP < 20% §N §6 Ambient */}
+            {(() => {
+              const bossHpPercent = (PARTY_BOSS.hp / PARTY_BOSS.maxHp) * 100;
+              const isLowHp = bossHpPercent < 20;
+              return (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between', marginBottom: 6,
+                  }}>
+                    <span style={{
+                      fontFamily: t.mono, fontSize: 11, fontWeight: 700, color: t.rose,
+                      display: 'flex', alignItems: 'center', gap: 4,
+                    }}>
+                      <NeonIcon type="lightning" size={12} color="rose" />
+                      Boss HP
+                    </span>
+                    <span style={{ fontFamily: t.mono, fontSize: 11, fontWeight: 700, color: t.textMuted }}>
+                      {PARTY_BOSS.hp} / {PARTY_BOSS.maxHp}
+                    </span>
+                  </div>
+                  <div style={{
+                    height: 10, borderRadius: 5, background: t.border, overflow: 'hidden',
+                    boxShadow: isLowHp && !prefersReducedMotion ? `0 0 12px ${t.rose}40` : 'none',
+                    animation: isLowHp && !prefersReducedMotion ? 'glowPulse 2s ease-in-out infinite' : 'none',
+                  }}>
+                    <div style={{
+                      width: '100%',
+                      height: '100%', borderRadius: 5,
+                      background: `linear-gradient(90deg, ${t.rose}, ${t.rose}CC)`,
+                      transform: `scaleX(${PARTY_BOSS.hp / PARTY_BOSS.maxHp})`,
+                      transformOrigin: 'left',
+                      transition: 'transform 0.6s ease-out',
+                      boxShadow: `0 0 8px ${t.rose}40`,
+                    }} />
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Rewards */}
             <div style={{

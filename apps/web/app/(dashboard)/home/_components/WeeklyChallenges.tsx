@@ -1,41 +1,91 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
 import type { NeonIconType } from '../../../(onboarding)/_components/NeonIcon';
 import { t } from '../../../(onboarding)/_components/tokens';
 
 // ─── Weekly Challenges card (Phase 5E, BL-005 redesign) ──────────
-// Type-specific icons, difficulty double-coding, reward preview,
-// timer urgency, compact mode for sidebar.
-// UX-R105 (endowed progress), UX-R141 (positive framing)
+// Type-specific icons, descriptions, difficulty double-coding, reward preview,
+// timer urgency, compact + full modes, clickable → /league?tab=weekly,
+// Weekly Champion bonus banner.
+// UX-R105 (endowed progress), UX-R141 (positive framing), UX-R103 (no urgency guilt)
 
 // BL-005: Challenge type → NeonIcon mapping
 const CHALLENGE_ICONS: Record<string, NeonIconType> = {
   quest_count: 'lightning',
+  quest_volume: 'lightning',
   xp_earn: 'star',
+  xp_target: 'star',
   review_count: 'book',
+  review_sprint: 'book',
   streak_maintain: 'fire',
+  streak_guard: 'fire',
   accuracy: 'target',
   domain_variety: 'atom',
+  domain_focus: 'atom',
   time_spent: 'clock',
+  perfect_day: 'star',
+  mastery_push: 'shield',
 };
+
+// Challenge type → human-readable description
+const CHALLENGE_DESCRIPTIONS: Record<string, (target: number, domain?: string) => string> = {
+  quest_count: (n) => `Complete ${n} quests`,
+  quest_volume: (n) => `Complete ${n} quests`,
+  xp_earn: (n) => `Earn ${n} XP`,
+  xp_target: (n) => `Earn ${n} XP`,
+  review_count: (n) => `Review ${n} skills`,
+  review_sprint: (n) => `Review ${n} skills`,
+  streak_maintain: () => `Keep your streak all week`,
+  streak_guard: () => `Keep your streak all week`,
+  accuracy: (n) => `Score ${n}%+ accuracy`,
+  domain_variety: (n) => `Quest in ${n} domains`,
+  domain_focus: (n, d) => `Complete ${n} ${d ?? ''} quests`.trim(),
+  time_spent: (n) => `Train for ${n} minutes`,
+  perfect_day: (n) => `Have ${n} Perfect Day${n > 1 ? 's' : ''}`,
+  mastery_push: (n) => `Level up ${n} skill${n > 1 ? 's' : ''}`,
+};
+
+// Challenge type → contextual hint for expanded view
+const CHALLENGE_HINTS: Record<string, string> = {
+  quest_count: 'Complete any quests — daily or roadmap',
+  quest_volume: 'Complete any quests — daily or roadmap',
+  xp_earn: 'Every quest, review, and challenge earns XP',
+  xp_target: 'Every quest, review, and challenge earns XP',
+  review_count: 'Practice your skills in the Mastery Hub',
+  review_sprint: 'Practice your skills in the Mastery Hub',
+  streak_maintain: 'Visit each day to keep your streak alive',
+  streak_guard: 'Visit each day to keep your streak alive',
+  accuracy: 'Aim for high scores on quest answers',
+  domain_variety: 'Try quests from different skill domains',
+  domain_focus: 'Focus on your target domain this week',
+  time_spent: 'Every minute of training counts',
+  perfect_day: 'Complete all 5 daily quests in one day',
+  mastery_push: 'Review skills to push them to the next level',
+};
+
+function getChallengeDescription(type: string, target: number, domain?: string): string {
+  const fn = CHALLENGE_DESCRIPTIONS[type];
+  return fn ? fn(target, domain) : `Complete ${target} tasks`;
+}
 
 // BL-005: Difficulty double-coding — color + Roman numeral + border style
 type DifficultyToken = { color: string; numeral: string; borderStyle: string };
-const DIFFICULTY_EASY: DifficultyToken = { color: '#6EE7B7', numeral: 'Ⅰ', borderStyle: 'solid' };
+const DIFFICULTY_EASY: DifficultyToken = { color: t.mint, numeral: 'Ⅰ', borderStyle: 'solid' };
 const DIFFICULTY: Record<string, DifficultyToken> = {
   easy: DIFFICULTY_EASY,
-  medium: { color: '#3B82F6', numeral: 'Ⅱ', borderStyle: 'dashed' },
-  hard:   { color: '#9D7AFF', numeral: 'Ⅲ', borderStyle: 'double' },
+  medium: { color: t.indigo, numeral: 'Ⅱ', borderStyle: 'dashed' },
+  hard:   { color: t.violet, numeral: 'Ⅲ', borderStyle: 'double' },
 };
 
 // BL-005: Timer urgency colors (UX-R103: no guilt, UX-R141: positive framing)
 function getTimerStyle(hoursLeft: number): { color: string; animate: boolean } {
-  if (hoursLeft < 1) return { color: '#FF6B8A', animate: true };
-  if (hoursLeft < 24) return { color: '#FF6B8A', animate: false };
-  if (hoursLeft < 72) return { color: '#FFD166', animate: false };
-  return { color: '#71717A', animate: false };
+  if (hoursLeft < 1) return { color: t.rose, animate: true };
+  if (hoursLeft < 24) return { color: t.rose, animate: false };
+  if (hoursLeft < 72) return { color: t.gold, animate: false };
+  return { color: t.textMuted, animate: false };
 }
 
 interface Challenge {
@@ -54,11 +104,55 @@ interface Challenge {
 interface WeeklyChallengesProps {
   challenges: Challenge[];
   weekEnd: string;
+  allCompleted?: boolean;
+  bonusClaimed?: boolean;
   compact?: boolean; // BL-005: true in sidebar, false in main
   style?: React.CSSProperties;
 }
 
-export function WeeklyChallenges({ challenges, weekEnd, compact = false, style }: WeeklyChallengesProps) {
+export function WeeklyChallenges({
+  challenges, weekEnd, allCompleted = false, bonusClaimed = false,
+  compact = false, style,
+}: WeeklyChallengesProps) {
+  const router = useRouter();
+
+  // Track recently completed challenges for celebration flash
+  const [celebratingId, setCelebratingId] = useState<string | null>(null);
+  // MA-LL002: init ref as null, not store value — avoids hydration false-positive
+  const prevCompletedRef = useRef<Set<string> | null>(null);
+  const celebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prefersReduced = useRef(false);
+
+  useEffect(() => {
+    prefersReduced.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }, []);
+
+  useEffect(() => {
+    if (prefersReduced.current) return;
+    const nowCompleted = new Set(challenges.filter(c => c.completed).map(c => c.id));
+    // Skip first render (ref is null)
+    if (prevCompletedRef.current !== null) {
+      const prev = prevCompletedRef.current;
+      for (const id of Array.from(nowCompleted)) {
+        if (!prev.has(id)) {
+          setCelebratingId(id);
+          // MA-LL006: store timer in ref + cleanup
+          if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
+          celebrationTimerRef.current = setTimeout(() => setCelebratingId(null), 300);
+          break;
+        }
+      }
+    }
+    prevCompletedRef.current = nowCompleted;
+    return () => {
+      if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
+    };
+  }, [challenges]);
+
+  // Hover states for clickable rows
+  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
+  const [hoveredHeader, setHoveredHeader] = useState(false);
+
   if (challenges.length === 0) return null;
 
   const endDate = new Date(weekEnd);
@@ -67,8 +161,11 @@ export function WeeklyChallenges({ challenges, weekEnd, compact = false, style }
   const daysLeft = Math.floor(hoursLeft / 24);
   const timeLabel = daysLeft > 0 ? `${daysLeft}d ${hoursLeft % 24}h` : `${hoursLeft}h`;
   const timerStyle = getTimerStyle(hoursLeft);
+  const completedCount = challenges.filter(c => c.completed).length;
 
-  // Compact mode — sidebar (BL-004)
+  const navigateToWeekly = () => router.push('/league?tab=weekly');
+
+  // ─── Compact mode — sidebar (BL-004 + descriptions + clickable) ───
   if (compact) {
     return (
       <div
@@ -80,8 +177,16 @@ export function WeeklyChallenges({ challenges, weekEnd, compact = false, style }
           ...style,
         }}
       >
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+        {/* Header — clickable */}
+        <div
+          onClick={navigateToWeekly}
+          onMouseEnter={() => setHoveredHeader(true)}
+          onMouseLeave={() => setHoveredHeader(false)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10,
+            cursor: 'pointer',
+          }}
+        >
           <NeonIcon type="target" size={14} color="violet" />
           <span style={{
             fontFamily: t.display, fontSize: 10, fontWeight: 700,
@@ -96,41 +201,67 @@ export function WeeklyChallenges({ challenges, weekEnd, compact = false, style }
           }}>
             {timeLabel} ↻
           </span>
+          <span style={{
+            fontFamily: t.mono, fontSize: 9, color: hoveredHeader ? t.violet : t.textMuted,
+            transition: 'color 0.15s ease',
+          }}>
+            →
+          </span>
         </div>
-        {/* Compact rows — single line per challenge */}
+
+        {/* Compact rows — description instead of raw numbers, clickable */}
         {challenges.map((c) => {
           const diff = DIFFICULTY[c.difficulty] ?? DIFFICULTY_EASY;
           const icon = CHALLENGE_ICONS[c.type] ?? 'target';
           const nearComplete = c.progress >= 0.8 && !c.completed;
           const pct = Math.min(100, c.progress * 100);
+          const desc = getChallengeDescription(c.type, c.targetValue);
+          const isHovered = hoveredRow === c.id;
           return (
-            <div key={c.id} style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '4px 0',
-              opacity: c.completed ? 0.6 : 1,
-            }}>
+            <div
+              key={c.id}
+              onClick={navigateToWeekly}
+              onMouseEnter={() => setHoveredRow(c.id)}
+              onMouseLeave={() => setHoveredRow(null)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '4px 0',
+                opacity: c.completed ? 0.6 : 1,
+                cursor: 'pointer',
+                background: isHovered ? `${t.violet}06` : 'transparent',
+                borderRadius: 6,
+                transition: 'background 0.15s ease',
+              }}
+            >
               <NeonIcon type={c.completed ? 'check' : icon} size={12} color={c.completed ? 'cyan' : diff.color} />
               <span style={{
-                fontFamily: t.mono, fontSize: 10, fontWeight: 700,
-                color: c.completed ? t.cyan : t.textMuted, minWidth: 38,
+                fontFamily: t.body, fontSize: 10, fontWeight: 600,
+                color: c.completed ? t.cyan : t.text,
+                flex: 1,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap' as const,
               }}>
-                {c.currentValue}/{c.targetValue}
+                {c.completed ? '✓ ' : ''}{desc}
               </span>
               {/* Mini progress bar */}
               <div
                 role="progressbar"
                 aria-valuenow={c.currentValue}
                 aria-valuemax={c.targetValue}
-                aria-label={`${c.title}: ${c.currentValue} of ${c.targetValue}`}
+                aria-label={`${desc}: ${c.currentValue} of ${c.targetValue}`}
                 style={{
-                  flex: 1, height: 4, borderRadius: 2,
-                  background: '#252530', overflow: 'hidden',
+                  width: 40, height: 4, borderRadius: 2,
+                  background: t.border, overflow: 'hidden',
+                  flexShrink: 0,
                 }}
               >
                 <div style={{
-                  width: `${pct}%`, height: '100%', borderRadius: 2,
+                  width: '100%', height: '100%', borderRadius: 2,
                   background: c.completed ? t.cyan : diff.color,
-                  transition: 'width 0.6s ease-out',
+                  transform: `scaleX(${pct / 100})`,
+                  transformOrigin: 'left',
+                  transition: 'transform 0.6s ease-out',
                   boxShadow: nearComplete ? `0 0 6px ${diff.color}60` : 'none',
                 }} />
               </div>
@@ -146,16 +277,39 @@ export function WeeklyChallenges({ challenges, weekEnd, compact = false, style }
                 fontFamily: t.mono, fontSize: 9, fontWeight: 700,
                 color: c.completed ? t.cyan : t.gold,
               }}>
-                +{c.xpReward}
+                +{c.xpReward} XP
               </span>
             </div>
           );
         })}
+
+        {/* Weekly Champion compact banner */}
+        <div
+          onClick={navigateToWeekly}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            marginTop: 8, padding: '6px 0',
+            cursor: 'pointer',
+          }}
+        >
+          <span style={{ fontSize: 11 }}>
+            {allCompleted ? '🏆' : '🏆'}
+          </span>
+          <span style={{
+            fontFamily: t.mono, fontSize: 9, fontWeight: 700,
+            color: allCompleted ? t.gold : t.textMuted,
+            flex: 1,
+          }}>
+            {allCompleted
+              ? (bonusClaimed ? 'Weekly Champion! +150 XP claimed' : 'Weekly Champion! +150 XP + 🪙 50')
+              : `Complete all 3 → +150 XP bonus`}
+          </span>
+        </div>
       </div>
     );
   }
 
-  // Full mode — main content / inline fallback
+  // ─── Full mode — main content with descriptions + hints + champion banner ───
   return (
     <div
       style={{
@@ -167,8 +321,16 @@ export function WeeklyChallenges({ challenges, weekEnd, compact = false, style }
         ...style,
       }}
     >
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+      {/* Header — clickable */}
+      <div
+        onClick={navigateToWeekly}
+        onMouseEnter={() => setHoveredHeader(true)}
+        onMouseLeave={() => setHoveredHeader(false)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+          cursor: 'pointer',
+        }}
+      >
         <NeonIcon type="target" size={16} color="violet" />
         <span style={{
           fontFamily: t.display, fontSize: 11, fontWeight: 700,
@@ -184,6 +346,12 @@ export function WeeklyChallenges({ challenges, weekEnd, compact = false, style }
         }}>
           {timeLabel} ↻
         </span>
+        <span style={{
+          fontFamily: t.mono, fontSize: 10, color: hoveredHeader ? t.violet : t.textMuted,
+          transition: 'color 0.15s ease',
+        }}>
+          →
+        </span>
       </div>
 
       {/* Challenges */}
@@ -192,27 +360,50 @@ export function WeeklyChallenges({ challenges, weekEnd, compact = false, style }
         const icon = CHALLENGE_ICONS[c.type] ?? 'target';
         const nearComplete = c.progress >= 0.8 && !c.completed;
         const pct = Math.min(100, c.progress * 100);
+        const isCelebrating = celebratingId === c.id;
+        const desc = getChallengeDescription(c.type, c.targetValue);
+        const hint = CHALLENGE_HINTS[c.type] ?? '';
+        const isHovered = hoveredRow === c.id;
         return (
-          <div key={c.id}>
+          <div
+            key={c.id}
+            onClick={navigateToWeekly}
+            onMouseEnter={() => setHoveredRow(c.id)}
+            onMouseLeave={() => setHoveredRow(null)}
+            style={{
+              cursor: 'pointer',
+              borderRadius: 10,
+              background: isHovered ? `${t.violet}06` : 'transparent',
+              transition: 'background 0.15s ease',
+              // MA-LL003: fadeUp with both + hover transform conflict → wrapper pattern.
+              // Animation on outer div, hover bg on same div (no transform), safe.
+              animation: prefersReduced.current ? 'none' : `fadeUp 0.3s ease-out ${idx * 0.08}s both`,
+            }}
+          >
             {/* Divider between challenges (not before first) */}
             {idx > 0 && (
-              <div style={{ height: 1, background: t.border, margin: '6px 0' }} />
+              <div style={{ height: 1, background: t.border, margin: '2px 0' }} />
             )}
-            <div style={{ padding: '8px 0' }}>
-              {/* Title row: icon + title + tier badge + fraction */}
+            <div style={{ padding: '8px 4px' }}>
+              {/* Title row: icon + description + tier badge */}
               <div style={{
-                display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6,
+                display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4,
               }}>
-                <NeonIcon
-                  type={c.completed ? 'check' : icon}
-                  size={14}
-                  color={c.completed ? 'cyan' : diff.color}
-                />
+                <span style={{
+                  display: 'inline-flex',
+                  animation: isCelebrating ? 'bounceIn 0.3s cubic-bezier(0.34,1.56,0.64,1)' : 'none',
+                }}>
+                  <NeonIcon
+                    type={c.completed ? 'check' : icon}
+                    size={14}
+                    color={c.completed ? 'cyan' : diff.color}
+                  />
+                </span>
                 <span style={{
                   fontFamily: t.body, fontSize: 13, fontWeight: 600,
                   color: c.completed ? t.cyan : t.text, flex: 1,
                 }}>
-                  {c.completed ? '✓ ' : ''}{c.title}
+                  {c.completed ? '✓ ' : ''}{desc}
                 </span>
                 {/* Difficulty double-coded: color + numeral + border */}
                 <span
@@ -229,34 +420,50 @@ export function WeeklyChallenges({ challenges, weekEnd, compact = false, style }
                 </span>
               </div>
 
-              {/* Progress bar + fraction */}
+              {/* Hint — contextual description */}
+              {hint && !c.completed && (
+                <div style={{
+                  fontFamily: t.body, fontSize: 11, color: t.textMuted,
+                  marginBottom: 6, paddingLeft: 22,
+                  fontStyle: 'italic' as const,
+                }}>
+                  {hint}
+                </div>
+              )}
+
+              {/* Progress bar + fraction + percentage */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                 <div
                   role="progressbar"
                   aria-valuenow={c.currentValue}
                   aria-valuemax={c.targetValue}
-                  aria-label={`${c.title}: ${c.currentValue} of ${c.targetValue}`}
+                  aria-label={`${desc}: ${c.currentValue} of ${c.targetValue}`}
                   style={{
                     flex: 1, height: 4, borderRadius: 2,
-                    background: '#252530', overflow: 'hidden',
+                    background: t.border, overflow: 'hidden',
                   }}
                 >
                   <div style={{
-                    width: `${pct}%`, height: '100%', borderRadius: 2,
+                    width: '100%', height: '100%', borderRadius: 2,
                     background: c.completed
                       ? t.cyan
                       : `linear-gradient(90deg, ${diff.color}, ${diff.color}CC)`,
-                    transition: 'width 0.6s ease-out',
-                    boxShadow: nearComplete ? `0 0 8px ${diff.color}60` : 'none',
-                    animation: nearComplete ? 'glowPulse 2s ease-in-out infinite' : 'none',
+                    transform: `scaleX(${pct / 100})`,
+                    transformOrigin: 'left',
+                    transition: 'transform 0.6s ease-out',
+                    boxShadow: isCelebrating
+                      ? `0 0 8px rgba(78,205,196,0.5)`
+                      : (nearComplete ? `0 0 8px ${diff.color}60` : 'none'),
+                    // MA-LL001: glowPulse only on small elements (<100px). Progress bar is narrow (4px), safe.
+                    animation: nearComplete ? 'glowPulse 8s ease-in-out infinite' : 'none',
                   }} />
                 </div>
                 <span style={{
                   fontFamily: t.mono, fontSize: 10, fontWeight: 700,
-                  color: c.completed ? t.cyan : t.textMuted, minWidth: 40,
+                  color: c.completed ? t.cyan : t.textMuted, minWidth: 56,
                   textAlign: 'right' as const,
                 }}>
-                  {c.currentValue}/{c.targetValue}
+                  {c.currentValue}/{c.targetValue} ({Math.round(pct)}%)
                 </span>
               </div>
 
@@ -281,19 +488,46 @@ export function WeeklyChallenges({ challenges, weekEnd, compact = false, style }
                     Claimed
                   </span>
                 )}
-                {!c.completed && c.currentValue === 0 && (
-                  <span style={{
-                    marginLeft: 'auto', fontSize: 9,
-                    color: t.textMuted, fontStyle: 'italic' as const,
-                  }}>
-                    Start any quest to begin!
-                  </span>
-                )}
               </div>
             </div>
           </div>
         );
       })}
+
+      {/* ─── Weekly Champion banner ─── */}
+      <div style={{
+        marginTop: 10, padding: '10px 12px',
+        borderRadius: 12,
+        background: allCompleted ? `${t.gold}10` : t.bgElevated,
+        border: `1px solid ${allCompleted ? `${t.gold}30` : t.border}`,
+        display: 'flex', alignItems: 'center', gap: 10,
+        cursor: 'pointer',
+      }}
+        onClick={navigateToWeekly}
+      >
+        <span style={{ fontSize: 16 }}>🏆</span>
+        <div style={{ flex: 1 }}>
+          <div style={{
+            fontFamily: t.display, fontSize: 11, fontWeight: 700,
+            color: allCompleted ? t.gold : t.text,
+          }}>
+            {allCompleted
+              ? (bonusClaimed ? 'Weekly Champion! Bonus claimed' : 'Weekly Champion!')
+              : 'Weekly Champion'}
+          </div>
+          <div style={{
+            fontFamily: t.mono, fontSize: 10,
+            color: allCompleted ? t.gold : t.textMuted,
+          }}>
+            {allCompleted
+              ? '+150 XP + 🪙 50'
+              : `${completedCount}/3 completed → +150 XP + 🪙 50 bonus`}
+          </div>
+        </div>
+        {allCompleted && (
+          <NeonIcon type="check" size={14} color="gold" />
+        )}
+      </div>
     </div>
   );
 }

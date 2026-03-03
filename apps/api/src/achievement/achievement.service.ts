@@ -141,6 +141,13 @@ export class AchievementService {
 
     const allCompleted = challenges.every((c) => c.completed);
 
+    // Check if Weekly Champion bonus was already claimed this week
+    const bonusClaimed = allCompleted
+      ? !!(await this.prisma.xPEvent.findFirst({
+          where: { userId, source: 'weekly_champion', createdAt: { gte: weekStart } },
+        }))
+      : false;
+
     return {
       weekStart: weekStart.toISOString(),
       weekEnd: weekEnd.toISOString(),
@@ -157,6 +164,7 @@ export class AchievementService {
         coinReward: c.coinReward,
       })),
       allCompleted,
+      bonusClaimed,
     };
   }
 
@@ -213,8 +221,42 @@ export class AchievementService {
             coins: { increment: challenge.coinReward },
           },
         });
+
+        // Weekly Champion bonus — award when ALL 3 challenges complete
+        await this.maybeAwardWeeklyChampion(userId, challenge.weekStart);
       }
     }
+  }
+
+  /** Award Weekly Champion bonus (+150 XP, +50 coins) if all 3 challenges done (idempotent) */
+  private async maybeAwardWeeklyChampion(userId: string, weekStart: Date) {
+    const allChallenges = await this.prisma.weeklyChallenge.findMany({
+      where: { userId, weekStart },
+    });
+    const allDone = allChallenges.length > 0 && allChallenges.every((c) => c.completed);
+    if (!allDone) return;
+
+    // Idempotent — check if bonus already awarded this week
+    const bonusExists = await this.prisma.xPEvent.findFirst({
+      where: { userId, source: 'weekly_champion', createdAt: { gte: weekStart } },
+    });
+    if (bonusExists) return;
+
+    await this.prisma.xPEvent.create({
+      data: {
+        userId,
+        amount: 150,
+        source: 'weekly_champion',
+        metadata: { weekStart: weekStart.toISOString() } as any,
+      },
+    });
+    await this.prisma.userProgression.update({
+      where: { userId },
+      data: {
+        totalXp: { increment: 150 },
+        coins: { increment: 50 },
+      },
+    });
   }
 
   // ─── Private Helpers ───────────────────────────────────────────

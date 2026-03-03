@@ -21,10 +21,186 @@ import { SkeletonLoader } from './_components/SkeletonLoader';
 import { SocialCards } from './_components/SocialCards';
 import { WeeklyChallenges } from './_components/WeeklyChallenges';
 import { QuestError } from './_components/QuestError';
+import { AttributeWidget } from './_components/AttributeWidget';
 import { useWeeklyChallenges } from './_hooks/useWeeklyChallenges';
 import { useSpacedRepetition } from './_hooks/useSpacedRepetition';
 import { MasteryRing } from './_components/MasteryRing';
 import { NeonIcon } from '../../(onboarding)/_components/NeonIcon';
+
+// ═══════════════════════════════════════════
+// LEVEL-UP CELEBRATION — Macro animation (§3 Reward sequences)
+// Auto-dismiss 2500ms, tap-to-skip, reduced-motion safe
+// ═══════════════════════════════════════════
+
+const CONFETTI_COLORS = [t.violet, t.cyan, t.rose, t.gold, '#6EE7B7', '#818CF8', '#E879F9', '#FFD166'];
+
+function LevelUpCelebration({ newLevel, onDismiss }: { newLevel: number; onDismiss: () => void }) {
+  const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  useEffect(() => {
+    const timer = setTimeout(onDismiss, reducedMotion ? 1000 : 2500);
+    return () => clearTimeout(timer);
+  }, [onDismiss, reducedMotion]);
+
+  return (
+    <div
+      onClick={onDismiss}
+      role="status"
+      aria-live="polite"
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'radial-gradient(circle, rgba(157,122,255,0.3), rgba(12,12,16,0.9))',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        cursor: 'pointer',
+        animation: reducedMotion ? 'none' : 'fadeIn 0.3s ease-out',
+      }}
+    >
+      {/* Confetti particles — hidden in reduced motion */}
+      {!reducedMotion && Array.from({ length: 8 }, (_, i) => {
+        const left = 10 + (i * 11);
+        const delay = i * 0.15;
+        const size = 5 + (i % 3) * 3;
+        const isSquare = i % 3 === 0;
+        return (
+          <div
+            key={i}
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              width: size,
+              height: isSquare ? size : size * 0.4,
+              borderRadius: isSquare ? 2 : size,
+              background: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+              top: -10,
+              left: `${left}%`,
+              animation: `confettiFall 2s ease-in ${delay}s forwards`,
+              opacity: 0.9,
+            }}
+          />
+        );
+      })}
+
+      {/* "ASCENSION!" text */}
+      <div style={{
+        fontFamily: t.display, fontSize: 36, fontWeight: 900,
+        color: '#FFD166', textTransform: 'uppercase' as const,
+        letterSpacing: '0.08em',
+        textShadow: '0 0 20px rgba(255,209,102,0.5)',
+        animation: reducedMotion ? 'none' : 'celebratePop 0.6s cubic-bezier(0.34,1.56,0.64,1)',
+        marginBottom: 16,
+      }}>
+        Ascension!
+      </div>
+
+      {/* New level number */}
+      <div style={{
+        fontFamily: t.display, fontSize: 64, fontWeight: 900,
+        color: t.text,
+        animation: reducedMotion ? 'none' : 'bounceIn 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.3s both',
+      }}>
+        Level {newLevel}
+      </div>
+
+      {/* Tap to skip hint */}
+      <div style={{
+        fontFamily: t.body, fontSize: 12, color: t.textMuted,
+        marginTop: 24,
+        animation: reducedMotion ? 'none' : 'fadeUp 0.4s ease-out 0.6s both',
+      }}>
+        Tap anywhere to continue
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// STREAK MILESTONE CELEBRATION — Meso animation
+// Milestones: 7, 30, 100, 365
+// ═══════════════════════════════════════════
+
+const STREAK_MILESTONES: Record<number, string> = {
+  7: '7-Day Streak!',
+  30: '30-Day Legend!',
+  100: '100-Day Master!',
+  365: '365-Day Immortal!',
+};
+
+function StreakMilestoneCelebration({ streak, onDismiss }: { streak: number; onDismiss: () => void }) {
+  const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const label = STREAK_MILESTONES[streak] || `${streak}-Day Streak!`;
+
+  useEffect(() => {
+    const timer = setTimeout(onDismiss, reducedMotion ? 800 : 2000);
+    return () => clearTimeout(timer);
+  }, [onDismiss, reducedMotion]);
+
+  return (
+    <div
+      onClick={onDismiss}
+      role="status"
+      aria-live="polite"
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9998,
+        background: 'radial-gradient(circle, rgba(251,191,36,0.2), rgba(12,12,16,0.85))',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        cursor: 'pointer',
+        animation: reducedMotion ? 'none' : 'fadeIn 0.3s ease-out',
+      }}
+    >
+      {/* Mini confetti — 4-6 particles */}
+      {!reducedMotion && Array.from({ length: 5 }, (_, i) => {
+        const left = 15 + (i * 17);
+        const delay = i * 0.2;
+        const size = 4 + (i % 3) * 2;
+        return (
+          <div
+            key={i}
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              width: size,
+              height: size * 0.5,
+              borderRadius: size,
+              background: [t.gold, t.rose, t.cyan, t.violet, '#6EE7B7'][i % 5],
+              top: -10,
+              left: `${left}%`,
+              animation: `confettiFall 2s ease-in ${delay}s forwards`,
+              opacity: 0.85,
+            }}
+          />
+        );
+      })}
+
+      {/* Fire emoji */}
+      <div style={{
+        fontSize: 48, marginBottom: 12,
+        animation: reducedMotion ? 'none' : 'celebratePop 0.5s cubic-bezier(0.34,1.56,0.64,1)',
+      }}>
+        &#128293;
+      </div>
+
+      {/* Milestone text */}
+      <div style={{
+        fontFamily: t.display, fontSize: 28, fontWeight: 900,
+        color: t.gold, textTransform: 'uppercase' as const,
+        letterSpacing: '0.05em',
+        textShadow: '0 0 16px rgba(251,191,36,0.4)',
+        animation: reducedMotion ? 'none' : 'celebratePop 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.15s both',
+      }}>
+        {label}
+      </div>
+
+      {/* Tap to skip */}
+      <div style={{
+        fontFamily: t.body, fontSize: 12, color: t.textMuted,
+        marginTop: 16,
+        animation: reducedMotion ? 'none' : 'fadeUp 0.3s ease-out 0.4s both',
+      }}>
+        Tap to continue
+      </div>
+    </div>
+  );
+}
 
 // ═══════════════════════════════════════════
 // COMMAND CENTER — Dashboard home page orchestrator
@@ -110,10 +286,42 @@ export default function HomePage() {
   const [openQuestId, setOpenQuestId] = useState<string | null>(null);
   const openTask = openQuestId ? allTasks.get(openQuestId) : null;
 
+  // ─── Level-up celebration detection ───
+  const prevLevelRef = useRef<number | null>(null);
+  const [levelUpDisplay, setLevelUpDisplay] = useState<number | null>(null);
+  useEffect(() => {
+    if (prevLevelRef.current === null) {
+      prevLevelRef.current = level;
+      return;
+    }
+    if (level > prevLevelRef.current) {
+      setLevelUpDisplay(level);
+    }
+    prevLevelRef.current = level;
+  }, [level]);
+
+  // ─── Streak milestone celebration detection ───
+  const prevStreakRef = useRef<number | null>(null);
+  const [streakMilestoneDisplay, setStreakMilestoneDisplay] = useState<number | null>(null);
+  useEffect(() => {
+    const milestones = [7, 30, 100, 365];
+    if (prevStreakRef.current === null) {
+      prevStreakRef.current = currentStreak;
+      return;
+    }
+    if (
+      milestones.includes(currentStreak) &&
+      currentStreak > prevStreakRef.current
+    ) {
+      setStreakMilestoneDisplay(currentStreak);
+    }
+    prevStreakRef.current = currentStreak;
+  }, [currentStreak]);
+
   if (!hydrated || isHydrating) return <SkeletonLoader />;
 
   return (
-    <div style={{ animation: 'fadeUp 0.5s ease-out' }}>
+    <div style={{ animation: 'fadeUp 0.4s ease-out' }}>
       {/* Quest Card Modal */}
       {openTask && (
         <QuestCardModal
@@ -139,6 +347,7 @@ export default function HomePage() {
           currentStreak={currentStreak}
           energyCrystals={energyCrystals}
           onConsumeCrystal={consumeCrystal}
+          attributeGrowth={engine.lastAttributeGrowth}
         />
       )}
 
@@ -147,6 +356,22 @@ export default function HomePage() {
         achievement={engine.newlyUnlockedAchievements[0] || null}
         onDismiss={engine.dismissAchievement}
       />
+
+      {/* Level-Up Celebration — Macro animation, tap-to-skip (UX-R164) */}
+      {levelUpDisplay !== null && (
+        <LevelUpCelebration
+          newLevel={levelUpDisplay}
+          onDismiss={() => setLevelUpDisplay(null)}
+        />
+      )}
+
+      {/* Streak Milestone Celebration — Meso animation */}
+      {streakMilestoneDisplay !== null && (
+        <StreakMilestoneCelebration
+          streak={streakMilestoneDisplay}
+          onDismiss={() => setStreakMilestoneDisplay(null)}
+        />
+      )}
 
       {/* Welcome Back greeting + warm-up quest (UX-R102, UX-R100) */}
       <WelcomeBack
@@ -199,6 +424,11 @@ export default function HomePage() {
         maxEnergyCrystals={maxEnergyCrystals}
       />
 
+      {/* Phase 5H: Attribute Widget — inline on mobile, hidden on desktop (shown in sidebar) */}
+      <div className="sidebar-content-inline" style={{ marginBottom: 16 }}>
+        <AttributeWidget />
+      </div>
+
       {/* Today's Quests — BL-004: moved up as PRIMARY ACTION */}
       <div ref={dailyQuestsRef} />
       <DailyQuests
@@ -242,23 +472,30 @@ export default function HomePage() {
                 <span style={{
                   marginLeft: 'auto',
                   fontFamily: t.mono, fontSize: 10, fontWeight: 700,
-                  color: '#FF6B8A', padding: '2px 8px', borderRadius: 10,
-                  background: '#FF6B8A15', border: '1px solid #FF6B8A25',
+                  color: t.rose, padding: '2px 8px', borderRadius: 10,
+                  background: `${t.rose}15`, border: `1px solid ${t.rose}25`,
                 }}>
                   {mastery.dueCount} due
                 </span>
               )}
             </h2>
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' as const }}>
-              {mastery.skills.map((skill) => (
-                <MasteryRing
+              {mastery.skills.map((skill, index) => (
+                <div
                   key={skill.skillId}
-                  masteryLevel={skill.masteryLevel}
-                  skillDomain={skill.skillDomain}
-                  isOverdue={skill.isOverdue}
-                  size="md"
-                  showLabel
-                />
+                  style={{
+                    animation: 'fadeUp 0.4s ease-out both',
+                    animationDelay: `${0.15 + index * 0.08}s`,
+                  }}
+                >
+                  <MasteryRing
+                    masteryLevel={skill.masteryLevel}
+                    skillDomain={skill.skillDomain}
+                    isOverdue={skill.isOverdue}
+                    size="md"
+                    showLabel
+                  />
+                </div>
               ))}
             </div>
           </div>
@@ -266,7 +503,12 @@ export default function HomePage() {
 
         {/* Weekly Challenges — personal weekly goals (Phase 5E) */}
         {weekly.challenges.length > 0 && (
-          <WeeklyChallenges challenges={weekly.challenges} weekEnd={weekly.weekEnd} />
+          <WeeklyChallenges
+            challenges={weekly.challenges}
+            weekEnd={weekly.weekEnd}
+            allCompleted={weekly.allCompleted}
+            bonusClaimed={weekly.bonusClaimed}
+          />
         )}
 
         {/* Social Cards — opt-in social features (UX-R162) */}

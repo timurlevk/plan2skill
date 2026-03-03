@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useOnboardingStore, useOnboardingV2Store, useProgressionStore, isOnboardingV1Hydrated, isOnboardingV2Hydrated, getLevelInfo } from '@plan2skill/store';
@@ -18,10 +18,10 @@ import { RightSidebar } from './_components/RightSidebar';
 // ═══════════════════════════════════════════
 
 const NAV_ITEMS = [
-  { href: '/home',      label: 'Command Center', icon: 'compass'   as const, badge: false },
+  { href: '/home',      label: 'Command Center', icon: 'lightning'  as const, badge: false },
   { href: '/roadmap',   label: 'Quest Map',       icon: 'compass'   as const, badge: false },
   { href: '/forge',     label: 'The Forge',       icon: 'fire'      as const, badge: false },
-  { href: '/shop',      label: 'Merchant',        icon: 'gem'       as const, badge: false },
+  { href: '/shop',      label: 'Merchant',        icon: 'coins'     as const, badge: false },
   { href: '/league',    label: 'Guild Arena',     icon: 'trophy'    as const, badge: true  },
   { href: '/hero-card', label: 'Hero Card',       icon: 'shield'    as const, badge: false },
 ];
@@ -44,21 +44,31 @@ function UserMenu({ charMeta, archetype, level, xpTotal }: {
   xpTotal: number;
 }) {
   const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const resetStore = useOnboardingStore(s => s.reset);
   const quietMode = useProgressionStore(s => s.quietMode);
+
+  // Animated close — exit animation before unmounting (MA-TR003: exit < enter)
+  const closeMenu = useCallback(() => {
+    setClosing(true);
+    setTimeout(() => {
+      setOpen(false);
+      setClosing(false);
+    }, 120); // 0.12s exit < 0.15s entrance
+  }, []);
 
   // Close on click outside
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
+        closeMenu();
       }
     }
     function handleEscape(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape') closeMenu();
     }
     document.addEventListener('mousedown', handleClick);
     document.addEventListener('keydown', handleEscape);
@@ -66,7 +76,7 @@ function UserMenu({ charMeta, archetype, level, xpTotal }: {
       document.removeEventListener('mousedown', handleClick);
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [open]);
+  }, [open, closeMenu]);
 
   function handleItemClick(item: typeof USER_MENU_ITEMS[number]) {
     if (!('label' in item)) return;
@@ -74,7 +84,7 @@ function UserMenu({ charMeta, archetype, level, xpTotal }: {
       useProgressionStore.getState().toggleQuietMode();
       return; // Don't close menu on toggle
     }
-    setOpen(false);
+    closeMenu();
     if ('href' in item && item.href) {
       router.push(item.href);
     } else if (item.id === 'restart') {
@@ -121,7 +131,7 @@ function UserMenu({ charMeta, archetype, level, xpTotal }: {
         </span>
       </button>
 
-      {/* Dropdown — opens upward */}
+      {/* Dropdown — opens upward, animated close */}
       {open && (
         <div style={{
           position: 'absolute', bottom: '100%', left: 8, right: 8,
@@ -129,7 +139,9 @@ function UserMenu({ charMeta, archetype, level, xpTotal }: {
           background: t.bgElevated, border: `1px solid ${t.border}`,
           borderRadius: 16, zIndex: 100,
           boxShadow: '0 -8px 32px rgba(0,0,0,0.5), 0 -2px 8px rgba(0,0,0,0.3)',
-          animation: 'fadeUp 0.15s ease-out',
+          animation: closing
+            ? 'fadeUp 0.12s ease-in reverse forwards'
+            : 'fadeUp 0.15s ease-out',
         }}>
           {/* User header inside dropdown */}
           <div style={{
@@ -207,8 +219,9 @@ function UserMenu({ charMeta, archetype, level, xpTotal }: {
                     <div style={{
                       width: 12, height: 12, borderRadius: '50%',
                       background: '#FFF', position: 'absolute', top: 2,
-                      left: isQuietActive ? 14 : 2,
-                      transition: 'left 0.2s ease',
+                      left: 2,
+                      transform: isQuietActive ? 'translateX(12px)' : 'translateX(0)',
+                      transition: 'transform 0.2s ease',
                     }} />
                   </div>
                 </button>
@@ -288,6 +301,41 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
   }, [characterId]);
 
+  // Coin counter bounce — detect value change, brief scale pulse
+  const prevCoinsRef = useRef<number | null>(null);
+  const [coinBounce, setCoinBounce] = useState(false);
+  useEffect(() => {
+    if (prevCoinsRef.current === null) {
+      prevCoinsRef.current = coins;
+      return;
+    }
+    if (prevCoinsRef.current !== coins) {
+      setCoinBounce(true);
+      const timer = setTimeout(() => setCoinBounce(false), 200);
+      prevCoinsRef.current = coins;
+      return () => clearTimeout(timer);
+    }
+  }, [coins]);
+
+  // Streak counter pulse — detect value change, brief scale pulse
+  const prevStreakRef = useRef<number | null>(null);
+  const [streakBounce, setStreakBounce] = useState(false);
+  useEffect(() => {
+    if (prevStreakRef.current === null) {
+      prevStreakRef.current = currentStreak;
+      return;
+    }
+    if (prevStreakRef.current !== currentStreak) {
+      setStreakBounce(true);
+      const timer = setTimeout(() => setStreakBounce(false), 200);
+      prevStreakRef.current = currentStreak;
+      return () => clearTimeout(timer);
+    }
+  }, [currentStreak]);
+
+  // Mobile nav tab press state
+  const [pressedTab, setPressedTab] = useState<string | null>(null);
+
   // Early return AFTER all hooks (Rules of Hooks)
   if (!hydrated || !onboardingDone) return null;
 
@@ -363,6 +411,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
           100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
         }
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25%      { transform: translateX(4px); }
+          75%      { transform: translateX(-4px); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
         @media (prefers-reduced-motion: reduce) {
           *, *::before, *::after {
             animation-duration: 0.01ms !important;
@@ -397,18 +454,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       `}</style>
 
       <div className="flex" style={{ background: t.bg, position: 'relative', height: '100vh', overflow: 'hidden' }}>
-        {/* Ambient glows — same radial-gradient as onboarding */}
-        <div style={{
+        {/* Ambient glows — static radial-gradient backgrounds (§6: ambient background motion) */}
+        {/* No animation — glowPulse adds box-shadow which creates visible ellipse shapes */}
+        <div aria-hidden="true" style={{
           position: 'fixed', top: '-20%', left: '-10%',
           width: '50vw', height: '50vh', borderRadius: '50%',
           background: 'radial-gradient(circle, rgba(157,122,255,0.12) 0%, transparent 70%)',
           pointerEvents: 'none', zIndex: 0,
+          filter: 'blur(40px)',
         }} />
-        <div style={{
+        <div aria-hidden="true" style={{
           position: 'fixed', bottom: '-20%', right: '-10%',
           width: '50vw', height: '50vh', borderRadius: '50%',
           background: 'radial-gradient(circle, rgba(78,205,196,0.10) 0%, transparent 70%)',
           pointerEvents: 'none', zIndex: 0,
+          filter: 'blur(40px)',
         }} />
 
         {/* ═══ Desktop Sidebar ═══ */}
@@ -516,14 +576,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     aria-label={`Level ${level}: ${heroLevelInfo.currentXp} of ${heroLevelInfo.xpForNextLevel} XP`}
                     style={{
                       height: 6, borderRadius: 3,
-                      background: '#252530', overflow: 'hidden',
+                      background: t.border, overflow: 'hidden',
                     }}
                   >
                     <div style={{
-                      width: `${heroXpPct}%`, height: '100%', borderRadius: 3,
+                      width: '100%', height: '100%', borderRadius: 3,
                       background: t.gradient,
-                      transition: 'width 0.6s ease-out',
-                      boxShadow: heroXpPct > 85 ? `0 0 8px ${t.violet}60` : `0 0 4px ${t.violet}30`,
+                      transform: `scaleX(${heroXpPct / 100})`,
+                      transformOrigin: 'left',
+                      transition: 'transform 0.6s ease-out',
+                      boxShadow: heroXpPct >= 85 ? `0 0 12px rgba(157,122,255,0.5)` : `0 0 4px ${t.violet}30`,
+                      // Near-level glowPulse — guarded by reduced-motion via CSS @media rule
+                      animation: heroXpPct >= 85 ? 'glowPulse 2s ease-in-out infinite' : 'none',
                     }} />
                   </div>
                 </div>
@@ -533,7 +597,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
                   gap: 4, width: '100%',
                 }}>
-                  {/* Streak */}
+                  {/* Streak — bounce on value change */}
                   <div
                     aria-label={`${currentStreak} day streak`}
                     style={{
@@ -546,6 +610,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <span style={{
                       fontFamily: t.mono, fontSize: 12, fontWeight: 800,
                       color: currentStreak > 0 ? t.gold : t.textMuted,
+                      transform: streakBounce ? 'scale(1.15)' : 'scale(1)',
+                      transition: 'transform 0.1s ease-out',
+                      display: 'inline-block',
                     }}>
                       {currentStreak}
                     </span>
@@ -575,7 +642,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     </span>
                   </div>
 
-                  {/* Coins */}
+                  {/* Coins — bounce on value change */}
                   <div
                     aria-label={`${coins} coins`}
                     style={{
@@ -588,6 +655,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <span style={{
                       fontFamily: t.mono, fontSize: 12, fontWeight: 800,
                       color: t.gold,
+                      transform: coinBounce ? 'scale(1.15)' : 'scale(1)',
+                      transition: 'transform 0.1s ease-out',
+                      display: 'inline-block',
                     }}>
                       {coins}
                     </span>
@@ -605,12 +675,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {NAV_ITEMS.map((item) => {
               const active = pathname === item.href;
               return (
-                <Link key={item.href} href={item.href} style={{ textDecoration: 'none' }}>
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  style={{
+                    textDecoration: 'none', borderRadius: 12,
+                    outline: 'none',
+                  }}
+                  onFocus={(e) => {
+                    const div = e.currentTarget.firstElementChild as HTMLElement;
+                    if (div) div.style.boxShadow = `0 0 0 2px ${t.violet}60`;
+                  }}
+                  onBlur={(e) => {
+                    const div = e.currentTarget.firstElementChild as HTMLElement;
+                    if (div) div.style.boxShadow = 'none';
+                  }}
+                >
                   <div style={{
                     display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '10px 12px', borderRadius: 12,
+                    padding: '12px 14px', borderRadius: 12,
+                    minHeight: 44, // UX-R153: Touch target ≥ 44px
                     background: active ? `${t.violet}15` : 'transparent',
-                    transition: 'all 0.2s ease',
+                    transition: 'background 0.2s ease',
                     cursor: 'pointer',
                   }}>
                     <NeonIcon type={item.icon} size={20} color={active ? 'violet' : 'muted'} active={active} />
@@ -709,15 +795,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </main>
 
-          {/* ═══ Right Sidebar — BL-004: secondary content ═══ */}
+          {/* ═══ Right Sidebar — BL-004: secondary content, sticky ═══ */}
           <aside
             className="dashboard-right-sidebar"
             style={{
               borderLeft: `1px solid ${t.border}`,
               paddingLeft: 20,
               paddingRight: 20,
+              alignSelf: 'flex-start',
+              position: 'sticky' as const,
+              top: 0,
+              maxHeight: '100vh',
               overflowY: 'auto',
-              height: '100%',
             }}
           >
             <RightSidebar />
@@ -740,14 +829,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         >
           {NAV_ITEMS.map((item) => {
             const active = pathname === item.href;
+            const isPressed = pressedTab === item.href;
             return (
-              <Link key={item.href} href={item.href} style={{ textDecoration: 'none' }}>
+              <Link
+                key={item.href}
+                href={item.href}
+                style={{ textDecoration: 'none' }}
+                onMouseDown={() => setPressedTab(item.href)}
+                onMouseUp={() => setPressedTab(null)}
+                onMouseLeave={() => setPressedTab(null)}
+                onTouchStart={() => setPressedTab(item.href)}
+                onTouchEnd={() => setPressedTab(null)}
+              >
                 <div style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                  padding: '8px 12px', borderRadius: 12,
-                  minWidth: 64, minHeight: 48,
-                  transition: 'all 0.2s ease',
+                  padding: '6px 12px', borderRadius: 12,
+                  minWidth: 64, minHeight: 44, // UX-R153: Touch target ≥ 44px
+                  transition: 'background 0.2s ease, color 0.2s ease, transform 0.15s ease-out',
                   animation: active ? 'tabGlow 2s ease-in-out infinite' : 'none',
+                  transform: isPressed ? 'scale(0.95)' : 'scale(1)',
                 }}>
                   <NeonIcon type={item.icon} size={20} color={active ? 'violet' : 'muted'} active={active} />
                   <span style={{

@@ -3,13 +3,14 @@
 import React from 'react';
 import Link from 'next/link';
 import { useProgressionStore, useCharacterStore } from '@plan2skill/store';
-import { t } from '../../(onboarding)/_components/tokens';
+import { t, rarity as rarityTokens, LEAGUE_TIERS } from '../../(onboarding)/_components/tokens';
 import { NeonIcon } from '../../(onboarding)/_components/NeonIcon';
 import type { NeonIconType } from '../../(onboarding)/_components/NeonIcon';
 import { WeeklyChallenges } from '../home/_components/WeeklyChallenges';
 import { MasteryRing } from '../home/_components/MasteryRing';
 import { useWeeklyChallenges } from '../home/_hooks/useWeeklyChallenges';
 import { useSpacedRepetition } from '../home/_hooks/useSpacedRepetition';
+import { AttributeWidget } from '../home/_components/AttributeWidget';
 
 // ═══════════════════════════════════════════
 // RIGHT SIDEBAR — Refactored (UI/UX overhaul)
@@ -79,13 +80,7 @@ const SLOT_ICONS: Record<string, { icon: NeonIconType; label: string }> = {
   companion: { icon: 'star',     label: 'Companion' },
 };
 
-const RARITY_COLORS: Record<string, string> = {
-  common: '#71717A',
-  uncommon: '#6EE7B7',
-  rare: '#3B82F6',
-  epic: '#9D7AFF',
-  legendary: '#FFD166',
-};
+// Rarity colors now come from canonical `rarity` import (tokens.ts)
 
 // ═══════════════════════════════════════════
 // Main Component
@@ -122,6 +117,8 @@ export function RightSidebar() {
         <WeeklyChallenges
           challenges={weekly.challenges}
           weekEnd={weekly.weekEnd}
+          allCompleted={weekly.allCompleted}
+          bonusClaimed={weekly.bonusClaimed}
           compact
           style={{ marginBottom: 0 }}
         />
@@ -192,7 +189,7 @@ export function RightSidebar() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
             {Object.entries(SLOT_ICONS).slice(0, 4).map(([slot, cfg]) => {
               const equip = equipment.find((e) => e.slot === slot);
-              const rarityColor = equip ? RARITY_COLORS[equip.rarity] ?? '#71717A' : '#252530';
+              const rarityColor = equip ? rarityTokens[equip.rarity as keyof typeof rarityTokens]?.color ?? t.textMuted : t.border;
               // Try to find name from inventory
               const invItem = equip ? inventory.find((i) => i.itemId === equip.itemId) : null;
               return (
@@ -207,7 +204,7 @@ export function RightSidebar() {
                   <div style={{
                     width: 36, height: 36, borderRadius: 10,
                     background: equip ? `${rarityColor}12` : '#18181F',
-                    border: `1.5px solid ${equip ? `${rarityColor}35` : '#252530'}`,
+                    border: `1.5px solid ${equip ? `${rarityColor}35` : t.border}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     boxShadow: equip?.rarity === 'legendary' ? `0 0 8px ${rarityColor}30` : 'none',
                   }}>
@@ -228,7 +225,7 @@ export function RightSidebar() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginTop: 2 }}>
             {Object.entries(SLOT_ICONS).slice(4).map(([slot, cfg]) => {
               const equip = equipment.find((e) => e.slot === slot);
-              const rarityColor = equip ? RARITY_COLORS[equip.rarity] ?? '#71717A' : '#252530';
+              const rarityColor = equip ? rarityTokens[equip.rarity as keyof typeof rarityTokens]?.color ?? t.textMuted : t.border;
               const invItem = equip ? inventory.find((i) => i.itemId === equip.itemId) : null;
               return (
                 <div
@@ -242,7 +239,7 @@ export function RightSidebar() {
                   <div style={{
                     width: 36, height: 36, borderRadius: 10,
                     background: equip ? `${rarityColor}12` : '#18181F',
-                    border: `1.5px solid ${equip ? `${rarityColor}35` : '#252530'}`,
+                    border: `1.5px solid ${equip ? `${rarityColor}35` : t.border}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     boxShadow: equip?.rarity === 'legendary' ? `0 0 8px ${rarityColor}30` : 'none',
                   }}>
@@ -290,6 +287,9 @@ export function RightSidebar() {
           </Link>
         </SidebarCard>
       )}
+
+      {/* ─── 3.5. Hero Attributes (Phase 5H) ─── */}
+      <AttributeWidget compact />
 
       {/* ─── 4. Community (Tertiary — UX-R162: opt-in only) ─── */}
       {!quietMode && (
@@ -368,8 +368,8 @@ export function RightSidebar() {
               </div>
               <span style={{
                 fontFamily: t.mono, fontSize: 8, fontWeight: 700,
-                color: '#CD7F32', padding: '2px 6px', borderRadius: 6,
-                background: 'rgba(205,127,50,0.10)', border: '1px solid rgba(205,127,50,0.20)',
+                color: LEAGUE_TIERS.bronze.color, padding: '2px 6px', borderRadius: 6,
+                background: `${LEAGUE_TIERS.bronze.color}1A`, border: `1px solid ${LEAGUE_TIERS.bronze.color}33`,
                 textTransform: 'uppercase' as const, flexShrink: 0,
               }}>
                 Bronze

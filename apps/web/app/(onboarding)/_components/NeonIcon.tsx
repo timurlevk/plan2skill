@@ -254,6 +254,20 @@ const ICON_PATHS: Record<string, (c: string) => React.ReactNode> = {
       <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2M2 12h20" stroke={c} strokeWidth="1.8" fill="none" />
     </>
   ),
+  swords: (c) => (
+    <>
+      {/* Sword 1: upper-left blade → lower-right handle (45°) */}
+      <path d="M5 3l14 14" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" />
+      {/* Sword 1 crossguard (perpendicular to blade) */}
+      <path d="M14.5 15.5l3-3" fill="none" stroke={c} strokeWidth="2.2" strokeLinecap="round" />
+      {/* Sword 2: upper-right blade → lower-left handle (-45°) */}
+      <path d="M19 3L5 17" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" />
+      {/* Sword 2 crossguard (perpendicular to blade) */}
+      <path d="M6.5 12.5l3 3" fill="none" stroke={c} strokeWidth="2.2" strokeLinecap="round" />
+      {/* Crossing point accent */}
+      <circle cx="12" cy="10" r="1.2" fill={c} opacity="0.35" />
+    </>
+  ),
   gear: (c) => (
     <>
       <circle cx="12" cy="12" r="3" fill="none" stroke={c} strokeWidth="1.8" />
