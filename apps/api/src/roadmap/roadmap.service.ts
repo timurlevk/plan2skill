@@ -1,14 +1,33 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { AiService } from '../ai/ai.service';
+import { RoadmapGenerator } from '../ai/generators/roadmap.generator';
 import type { GenerateRoadmapInput } from '@plan2skill/types';
 
 @Injectable()
 export class RoadmapService {
+  private static readonly ROADMAP_LIMITS: Record<string, number> = {
+    free: 2,
+    pro: 7,
+    champion: 15,
+  };
+
   constructor(
     private readonly prisma: PrismaService,
-    private readonly ai: AiService,
+    private readonly roadmapGenerator: RoadmapGenerator,
   ) {}
+
+  async validateRoadmapLimit(userId: string) {
+    const progression = await this.prisma.userProgression.findUnique({
+      where: { userId },
+      select: { subscriptionTier: true },
+    });
+    const tier = progression?.subscriptionTier ?? 'free';
+    const limit = RoadmapService.ROADMAP_LIMITS[tier] ?? 2;
+    const current = await this.prisma.roadmap.count({
+      where: { userId, status: { in: ['active', 'generating'] } },
+    });
+    return { allowed: current < limit, tier, current, limit };
+  }
 
   async listRoadmaps(userId: string) {
     return this.prisma.roadmap.findMany({
@@ -38,6 +57,12 @@ export class RoadmapService {
   }
 
   async generateRoadmap(userId: string, input: GenerateRoadmapInput) {
+    // Tier gate — check roadmap limit before creating
+    const gate = await this.validateRoadmapLimit(userId);
+    if (!gate.allowed) {
+      return { roadmapId: null, status: 'tier_limit' as const, tierInfo: gate };
+    }
+
     // Create roadmap in "generating" status
     const roadmap = await this.prisma.roadmap.create({
       data: {
@@ -71,7 +96,14 @@ export class RoadmapService {
     userId: string,
     input: GenerateRoadmapInput,
   ) {
-    const aiResult = await this.ai.generateRoadmap(input);
+    const aiResult = await this.roadmapGenerator.generate(userId, {
+      goal: input.goal,
+      dailyMinutes: input.dailyMinutes,
+      currentRole: input.currentRole,
+      experienceLevel: input.experienceLevel,
+      selectedTools: input.selectedTools,
+      superpower: input.superpower,
+    });
 
     // Create milestones and tasks from AI result
     for (let i = 0; i < aiResult.milestones.length; i++) {
@@ -100,6 +132,8 @@ export class RoadmapService {
             xpReward: task.xpReward,
             coinReward: task.coinReward,
             rarity: task.rarity,
+            skillDomain: task.skillDomain,
+            bloomLevel: task.bloomLevel,
             status: i === 0 && j === 0 ? 'available' : 'locked',
             order: j,
           },
@@ -231,6 +265,190 @@ export class RoadmapService {
     `;
 
     return trending;
+  }
+
+  // ─── Phase 5H: Roadmap Adjust/Pause/Resume ──────────────────
+
+  async adjustRoadmap(
+    userId: string,
+    roadmapId: string,
+    input: {
+      type: 'goals' | 'pace' | 'regen' | 'add_topic';
+      newGoal?: string;
+      newDailyMinutes?: number;
+      newInterests?: string[];
+    },
+  ) {
+    const roadmap = await this.prisma.roadmap.findFirst({
+      where: { id: roadmapId, userId, status: 'active' },
+      include: { milestones: { include: { tasks: true }, orderBy: { order: 'asc' } } },
+    });
+    if (!roadmap) throw new NotFoundException('Quest line not found');
+
+    switch (input.type) {
+      case 'pace': {
+        const newMinutes = input.newDailyMinutes ?? roadmap.dailyMinutes;
+        await this.prisma.roadmap.update({
+          where: { id: roadmapId },
+          data: { dailyMinutes: newMinutes },
+        });
+        // Reschedule remaining tasks' estimated minutes
+        const incompleteTasks = roadmap.milestones
+          .flatMap((m) => m.tasks)
+          .filter((t) => t.status !== 'completed');
+        for (const task of incompleteTasks) {
+          await this.prisma.task.update({
+            where: { id: task.id },
+            data: { estimatedMinutes: newMinutes },
+          });
+        }
+        break;
+      }
+      case 'goals': {
+        if (input.newGoal) {
+          await this.prisma.roadmap.update({
+            where: { id: roadmapId },
+            data: { goal: input.newGoal, title: `${input.newGoal} Roadmap` },
+          });
+        }
+        // Regenerate non-completed milestones via AI (async)
+        await this.regenRemainingTasks(roadmapId, userId, roadmap);
+        break;
+      }
+      case 'regen': {
+        await this.regenRemainingTasks(roadmapId, userId, roadmap);
+        break;
+      }
+      case 'add_topic': {
+        // Add new tasks to the first non-completed milestone
+        const activeMilestone = roadmap.milestones.find(
+          (m) => m.status === 'active',
+        );
+        if (activeMilestone && input.newInterests?.length) {
+          const maxOrder = Math.max(...activeMilestone.tasks.map((t) => t.order), 0);
+          for (let i = 0; i < Math.min(input.newInterests.length, 5); i++) {
+            await this.prisma.task.create({
+              data: {
+                milestoneId: activeMilestone.id,
+                title: `Explore: ${input.newInterests[i]}`,
+                description: `Deep dive into ${input.newInterests[i]} — added to your quest line`,
+                taskType: 'article',
+                estimatedMinutes: roadmap.dailyMinutes,
+                xpReward: 30,
+                coinReward: 8,
+                rarity: 'uncommon',
+                status: 'available',
+                order: maxOrder + i + 1,
+                skillDomain: input.newInterests[i] ?? null,
+              },
+            });
+          }
+        }
+        break;
+      }
+    }
+
+    return this.getRoadmap(userId, roadmapId);
+  }
+
+  private async regenRemainingTasks(
+    roadmapId: string,
+    userId: string,
+    roadmap: { milestones: Array<{ id: string; status: string; tasks: Array<{ id: string; status: string }> }> },
+  ) {
+    // Delete non-completed tasks from non-completed milestones
+    for (const ms of roadmap.milestones) {
+      if (ms.status === 'completed') continue;
+      const incompleteTasks = ms.tasks.filter((t) => t.status !== 'completed');
+      if (incompleteTasks.length > 0) {
+        await this.prisma.task.deleteMany({
+          where: { id: { in: incompleteTasks.map((t) => t.id) } },
+        });
+      }
+    }
+
+    // Mark as regenerating
+    await this.prisma.roadmap.update({
+      where: { id: roadmapId },
+      data: { status: 'generating' },
+    });
+
+    // AI regeneration for remaining milestones (async, fire-and-forget)
+    const existingRoadmap = await this.prisma.roadmap.findUnique({
+      where: { id: roadmapId },
+      select: { goal: true, dailyMinutes: true },
+    });
+    if (!existingRoadmap) return;
+
+    this.roadmapGenerator
+      .generate(userId, {
+        goal: existingRoadmap.goal,
+        dailyMinutes: existingRoadmap.dailyMinutes,
+      })
+      .then(async (aiResult) => {
+        const nonCompletedMilestones = roadmap.milestones.filter(
+          (m) => m.status !== 'completed',
+        );
+        for (
+          let i = 0;
+          i < Math.min(aiResult.milestones.length, nonCompletedMilestones.length);
+          i++
+        ) {
+          const aiMs = aiResult.milestones[i]!;
+          const dbMs = nonCompletedMilestones[i]!;
+          for (let j = 0; j < aiMs.tasks.length; j++) {
+            const task = aiMs.tasks[j]!;
+            await this.prisma.task.create({
+              data: {
+                milestoneId: dbMs.id,
+                title: task.title,
+                description: task.description,
+                taskType: task.taskType,
+                estimatedMinutes: task.estimatedMinutes,
+                xpReward: task.xpReward,
+                coinReward: task.coinReward,
+                rarity: task.rarity,
+                skillDomain: task.skillDomain,
+                bloomLevel: task.bloomLevel,
+                status: 'available',
+                order: j,
+              },
+            });
+          }
+        }
+        await this.prisma.roadmap.update({
+          where: { id: roadmapId },
+          data: { status: 'active' },
+        });
+      })
+      .catch((err) => {
+        console.error('Regen failed:', err);
+        this.prisma.roadmap
+          .update({ where: { id: roadmapId }, data: { status: 'active' } })
+          .catch(() => {});
+      });
+  }
+
+  async pauseRoadmap(userId: string, roadmapId: string) {
+    const roadmap = await this.prisma.roadmap.findFirst({
+      where: { id: roadmapId, userId, status: 'active' },
+    });
+    if (!roadmap) throw new NotFoundException('Active quest line not found');
+    return this.prisma.roadmap.update({
+      where: { id: roadmapId },
+      data: { status: 'paused' },
+    });
+  }
+
+  async resumeRoadmap(userId: string, roadmapId: string) {
+    const roadmap = await this.prisma.roadmap.findFirst({
+      where: { id: roadmapId, userId, status: 'paused' },
+    });
+    if (!roadmap) throw new NotFoundException('Paused quest line not found');
+    return this.prisma.roadmap.update({
+      where: { id: roadmapId },
+      data: { status: 'active' },
+    });
   }
 
   async getTodaysTasks(userId: string) {

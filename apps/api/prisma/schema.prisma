@@ -43,6 +43,8 @@ model User {
   weeklyChallenges    WeeklyChallenge[]
   inventoryItems      InventoryItem[]
   forgeHistory        ForgeHistory[]
+  llmUsage            LlmUsage[]
+  skillElos           SkillElo[]
 
   @@map("users")
 }
@@ -70,13 +72,13 @@ model Character {
   evolutionTier  String   @default("novice") @db.VarChar(20)
   companionId    String?  @db.VarChar(20)
 
-  // 6 Attributes (0-100)
-  mastery     Int @default(0)
-  insight     Int @default(0)
-  influence   Int @default(0)
-  resilience  Int @default(0)
-  versatility Int @default(0)
-  discovery   Int @default(0)
+  // 6 Attributes — D&D Classic (0-100), Phase 5H rename
+  strength     Int @default(10)
+  intelligence Int @default(10)
+  charisma     Int @default(10)
+  constitution Int @default(10)
+  dexterity    Int @default(10)
+  wisdom       Int @default(10)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -153,6 +155,28 @@ model ForgeHistory {
   @@map("forge_history")
 }
 
+// ─── Skill Domain → Attribute Mapping (Phase 5H, SCD Type 2, §8 DA-v2) ─
+
+model SkillDomainAttribute {
+  id              String    @id @default(uuid())
+  skillDomain     String    @db.VarChar(50)    // "Hard Skills", "Communication", etc.
+  displayName     String    @db.VarChar(100)   // Localized display name
+  primaryAttr     String    @db.VarChar(3)     // STR, INT, CHA, CON, DEX, WIS
+  secondaryAttr   String    @db.VarChar(3)
+  primaryGrowth   Int       @default(2)        // base growth for primary attr
+  secondaryGrowth Int       @default(1)        // base growth for secondary attr
+  icon            String?   @db.VarChar(20)
+  color           String?   @db.VarChar(7)
+  validFrom       DateTime  @default(now())
+  validTo         DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([skillDomain, validFrom])
+  @@index([skillDomain, validTo])
+  @@map("ref_skill_domain_attributes")
+}
+
 // ─── Roadmap System ──────────────────────────────────────────────
 
 model Roadmap {
@@ -223,6 +247,7 @@ model Task {
   // ^ "knowledge_quiz" | "effort_reflection" | "artifact_declaration" |
   //   "completion_attestation" | "social_checkin" | "journal_entry"
   skillDomain      String?   @db.VarChar(50) // skill domain for diversity enforcement
+  bloomLevel       String?   @db.VarChar(15) // Bloom's taxonomy level (AI-generated)
 
   milestone        Milestone         @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
   questCompletions QuestCompletion[]
@@ -329,9 +354,11 @@ model ReviewItem {
   masteryLevel    Int       @default(0)
   nextReview      DateTime
   lastReviewedAt  DateTime?
-  lastQuality     Int?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  lastQuality        Int?
+  bloomLevel         String?   @db.VarChar(15) // Bloom's taxonomy level (AI-generated)
+  aiGeneratedPrompt  String?   @db.Text        // AI-generated review prompt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -378,4 +405,187 @@ model WeeklyChallenge {
 
   @@index([userId, weekStart])
   @@map("weekly_challenges")
+}
+
+// ─── Narrative & Lore System (Phase P) ──────────────────────────
+
+model StoryBible {
+  id          String   @id @default(uuid())
+  version     Int      @default(1)
+  worldName   String   @default("Lumen")
+  worldRules  Json
+  characters  Json
+  geography   Json
+  toneGuide   Json
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  seasons     Season[]
+  @@map("story_bible")
+}
+
+model Season {
+  id           String    @id @default(uuid())
+  storyBibleId String
+  seasonNumber Int
+  title        String
+  description  String
+  arcOutline   Json
+  stateTracker Json
+  status       String    @default("draft") // draft|active|completed|archived
+  startDate    DateTime?
+  endDate      DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  storyBible   StoryBible @relation(fields: [storyBibleId], references: [id])
+  episodes     Episode[]
+  @@map("season")
+  @@index([seasonNumber], name: "idx_season_number")
+  @@index([status], name: "idx_season_status")
+}
+
+model Episode {
+  id              String    @id @default(uuid())
+  seasonId        String
+  episodeNumber   Int
+  globalNumber    Int
+  title           String
+  contextSentence String
+  body            String
+  cliffhanger     String
+  sageReflection  String
+  illustrationUrl String?
+  category        String    @default("standard") // standard|climax|lore_drop|character_focus|season_finale
+  wordCount       Int
+  readTimeSeconds Int
+  act             Int
+  summary         String
+  metadata        Json?
+  status          String    @default("draft") // draft|reviewed|scheduled|published|archived
+  publishAt       DateTime?
+  publishedAt     DateTime?
+  aiModelUsed     String?
+  toneProfile     String?   @db.VarChar(20) // AI-generated tone profile
+  aiConfidence    Float?
+  humanReviewedBy String?
+  humanReviewedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  season          Season    @relation(fields: [seasonId], references: [id])
+  readReceipts    EpisodeReadReceipt[]
+  @@map("episode")
+  @@unique([seasonId, episodeNumber], name: "uq_episode_season_number")
+  @@index([globalNumber], name: "idx_episode_global_number")
+  @@index([status, publishAt], name: "idx_episode_publish")
+  @@index([category], name: "idx_episode_category")
+}
+
+model EpisodeReadReceipt {
+  id              String   @id @default(uuid())
+  userId          String
+  episodeId       String
+  readAt          DateTime @default(now())
+  readDurationSec Int?
+  xpAwarded       Int      @default(5)
+  dismissed       Boolean  @default(false)
+  source          String   @default("home") // home|archive|notification
+  episode         Episode  @relation(fields: [episodeId], references: [id])
+  @@map("episode_read_receipt")
+  @@unique([userId, episodeId], name: "uq_user_episode")
+  @@index([userId, readAt], name: "idx_read_receipt_user_date")
+}
+
+model NarrativePreference {
+  id                        String   @id @default(uuid())
+  userId                    String   @unique
+  narrativeMode             String   @default("full") // full|minimal|off
+  lastReadEpisode           Int?
+  onboardingLegendCompleted Boolean  @default(false)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  @@map("narrative_preference")
+}
+
+model LoreEntry {
+  id          String   @id @default(uuid())
+  category    String
+  referenceId String?
+  locale      String   @default("en")
+  content     String
+  seasonId    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  @@map("lore_entry")
+  @@index([category, isActive], name: "idx_lore_entry_category")
+  @@index([referenceId], name: "idx_lore_entry_reference")
+}
+
+// ─── AI Observability & Tracing ─────────────────────────────────
+
+model LlmUsage {
+  id             String   @id @default(uuid())
+  userId         String
+  generatorType  String   @db.VarChar(30)
+  model          String   @db.VarChar(50)
+  purpose        String   @db.VarChar(50)
+  inputTokens    Int
+  outputTokens   Int
+  costUsd        Float
+  durationMs     Int
+  success        Boolean
+  attempt        Int      @default(1)
+  cacheHit       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trace LlmTrace?
+
+  @@index([userId, createdAt], name: "idx_llm_usage_user_date")
+  @@index([generatorType, createdAt], name: "idx_llm_usage_generator_date")
+  @@index([createdAt], name: "idx_llm_usage_date")
+  @@map("llm_usage")
+}
+
+model LlmTrace {
+  id               String  @id @default(uuid())
+  usageId          String  @unique
+  systemPrompt     String  @db.Text
+  userPrompt       String  @db.Text
+  responseText     String? @db.Text
+  structuredOutput Json?
+  errorMessage     String? @db.Text
+
+  usage LlmUsage @relation(fields: [usageId], references: [id], onDelete: Cascade)
+
+  @@map("llm_trace")
+}
+
+model SkillElo {
+  id              String    @id @default(uuid())
+  userId          String
+  skillDomain     String    @db.VarChar(50)
+  elo             Int       @default(1200)
+  assessmentCount Int       @default(0)
+  lastAssessedAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillDomain], name: "uq_skill_elo_user_domain")
+  @@map("skill_elo")
+}
+
+model AiCache {
+  id             String   @id @default(uuid())
+  cacheKey       String   @unique @db.VarChar(255)
+  generatorType  String   @db.VarChar(30)
+  content        Json
+  hitCount       Int      @default(0)
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  @@index([generatorType, expiresAt], name: "idx_ai_cache_generator_expires")
+  @@index([expiresAt], name: "idx_ai_cache_expires")
+  @@map("ai_cache")
 }
