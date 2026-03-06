@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
 import { t } from '../../../(onboarding)/_components/tokens';
 import type { AchievementRarity } from '../_data/achievements';
@@ -76,6 +76,18 @@ export function AchievementBadge({
   const rarColor = RARITY_COLOR[rarity];
   const isLocked = state === 'locked' || state === 'nearUnlock';
 
+  // Hover state for scale effect
+  const [isHovered, setIsHovered] = useState(false);
+
+  // prefers-reduced-motion guard
+  const prefersReduced = useRef(false);
+  useEffect(() => {
+    prefersReduced.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }, []);
+
+  // Near-unlock tease: Zeigarnik effect — "almost there!" (§1 MICRO_ANIMATION_GUIDELINES)
+  const isNearUnlock = (progress ?? 0) > 0.8 && state !== 'unlocked' && state !== 'equipped';
+
   const badgeStyle: React.CSSProperties = {
     width: dim.badge,
     height: dim.badge,
@@ -83,13 +95,14 @@ export function AchievementBadge({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    transition: 'all 0.4s ease',
+    transition: 'transform 0.2s ease, opacity 0.4s ease, box-shadow 0.4s ease, filter 0.4s ease',
     cursor: onClick ? 'pointer' : 'default',
     position: 'relative',
+    transform: isHovered ? 'scale(1.08)' : 'scale(1)',
     ...(isLocked
       ? {
-          background: '#252530',
-          border: '1px solid #35354A',
+          background: t.border,
+          border: `1px solid ${t.borderHover}`,
           filter: state === 'nearUnlock' ? 'grayscale(0.6)' : 'grayscale(1)',
           opacity: state === 'nearUnlock' ? 0.7 : 0.5,
         }
@@ -119,11 +132,15 @@ export function AchievementBadge({
         flexDirection: 'column',
         alignItems: 'center',
         gap: 4,
+        // Near-unlock tease pulse — Zeigarnik effect, guarded by reduced-motion
+        animation: isNearUnlock && !prefersReduced.current ? 'pulse 2s ease-in-out infinite' : 'none',
         ...style,
       }}
     >
       <div
         onClick={onClick}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
         role="img"
         aria-label={ariaLabel}
         style={badgeStyle}

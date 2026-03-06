@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plan2Skill — Content Audit & AI Wire-up Matrix</title>
+<style>
+  :root {
+    --bg: #0C0C10;
+    --card: #18181F;
+    --elevated: #1E1E28;
+    --border: #252530;
+    --text: #FFFFFF;
+    --muted: #71717A;
+    --violet: #9D7AFF;
+    --cyan: #4ECDC4;
+    --gold: #FFD166;
+    --rose: #FF6B8A;
+    --mint: #6EE7B7;
+    --blue: #3B82F6;
+    --orange: #F59E0B;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  h1 { font-size: 22px; font-weight: 800; margin-bottom: 8px; }
+  h1 span { background: linear-gradient(135deg, var(--violet), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .meta { color: var(--muted); font-size: 11px; margin-bottom: 16px; }
+  .stats {
+    display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px;
+  }
+  .stat-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 16px; min-width: 120px;
+  }
+  .stat-card .val { font-size: 22px; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+  .stat-card .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+  .filters {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center;
+  }
+  .filters label { color: var(--muted); font-size: 11px; }
+  .filters select, .filters input {
+    background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); padding: 5px 8px; font-size: 11px; font-family: inherit;
+  }
+  .filters select:focus, .filters input:focus { outline: none; border-color: var(--violet); }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 11px;
+  }
+  thead th {
+    background: var(--elevated); color: var(--cyan);
+    padding: 6px 8px; text-align: left; font-weight: 700;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
+    position: sticky; top: 0; z-index: 5;
+    border-bottom: 2px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid var(--border); }
+  tbody tr:hover { background: rgba(157,122,255,0.04); }
+  tbody td { padding: 5px 8px; vertical-align: top; max-width: 300px; }
+  td.text-col { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #ddd; word-break: break-word; }
+  td.key-col { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--gold); word-break: break-all; }
+  .badge {
+    display: inline-block; padding: 2px 6px; border-radius: 4px;
+    font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+  }
+  .b-static  { background: rgba(113,113,122,0.15); color: #a1a1aa; }
+  .b-dynamic { background: rgba(78,205,196,0.12); color: var(--cyan); }
+  .b-ai      { background: rgba(157,122,255,0.15); color: var(--violet); }
+  .b-db      { background: rgba(110,231,183,0.12); color: var(--mint); }
+  .b-store   { background: rgba(255,209,102,0.12); color: var(--gold); }
+  .b-yes     { background: rgba(110,231,183,0.12); color: var(--mint); }
+  .b-no      { background: rgba(113,113,122,0.15); color: #71717A; }
+  .b-warn    { background: rgba(255,107,138,0.12); color: var(--rose); }
+  .b-budget  { background: rgba(110,231,183,0.1); color: var(--mint); border: 1px solid rgba(110,231,183,0.2); }
+  .b-balanced { background: rgba(78,205,196,0.1); color: var(--cyan); border: 1px solid rgba(78,205,196,0.2); }
+  .b-quality { background: rgba(157,122,255,0.1); color: var(--violet); border: 1px solid rgba(157,122,255,0.2); }
+  .b-none    { background: rgba(113,113,122,0.08); color: #555; border: 1px solid rgba(113,113,122,0.15); }
+  .b-template { background: rgba(255,209,102,0.1); color: var(--gold); border: 1px solid rgba(255,209,102,0.2); }
+  .b-i18n    { background: rgba(59,130,246,0.12); color: #3B82F6; }
+  /* Layer badges */
+  .b-layer-intl    { background: rgba(59,130,246,0.15); color: #60A5FA; border: 1px solid rgba(59,130,246,0.25); }
+  .b-layer-ref     { background: rgba(110,231,183,0.12); color: var(--mint); border: 1px solid rgba(110,231,183,0.2); }
+  .b-layer-ai      { background: rgba(157,122,255,0.15); color: var(--violet); border: 1px solid rgba(157,122,255,0.25); }
+  .b-layer-none    { background: rgba(113,113,122,0.08); color: #555; border: 1px solid rgba(113,113,122,0.15); }
+  .b-layer-compute { background: rgba(245,158,11,0.12); color: var(--gold); border: 1px solid rgba(245,158,11,0.2); }
+  /* Recommendation tags */
+  .rec-tag {
+    display: inline-block; padding: 1px 5px; border-radius: 3px;
+    font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+    margin-right: 3px; margin-bottom: 2px; white-space: nowrap;
+  }
+  .rec-i18n     { background: rgba(59,130,246,0.15); color: #60A5FA; }
+  .rec-ai       { background: rgba(157,122,255,0.15); color: #B49AFF; }
+  .rec-migrate  { background: rgba(255,107,138,0.15); color: #FF8FAA; }
+  .rec-ok       { background: rgba(110,231,183,0.1); color: #6EE7B7; }
+  .rec-rewrite  { background: rgba(245,158,11,0.15); color: #FBBF24; }
+  .rec-wire     { background: rgba(78,205,196,0.15); color: #4ECDC4; }
+  .rec-cell { font-size: 10px; line-height: 1.5; max-width: 260px; }
+  .action-cell { font-size: 10px; line-height: 1.4; max-width: 240px; color: #ccc; }
+  .action-cell code { background: rgba(157,122,255,0.1); color: var(--violet); padding: 1px 4px; border-radius: 3px; font-size: 9px; font-family: 'JetBrains Mono', monospace; }
+  .decision-cell { min-width: 160px; }
+  .decision-cell textarea {
+    width: 100%; min-height: 32px; padding: 4px 6px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text); font-family: inherit;
+    font-size: 10px; resize: vertical;
+  }
+  .decision-cell textarea:focus { outline: none; border-color: var(--violet); }
+  .decision-cell textarea::placeholder { color: #444; }
+  .btn-export {
+    background: linear-gradient(135deg, var(--violet), var(--cyan));
+    color: #fff; border: none; border-radius: 8px;
+    padding: 8px 20px; font-weight: 700; font-size: 12px; cursor: pointer;
+  }
+  .btn-export:hover { opacity: 0.9; }
+  .legend {
+    display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; padding: 10px 14px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  }
+  .legend-title { color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; margin-right: 4px; align-self: center; }
+  .legend-sep { width: 1px; background: var(--border); margin: 0 6px; }
+  @media print {
+    body { background: #fff; color: #000; font-size: 9px; }
+    .filters, .btn-export, .stats, .legend { display: none; }
+    thead th { background: #eee; color: #333; }
+    tbody td { border: 1px solid #ddd; }
+  }
+</style>
+</head>
+<body>
+
+<h1><span>Plan2Skill</span> — Content Audit & Wire-up Spec</h1>
+<p class="meta">Generated 2026-03-05 | Full platform content audit with implementation requirements | 3 layers: next-intl / refContent / AI gen</p>
+
+<div class="stats">
+  <div class="stat-card"><div class="val" style="color:var(--blue)">~150</div><div class="lbl">next-intl keys</div></div>
+  <div class="stat-card"><div class="val" style="color:var(--mint)">~120</div><div class="lbl">refContent entities</div></div>
+  <div class="stat-card"><div class="val" style="color:var(--violet)">11</div><div class="lbl">AI generators</div></div>
+  <div class="stat-card"><div class="val" style="color:var(--gold)">3</div><div class="lbl">locales (en/uk/pl)</div></div>
+  <div class="stat-card"><div class="val" style="color:var(--rose)">$0.15</div><div class="lbl">/user/month</div></div>
+</div>
+
+<div class="legend">
+  <span class="legend-title">Layers:</span>
+  <span class="badge b-layer-intl">next-intl</span>
+  <span class="badge b-layer-ref">refContent</span>
+  <span class="badge b-layer-ai">AI gen</span>
+  <span class="badge b-layer-compute">computed</span>
+  <span class="badge b-layer-none">—</span>
+  <div class="legend-sep"></div>
+  <span class="legend-title">Rec:</span>
+  <span class="rec-tag rec-i18n">i18n</span>
+  <span class="rec-tag rec-ai">+AI</span>
+  <span class="rec-tag rec-migrate">migrate</span>
+  <span class="rec-tag rec-wire">wire-up</span>
+  <span class="rec-tag rec-rewrite">rewrite</span>
+  <span class="rec-tag rec-ok">OK</span>
+</div>
+
+<div class="filters">
+  <label>Filter:</label>
+  <select id="filterScreen" onchange="applyFilters()">
+    <option value="">All Screens</option>
+    <option value="Intent">Intent</option>
+    <option value="Goal/Direct">Goal/Direct</option>
+    <option value="Goal/Guided">Goal/Guided</option>
+    <option value="Goal/Career">Goal/Career</option>
+    <option value="Assessment">Assessment</option>
+    <option value="Character">Character</option>
+    <option value="Dashboard Home">Dashboard Home</option>
+    <option value="Quest Map">Quest Map</option>
+    <option value="The Forge">The Forge</option>
+    <option value="Shop">Shop</option>
+    <option value="Hero Card">Hero Card</option>
+    <option value="Settings">Settings</option>
+    <option value="Chronicle">Chronicle</option>
+    <option value="Data: Domains">Data: Domains</option>
+    <option value="Data: Assessments">Data: Assessments</option>
+    <option value="Data: Achievements">Data: Achievements</option>
+    <option value="AI Generator">AI Generator</option>
+    <option value="API/Backend">API/Backend</option>
+  </select>
+  <select id="filterLayer" onchange="applyFilters()">
+    <option value="">All Layers</option>
+    <option value="next-intl">next-intl</option>
+    <option value="refContent">refContent</option>
+    <option value="AI gen">AI gen</option>
+    <option value="computed">computed</option>
+  </select>
+  <select id="filterType" onchange="applyFilters()">
+    <option value="">All Types</option>
+    <option value="Static">Static</option>
+    <option value="Dynamic">Dynamic</option>
+    <option value="AI-Gen">AI-Generated</option>
+    <option value="DB/Seed">DB/Seed</option>
+  </select>
+  <select id="filterLogic" onchange="applyFilters()">
+    <option value="">All Logic</option>
+    <option value="OK">OK as-is</option>
+    <option value="REVIEW">Needs review</option>
+    <option value="MIGRATE">Should migrate</option>
+  </select>
+  <select id="filterRec" onchange="applyFilters()">
+    <option value="">All Recs</option>
+    <option value="i18n">i18n</option>
+    <option value="+AI">+AI</option>
+    <option value="migrate">migrate</option>
+    <option value="wire-up">wire-up</option>
+    <option value="OK">OK</option>
+  </select>
+  <input type="text" id="filterText" placeholder="Search text / key..." oninput="applyFilters()" style="width:180px;">
+  <button class="btn-export" onclick="exportCSV()">Export CSV</button>
+  <button class="btn-export" onclick="saveDecisions()" style="background:linear-gradient(135deg,var(--gold),var(--rose));">Save JSON</button>
+</div>
+
+<table id="auditTable">
+<thead>
+<tr>
+  <th style="width:28px">#</th>
+  <th>Text / Content</th>
+  <th>Screen</th>
+  <th>Element</th>
+  <th>Layer</th>
+  <th>t() Key / Ref</th>
+  <th>Type</th>
+  <th>AI Tier</th>
+  <th>i18n</th>
+  <th>Recommendation</th>
+  <th>Action Required</th>
+  <th class="decision-cell">Decision</th>
+</tr>
+</thead>
+<tbody id="auditBody"></tbody>
+</table>
+
+<script>
+const DATA = [
+// ══════════ ONBOARDING: INTENT ══════════
+{s:"Intent",t:"Welcome, hero! Every great quest begins with a single choice.",el:"NPCBubble",layer:"next-intl",key:"intent.npc_welcome",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation en/uk/pl"},{tag:"+AI",c:"BUDGET: personalized greeting (time + return). Cache 1h"}],
+ action:"1) Add key <code>intent.npc_welcome</code> to seed-translations.ts (en/uk/pl). 2) Replace hardcoded string with <code>t('intent.npc_welcome')</code>. 3) Phase 2: wire AI BUDGET rotating NPC lines.",dec:""},
+
+{s:"Intent",t:"Choose your path",el:"<p> label",layer:"next-intl",key:"intent.title",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"}],
+ action:"Add <code>intent.title</code> to seed. Replace with <code>t('intent.title')</code>.",dec:""},
+
+{s:"Intent",t:"You can always change your path later in Hero Settings",el:"Footer <p>",layer:"next-intl",key:"intent.footer",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"}],
+ action:"Add <code>intent.footer</code> to seed. Replace with <code>t('intent.footer')</code>.",dec:""},
+
+{s:"Intent",t:"I know what to learn / I need direction / Career change / Just exploring (×4 titles+desc)",el:"TileCard",layer:"refContent",key:"intent:* → title, description",type:"Dynamic",tier:"-",i18n:"Partial",
+ rec:[{tag:"wire-up",c:"Complete refTranslation for 4 titles + 4 descriptions in uk/pl"}],
+ action:"Add 8 refTranslation rows (4 titles + 4 desc × uk/pl). Frontend already uses API fallback — verify <code>OnboardingContentService.getIntents()</code> coverage.",dec:""},
+
+// ══════════ GOAL/DIRECT ══════════
+{s:"Goal/Direct",t:"What's your dream skill, hero? Think big — the quest map comes later.",el:"NPCBubble",layer:"next-intl",key:"goal_direct.npc_prompt",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"},{tag:"+AI",c:"BUDGET: 3-5 rotating prompts. Cache 1h"}],
+ action:"Add <code>goal_direct.npc_prompt</code> to seed (en/uk/pl). Replace hardcoded. Phase 2: AI BUDGET rotation.",dec:""},
+
+{s:"Goal/Direct",t:"Describe your dream quest",el:"<h2>",layer:"next-intl",key:"goal_direct.title",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"}],
+ action:"Add <code>goal_direct.title</code> to seed. Replace with <code>t('goal_direct.title')</code>.",dec:""},
+
+{s:"Goal/Direct",t:"What skill or topic do you want to master?",el:"<p>",layer:"next-intl",key:"goal_direct.subtitle",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"}],
+ action:"Add <code>goal_direct.subtitle</code> to seed. Replace with <code>t('goal_direct.subtitle')</code>.",dec:""},
+
+{s:"Goal/Direct",t:"e.g., Become a full-stack developer, Master AI/ML...",el:"Placeholder",layer:"next-intl",key:"goal_direct.placeholder",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Localize examples per locale"}],
+ action:"Add <code>goal_direct.placeholder</code> to seed with locale-specific examples.",dec:""},
+
+{s:"Goal/Direct",t:"Set my dream quest",el:"ContinueButton",layer:"next-intl",key:"goal_direct.btn_submit",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"}],
+ action:"Add <code>goal_direct.btn_submit</code> to seed. Replace with <code>t('goal_direct.btn_submit')</code>.",dec:""},
+
+{s:"Goal/Direct",t:"I'm consulting the ancient scrolls to craft your path...",el:"NPCBubble (loading)",layer:"next-intl",key:"goal_direct.npc_loading",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"},{tag:"+AI",c:"BUDGET: 5-8 rotating loading lines. Cache 1d"}],
+ action:"Add <code>goal_direct.npc_loading</code> to seed (en/uk/pl). Phase 2: AI BUDGET rotation pool.",dec:""},
+
+{s:"Goal/Direct",t:"I've crafted these milestones just for you!",el:"NPCBubble (AI success)",layer:"next-intl",key:"goal_direct.npc_success",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"},{tag:"+AI",c:"BUDGET: contextual reaction referencing user's goal"}],
+ action:"Add <code>goal_direct.npc_success</code> to seed. Phase 2: AI BUDGET contextual NPC.",dec:""},
+
+{s:"Goal/Direct",t:"Generating milestones... / Choose your milestones",el:"<h2>",layer:"next-intl",key:"goal_direct.generating / goal_direct.choose_title",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"}],
+ action:"Add <code>goal_direct.generating</code> + <code>goal_direct.choose_title</code> to seed.",dec:""},
+
+{s:"Goal/Direct",t:"AI-generated milestone suggestions (3-6 items)",el:"MilestoneCard[]",layer:"AI gen",key:"MilestoneSuggestionGenerator",type:"AI-Gen",tier:"BUDGET",i18n:"Locale-driven",
+ rec:[{tag:"OK",c:"Already AI-gen with locale"}],
+ action:"No action. Already wired: generator outputs in user locale via <code>buildLocaleInstruction()</code>.",dec:""},
+
+{s:"Goal/Direct",t:"Your Quest Map",el:"<h2>",layer:"next-intl",key:"goal_direct.quest_map_title",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"}],
+ action:"Add <code>goal_direct.quest_map_title</code> to seed.",dec:""},
+
+{s:"Goal/Direct",t:"Looks good — continue",el:"ContinueButton",layer:"next-intl",key:"goal_direct.btn_continue",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"}],
+ action:"Add <code>goal_direct.btn_continue</code> to seed.",dec:""},
+
+// ══════════ GOAL/GUIDED ══════════
+{s:"Goal/Guided",t:"Let's explore your interests, hero. Which realm calls to you?",el:"NPCBubble",layer:"next-intl",key:"goal_guided.npc_domain",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"},{tag:"+AI",c:"BUDGET: rotating per domain. Cache 1h"}],
+ action:"Add <code>goal_guided.npc_domain</code> to seed (en/uk/pl). Phase 2: AI rotation.",dec:""},
+
+{s:"Goal/Guided",t:"Pick your realm",el:"<h2>",layer:"next-intl",key:"goal_guided.domain_title",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"}],
+ action:"Add <code>goal_guided.domain_title</code> to seed.",dec:""},
+
+{s:"Goal/Guided",t:"Choose the area that interests you most",el:"<p>",layer:"next-intl",key:"goal_guided.domain_subtitle",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"}],
+ action:"Add <code>goal_guided.domain_subtitle</code> to seed.",dec:""},
+
+{s:"Goal/Guided",t:"9 Domain names + descriptions",el:"TileCard[]",layer:"refContent",key:"domain:* → name, description",type:"Dynamic",tier:"-",i18n:"Partial",
+ rec:[{tag:"wire-up",c:"Complete refTranslation for 9 names + 9 desc in uk/pl"}],
+ action:"Add 18 refTranslation rows (9 names + 9 desc × uk/pl) to seed-i18n-full.ts. Verify <code>getDomains(locale)</code> returns translated.",dec:""},
+
+{s:"Goal/Guided",t:"Pick the skill that sparks your curiosity, hero!",el:"NPCBubble",layer:"next-intl",key:"goal_guided.npc_interests",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"},{tag:"+AI",c:"BUDGET: contextual per domain"}],
+ action:"Add <code>goal_guided.npc_interests</code> to seed. Phase 2: AI per-domain NPC.",dec:""},
+
+{s:"Goal/Guided",t:"What interests you in {domain}?",el:"<h2>",layer:"next-intl",key:"goal_guided.interests_title",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"ICU template with {domain}"}],
+ action:"Add <code>goal_guided.interests_title</code> = \"What interests you in {domain}?\" to seed. Use ICU: <code>t('goal_guided.interests_title', {domain})</code>.",dec:""},
+
+{s:"Goal/Guided",t:"Choose one focus area for your quest",el:"<p>",layer:"next-intl",key:"goal_guided.interests_subtitle",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"}],
+ action:"Add <code>goal_guided.interests_subtitle</code> to seed.",dec:""},
+
+{s:"Goal/Guided",t:"71 Interest labels",el:"TileCard[]",layer:"refContent",key:"interest:* → label",type:"Dynamic",tier:"-",i18n:"Partial",
+ rec:[{tag:"wire-up",c:"Complete refTranslation for 71 labels in uk/pl. Batch seed script."}],
+ action:"Create batch seed: 71 interest labels × 2 locales = 142 refTranslation rows. High effort — consider spreadsheet import.",dec:""},
+
+{s:"Goal/Guided",t:"Trending / Custom",el:"TileCard badge",layer:"next-intl",key:"goal_guided.badge_trending / goal_guided.badge_custom",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"2 strings"}],
+ action:"Add <code>goal_guided.badge_trending</code> + <code>goal_guided.badge_custom</code> to seed.",dec:""},
+
+{s:"Goal/Guided",t:"Add custom interest...",el:"Placeholder",layer:"next-intl",key:"goal_guided.custom_placeholder",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"}],
+ action:"Add <code>goal_guided.custom_placeholder</code> to seed.",dec:""},
+
+{s:"Goal/Guided",t:"Before I chart your quest path, hero — how experienced are you?",el:"NPCBubble",layer:"next-intl",key:"goal_guided.npc_assessment",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"},{tag:"+AI",c:"BUDGET: per domain context"}],
+ action:"Add <code>goal_guided.npc_assessment</code> to seed. Phase 2: AI per-domain variation.",dec:""},
+
+{s:"Goal/Guided",t:"Your skill level / in {domain}",el:"<h2>+<p>",layer:"next-intl",key:"goal_guided.assessment_title / goal_guided.assessment_subtitle",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"ICU template with {domain}"}],
+ action:"Add 2 keys with ICU <code>{domain}</code> placeholder to seed.",dec:""},
+
+{s:"Goal/Guided",t:"4× Self-Assessment Options (Beginner / Familiar / Intermediate / Advanced + desc)",el:"Button grid",layer:"refContent",key:"self_assessment:beginner → label, description (×4)",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Move to refTranslation. Keep static structure."}],
+ action:"Add 4 refContent rows (entityType=self_assessment) + 8 refTranslation rows (4 labels + 4 desc × uk/pl). Update <code>SELF_ASSESSMENT_OPTIONS</code> to read from service.",dec:""},
+
+{s:"Goal/Guided",t:"Do you have specific milestones in mind, hero?",el:"NPCBubble",layer:"next-intl",key:"goal_guided.npc_goals",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"},{tag:"+AI",c:"BUDGET: contextual"}],
+ action:"Add <code>goal_guided.npc_goals</code> to seed.",dec:""},
+
+{s:"Goal/Guided",t:"Your milestones / {count}/5 milestones added",el:"<h2>+<p>",layer:"next-intl",key:"goal_guided.goals_title / goal_guided.goals_count",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"ICU template with {count}"}],
+ action:"Add keys with ICU: <code>goal_guided.goals_count</code> = \"{count}/5 milestones added\".",dec:""},
+
+{s:"Goal/Guided",t:"e.g. Build a REST API with authentication...",el:"Placeholder",layer:"next-intl",key:"goal_guided.goal_placeholder",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Localize examples"}],
+ action:"Add <code>goal_guided.goal_placeholder</code> with locale-specific examples.",dec:""},
+
+{s:"Goal/Guided",t:"Skip — let AI decide / Continue with {count} goals",el:"ContinueButton",layer:"next-intl",key:"goal_guided.btn_skip / goal_guided.btn_continue_goals",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"ICU template with {count}"}],
+ action:"Add 2 keys: <code>goal_guided.btn_skip</code> + <code>goal_guided.btn_continue_goals</code> (ICU {count}).",dec:""},
+
+{s:"Goal/Guided",t:"No milestones yet. Add your own or skip...",el:"<p> empty state",layer:"next-intl",key:"goal_guided.goals_empty",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"}],
+ action:"Add <code>goal_guided.goals_empty</code> to seed.",dec:""},
+
+{s:"Goal/Guided",t:"I'm consulting the ancient scrolls to craft your quest path...",el:"NPCBubble (loading)",layer:"next-intl",key:"goal_guided.npc_loading",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"},{tag:"+AI",c:"BUDGET: share rotation pool with Goal/Direct"}],
+ action:"Add <code>goal_guided.npc_loading</code> to seed. Phase 2: shared AI loading pool.",dec:""},
+
+{s:"Goal/Guided",t:"AI-generated milestone suggestions (3-6 items + skill level + custom goals)",el:"GoalPyramid",layer:"AI gen",key:"MilestoneSuggestionGenerator",type:"AI-Gen",tier:"BUDGET",i18n:"Locale-driven",
+ rec:[{tag:"OK",c:"Already AI-gen with locale + skill + goals"}],
+ action:"No action. Already fully wired.",dec:""},
+
+{s:"Goal/Guided",t:"Accept quest path / Change my goals",el:"Buttons",layer:"next-intl",key:"goal_guided.btn_accept / goal_guided.btn_change",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"2 strings"}],
+ action:"Add 2 keys to seed.",dec:""},
+
+// ══════════ GOAL/CAREER ══════════
+{s:"Goal/Career",t:"Career change is a bold quest! Tell me about your current situation.",el:"NPCBubble",layer:"next-intl",key:"goal_career.npc_intro",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"},{tag:"+AI",c:"BUDGET: empathetic prompt"}],
+ action:"Add <code>goal_career.npc_intro</code> to seed.",dec:""},
+
+{s:"Goal/Career",t:"Your current role / e.g., Marketing Manager...",el:"<h2> + input",layer:"next-intl",key:"goal_career.role_title / goal_career.role_placeholder",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"2 strings"}],
+ action:"Add 2 keys to seed.",dec:""},
+
+{s:"Goal/Career",t:"What's driving the change? / Select 1-3 pain points",el:"<h3>+<p>",layer:"next-intl",key:"goal_career.pains_title / goal_career.pains_subtitle",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"2 strings"}],
+ action:"Add 2 keys to seed.",dec:""},
+
+{s:"Goal/Career",t:"6× Pain Points (Low salary, No growth, Poor balance...)",el:"TileCard[]",layer:"refContent",key:"pain_point:* → label",type:"Dynamic",tier:"-",i18n:"Partial",
+ rec:[{tag:"wire-up",c:"Complete refTranslation for 6 labels in uk/pl"}],
+ action:"Add 12 refTranslation rows (6 labels × uk/pl).",dec:""},
+
+{s:"Goal/Career",t:"Where do you want to be? Let's chart your new path.",el:"NPCBubble",layer:"next-intl",key:"goal_career.npc_target",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"},{tag:"+AI",c:"BUDGET: aspirational prompt"}],
+ action:"Add <code>goal_career.npc_target</code> to seed.",dec:""},
+
+{s:"Goal/Career",t:"7× Career Targets (Tech, Product, Creative, Data...)",el:"TileCard[]",layer:"refContent",key:"career_target:* → name, description",type:"Dynamic",tier:"-",i18n:"Partial",
+ rec:[{tag:"wire-up",c:"Complete refTranslation for 7 names + 7 desc in uk/pl"}],
+ action:"Add 28 refTranslation rows (7×2 fields × 2 locales).",dec:""},
+
+{s:"Goal/Career",t:"Here's your career quest map. The journey of a thousand miles...",el:"NPCBubble",layer:"next-intl",key:"goal_career.npc_result",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"},{tag:"+AI",c:"BUDGET: contextual summary per role+target"}],
+ action:"Add <code>goal_career.npc_result</code> to seed. Phase 2: AI contextual reaction.",dec:""},
+
+{s:"Goal/Career",t:"Accept career path / Choose a different target",el:"Buttons",layer:"next-intl",key:"goal_career.btn_accept / goal_career.btn_change",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"2 strings"}],
+ action:"Add 2 keys to seed.",dec:""},
+
+// ══════════ ASSESSMENT ══════════
+{s:"Assessment",t:"Time to gauge your power level, hero!",el:"NPCBubble",layer:"next-intl",key:"assessment.npc_intro",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"},{tag:"+AI",c:"BUDGET: encouraging per domain"}],
+ action:"Add <code>assessment.npc_intro</code> to seed.",dec:""},
+
+{s:"Assessment",t:"How would you describe your experience with this realm?",el:"NPCBubble (self mode)",layer:"next-intl",key:"assessment.npc_self",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"}],
+ action:"Add <code>assessment.npc_self</code> to seed.",dec:""},
+
+{s:"Assessment",t:"Gauge your mastery / in {domain}",el:"<h2>+<p>",layer:"next-intl",key:"assessment.title / assessment.subtitle",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"ICU template with {domain}"}],
+ action:"Add 2 keys with ICU <code>{domain}</code>.",dec:""},
+
+{s:"Assessment",t:"21× Quiz questions + 84 options + 42 NPC reactions",el:"QuizCardV2",layer:"refContent",key:"assessment_question:* / assessment_option:*",type:"Dynamic",tier:"BALANCED",i18n:"Partial",
+ rec:[{tag:"migrate",c:"Wire frontend to API (schema ready)"},{tag:"+AI",c:"BALANCED: dynamic question gen per domain. Cache 1d. Biggest quality win."}],
+ action:"Phase 1: Replace <code>_data/assessment-questions.ts</code> import with tRPC <code>getAssessmentQuestions(domain, locale)</code> — endpoint already exists. Phase 2: AI BALANCED question generation.",dec:""},
+
+{s:"Assessment",t:"Assessment complete! I've measured your abilities.",el:"NPCBubble",layer:"next-intl",key:"assessment.npc_complete",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"},{tag:"+AI",c:"BUDGET: personalized result per score"}],
+ action:"Add <code>assessment.npc_complete</code> to seed.",dec:""},
+
+{s:"Assessment",t:"4× Level descriptions (beginner→advanced)",el:"<p>",layer:"next-intl",key:"assessment.level_beginner / .familiar / .intermediate / .advanced",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Move LEVEL_DESCRIPTIONS to refTranslation"}],
+ action:"Add 4 keys: <code>assessment.level_*</code> to seed (en/uk/pl). Remove hardcoded LEVEL_DESCRIPTIONS.",dec:""},
+
+{s:"Assessment",t:"Trials / Correct / XP / Level / Self-rated",el:"Stat card labels",layer:"next-intl",key:"assessment.stat_trials / .stat_correct / .stat_xp / .stat_level / .stat_self",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"5 strings"}],
+ action:"Add 5 stat label keys to seed.",dec:""},
+
+{s:"Assessment",t:"Onward!",el:"ContinueButton",layer:"next-intl",key:"assessment.btn_continue",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"1 string"}],
+ action:"Add <code>assessment.btn_continue</code> to seed.",dec:""},
+
+{s:"Assessment",t:"Well done, hero! / Not quite! / feedback",el:"QuizCardV2 result",layer:"next-intl",key:"assessment.feedback_correct / assessment.feedback_wrong",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"},{tag:"+AI",c:"BUDGET: per-question contextual feedback"}],
+ action:"Add 2 keys to seed. Phase 2: AI per-question feedback paired with quiz migration.",dec:""},
+
+// ══════════ CHARACTER ══════════
+{s:"Character",t:"Choose your hero, brave adventurer!",el:"NPCBubble",layer:"next-intl",key:"character.npc_intro",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add to refTranslation"}],
+ action:"Add <code>character.npc_intro</code> to seed.",dec:""},
+
+{s:"Character",t:"Choose Your Hero",el:"<h2>",layer:"next-intl",key:"character.title",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"1 string"}],
+ action:"Add <code>character.title</code> to seed.",dec:""},
+
+{s:"Character",t:"8× Character names + descriptions",el:"Character tiles",layer:"next-intl",key:"character.char_{name}_desc (×8)",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Descriptions to refTranslation. Names stay (proper nouns)."}],
+ action:"Add 8 description keys: <code>character.desc_aria</code>, <code>character.desc_kofi</code>, etc. Names stay English.",dec:""},
+
+{s:"Character",t:"5× Archetype names + taglines + bestFor + stats",el:"Archetype picker",layer:"refContent",key:"archetype:* → name, tagline, bestFor",type:"Dynamic",tier:"-",i18n:"Partial",
+ rec:[{tag:"wire-up",c:"Complete refTranslation for 5 archetypes × 3 fields × uk/pl"}],
+ action:"Add 30 refTranslation rows (5 × 3 fields × 2 locales).",dec:""},
+
+{s:"Character",t:"Hair style / Skin tone / Hair color / Outfit color",el:"<h3> labels",layer:"next-intl",key:"character.label_hair / .label_skin / .label_hair_color / .label_outfit",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"4 strings"}],
+ action:"Add 4 keys to seed.",dec:""},
+
+{s:"Character",t:"8× Hair style labels + swatches",el:"Swatch labels",layer:"next-intl",key:"character.hair_* / character.skin_* etc. (~32)",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"~32 strings. Low priority."}],
+ action:"Add ~32 swatch label keys. Low priority — defer to Phase 3.",dec:""},
+
+{s:"Character",t:"A custom hero! Craft your look.",el:"NPCBubble (create)",layer:"next-intl",key:"character.npc_create",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"1 string"}],
+ action:"Add <code>character.npc_create</code> to seed.",dec:""},
+
+{s:"Character",t:"Forge my hero / Saving... / Choose {name}",el:"ContinueButton",layer:"next-intl",key:"character.btn_forge / .btn_saving / .btn_choose",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"ICU template with {name}"}],
+ action:"Add 3 keys; <code>character.btn_choose</code> uses ICU <code>{name}</code>.",dec:""},
+
+{s:"Character",t:"Purely cosmetic — you can change anytime in Hero Settings",el:"Footer",layer:"next-intl",key:"character.footer",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"1 string"}],
+ action:"Add <code>character.footer</code> to seed.",dec:""},
+
+// ══════════ DASHBOARD HOME ══════════
+{s:"Dashboard Home",t:"Good morning/afternoon/evening, {name}!",el:"<h1>",layer:"computed",key:"dashboard.greeting_morning / .afternoon / .evening",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Translate getGreeting() patterns"}],
+ action:"Add 3 greeting keys with ICU <code>{name}</code>. Refactor <code>getGreeting()</code> to use <code>t()</code>.",dec:""},
+
+{s:"Dashboard Home",t:"Today's focus: Level up your skills",el:"<span>",layer:"next-intl",key:"dashboard.todays_focus",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"+AI",c:"BUDGET: daily personalized focus. High-value."},{tag:"i18n",c:"Fallback to refTranslation"}],
+ action:"Add <code>dashboard.todays_focus</code> as fallback. Phase 2: AI BUDGET personalized daily focus based on progress.",dec:""},
+
+{s:"Dashboard Home",t:"Ascension! / Level {level} / Tap anywhere to continue",el:"LevelUpCelebration",layer:"next-intl",key:"dashboard.levelup_title / .levelup_level / .levelup_tap",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"3 strings, ICU {level}"}],
+ action:"Add 3 keys to seed.",dec:""},
+
+{s:"Dashboard Home",t:"7-Day Streak! / 30-Day Legend! / 100-Day Master! / 365-Day Immortal!",el:"StreakMilestone",layer:"next-intl",key:"dashboard.streak_7 / .streak_30 / .streak_100 / .streak_365",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"4 strings"}],
+ action:"Add 4 streak milestone keys to seed.",dec:""},
+
+{s:"Dashboard Home",t:"WelcomeBack messages (4 variants)",el:"WelcomeBack greeting",layer:"next-intl",key:"dashboard.welcome_new / .welcome_return / .welcome_missed / .welcome_refresh",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"4 strings"},{tag:"+AI",c:"BUDGET: personalized return message"}],
+ action:"Add 4 welcome keys. Phase 2: AI BUDGET personalized return.",dec:""},
+
+{s:"Dashboard Home",t:"Welcome back bonus: 2x XP!",el:"WelcomeBack badge",layer:"next-intl",key:"dashboard.welcome_bonus",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"1 string"}],
+ action:"Add <code>dashboard.welcome_bonus</code> to seed.",dec:""},
+
+{s:"Dashboard Home",t:"Today's Quests / No quests available yet",el:"DailyQuests header",layer:"next-intl",key:"dashboard.quests_title / .quests_empty",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"2 strings"}],
+ action:"Add 2 keys to seed.",dec:""},
+
+{s:"Dashboard Home",t:"Quest titles + descriptions (daily AI-gen)",el:"DailyQuests items",layer:"AI gen",key:"QuestGenerator",type:"AI-Gen",tier:"BALANCED",i18n:"Locale-driven",
+ rec:[{tag:"OK",c:"Already wired"}],
+ action:"No action.",dec:""},
+
+{s:"Dashboard Home",t:"Quest Lines / No quest lines yet, hero!",el:"ActiveQuests header",layer:"next-intl",key:"dashboard.questlines_title / .questlines_empty",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"2 strings"}],
+ action:"Add 2 keys to seed.",dec:""},
+
+{s:"Dashboard Home",t:"Roadmap titles + milestone titles + progress %",el:"ActiveQuests items",layer:"AI gen",key:"RoadmapGenerator",type:"AI-Gen",tier:"QUALITY",i18n:"Locale-driven",
+ rec:[{tag:"OK",c:"Already wired"}],
+ action:"No action.",dec:""},
+
+{s:"Dashboard Home",t:"Level / Streak / XP / Energy",el:"StatsRow labels",layer:"next-intl",key:"dashboard.stat_level / .stat_streak / .stat_xp / .stat_energy",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"4 strings"}],
+ action:"Add 4 stat label keys to seed.",dec:""},
+
+{s:"Dashboard Home",t:"Episode title + body + cliffhanger + sage reflection",el:"DailyEpisodeCard",layer:"AI gen",key:"NarrativeGenerator",type:"AI-Gen",tier:"QUALITY",i18n:"Locale-driven",
+ rec:[{tag:"OK",c:"Already wired"}],
+ action:"No action.",dec:""},
+
+{s:"Dashboard Home",t:"Chronicle → / Read More ▼ / ✓ Read / Dismiss ×",el:"Episode buttons",layer:"next-intl",key:"dashboard.episode_chronicle / .episode_readmore / .episode_read / .episode_dismiss",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"4 strings"}],
+ action:"Add 4 keys to seed.",dec:""},
+
+// ══════════ QUEST MAP ══════════
+{s:"Quest Map",t:"Quest Map / Your quest lines, mapped and ready",el:"<h1>+<p>",layer:"next-intl",key:"questmap.title / .subtitle",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"2 strings"}],
+ action:"Add 2 keys to seed.",dec:""},
+
+{s:"Quest Map",t:"Add Quest Line / {count}/{limit} quest lines",el:"Button + counter",layer:"next-intl",key:"questmap.btn_add / .count",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"ICU {count} {limit}"}],
+ action:"Add 2 keys with ICU placeholders.",dec:""},
+
+{s:"Quest Map",t:"No quest lines yet / Begin your journey",el:"Empty state",layer:"next-intl",key:"questmap.empty_title / .empty_subtitle",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"2 strings"}],
+ action:"Add 2 keys to seed.",dec:""},
+
+{s:"Quest Map",t:"Forge Quest Line",el:"CTA button",layer:"next-intl",key:"questmap.btn_forge",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"1 string"}],
+ action:"Add <code>questmap.btn_forge</code> to seed.",dec:""},
+
+// ══════════ THE FORGE ══════════
+{s:"The Forge",t:"The Forge / Combine 3 artifacts of the same rarity...",el:"<h1>+<p>",layer:"next-intl",key:"forge.title / .subtitle",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"2 strings"}],
+ action:"Add 2 keys to seed.",dec:""},
+
+{s:"The Forge",t:"Slot {n} / Remove / Forging... / Tap to skip",el:"Forge UI labels",layer:"next-intl",key:"forge.slot / .remove / .forging / .skip",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"4 strings, ICU {n}"}],
+ action:"Add 4 keys; <code>forge.slot</code> uses ICU <code>{n}</code>.",dec:""},
+
+{s:"The Forge",t:"+5 coins awarded! / Forge Again / Try again",el:"Result messages",layer:"next-intl",key:"forge.result_coins / .btn_again / .btn_retry",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"3 strings"}],
+ action:"Add 3 keys to seed.",dec:""},
+
+{s:"The Forge",t:"Available Artifacts / No artifacts available",el:"Section header",layer:"next-intl",key:"forge.artifacts_title / .artifacts_empty",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"2 strings"}],
+ action:"Add 2 keys to seed.",dec:""},
+
+{s:"The Forge",t:"~50 Equipment item names",el:"Item cards",layer:"refContent",key:"equipment:* → name, description",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"migrate",c:"Add refTranslation for ~50 names + ~50 desc in uk/pl"}],
+ action:"Create seed-equipment-translations.ts: ~200 refTranslation rows (50 × 2 fields × 2 locales). High effort — batch approach.",dec:""},
+
+// ══════════ SHOP ══════════
+{s:"Shop",t:"The Merchant / Spend your hard-earned coins...",el:"<h1>+<p>",layer:"next-intl",key:"shop.title / .subtitle",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"2 strings"}],
+ action:"Add 2 keys to seed.",dec:""},
+
+{s:"Shop",t:"Acquire {item}? / {cost} coins / Acquire / Not now",el:"Modal",layer:"next-intl",key:"shop.confirm_title / .confirm_cost / .btn_acquire / .btn_cancel",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"4 strings, ICU {item} {cost}"}],
+ action:"Add 4 keys with ICU placeholders.",dec:""},
+
+{s:"Shop",t:"Artifact Acquired! / Check your inventory.",el:"Success state",layer:"next-intl",key:"shop.success_title / .success_subtitle",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"2 strings"}],
+ action:"Add 2 keys to seed.",dec:""},
+
+{s:"Shop",t:"Not enough coins / Complete more quests",el:"Insufficient funds",layer:"next-intl",key:"shop.insufficient_title / .insufficient_subtitle",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"2 strings"}],
+ action:"Add 2 keys to seed.",dec:""},
+
+{s:"Shop",t:"Loading wares... / The merchant is unavailable",el:"Loading/error",layer:"next-intl",key:"shop.loading / .error",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"2 strings"}],
+ action:"Add 2 keys to seed.",dec:""},
+
+// ══════════ HERO CARD ══════════
+{s:"Hero Card",t:"Hero Card",el:"<h1>",layer:"next-intl",key:"herocard.title",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"1 string"}],
+ action:"Add <code>herocard.title</code> to seed.",dec:""},
+
+{s:"Hero Card",t:"Hero Attributes / Equipment Loadout / Skill Mastery / Achievement Board / Your Archetype",el:"<h3> headers",layer:"next-intl",key:"herocard.section_attributes / .section_equipment / .section_skills / .section_achievements / .section_archetype",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"5 strings"}],
+ action:"Add 5 section header keys to seed.",dec:""},
+
+{s:"Hero Card",t:"Strength / Intelligence / Charisma / Constitution / Dexterity / Wisdom + descriptions",el:"ATTRIBUTES array",layer:"next-intl",key:"herocard.attr_strength / .attr_strength_desc (×6)",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"12 strings (6 names + 6 desc)"}],
+ action:"Add 12 attribute keys to seed. Remove hardcoded ATTRIBUTES descriptions.",dec:""},
+
+{s:"Hero Card",t:"Weapon / Shield / Armor / Helmet / Boots / Ring / Companion",el:"Equipment slots",layer:"next-intl",key:"herocard.slot_weapon / .slot_shield / ... (×7)",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"7 strings"}],
+ action:"Add 7 equipment slot keys to seed.",dec:""},
+
+{s:"Hero Card",t:"Complete quests to unlock",el:"Empty slot text",layer:"next-intl",key:"herocard.slot_empty",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"1 string"}],
+ action:"Add <code>herocard.slot_empty</code> to seed.",dec:""},
+
+{s:"Hero Card",t:"+10% XP bonus",el:"Archetype badge",layer:"next-intl",key:"herocard.archetype_bonus",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"1 string"}],
+ action:"Add <code>herocard.archetype_bonus</code> to seed.",dec:""},
+
+{s:"Hero Card",t:"day streak / Best: {n} days / energy / total XP / Level {n}",el:"Stat values",layer:"next-intl",key:"herocard.stat_streak / .stat_best / .stat_energy / .stat_totalxp / .stat_level",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"5 strings, ICU {n}"}],
+ action:"Add 5 stat keys with ICU placeholders.",dec:""},
+
+// ══════════ SETTINGS ══════════
+{s:"Settings",t:"Hero Settings / Customize your identity and preferences",el:"<h1>+<p>",layer:"next-intl",key:"settings.title / .subtitle",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"2 strings"}],
+ action:"Add 2 keys to seed.",dec:""},
+
+{s:"Settings",t:"Identity / Display Name / Preferences / Quiet Mode / Language / Timezone / Account",el:"Section labels",layer:"next-intl",key:"settings.section_identity / .label_name / .section_prefs / .label_quiet / .label_lang / .label_tz / .section_account",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"7 strings"}],
+ action:"Add 7 keys to seed.",dec:""},
+
+{s:"Settings",t:"Hide social features, badges, and notifications",el:"Quiet Mode desc",layer:"next-intl",key:"settings.quiet_desc",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"1 string"}],
+ action:"Add <code>settings.quiet_desc</code> to seed.",dec:""},
+
+{s:"Settings",t:"Changing language will refresh your quests",el:"Language desc",layer:"next-intl",key:"settings.lang_desc",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"1 string"}],
+ action:"Add <code>settings.lang_desc</code> to seed.",dec:""},
+
+{s:"Settings",t:"Name updated! / Preferences saved! / Save / Saving...",el:"Feedback",layer:"next-intl",key:"settings.toast_name / .toast_prefs / .btn_save / .btn_saving",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"4 strings"}],
+ action:"Add 4 keys to seed.",dec:""},
+
+// ══════════ CHRONICLE ══════════
+{s:"Chronicle",t:"The Chronicle of Lumen / Every episode...",el:"<h1>+<p>",layer:"next-intl",key:"chronicle.title / .subtitle",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"2 strings"}],
+ action:"Add 2 keys to seed.",dec:""},
+
+{s:"Chronicle",t:"Season {n}: {title} / {count} Episodes",el:"Season selector",layer:"next-intl",key:"chronicle.season_label / .episode_count",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"ICU {n} {title} {count}"}],
+ action:"Add 2 keys with ICU placeholders.",dec:""},
+
+{s:"Chronicle",t:"Episode titles + bodies + cliffhangers + sage reflections",el:"Episode cards",layer:"AI gen",key:"NarrativeGenerator",type:"AI-Gen",tier:"QUALITY",i18n:"Locale-driven",
+ rec:[{tag:"OK",c:"Already wired"}],
+ action:"No action.",dec:""},
+
+{s:"Chronicle",t:"✓ Read / NEW / ~{n} min read",el:"Episode badges",layer:"next-intl",key:"chronicle.badge_read / .badge_new / .badge_readtime",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"3 strings, ICU {n}"}],
+ action:"Add 3 keys to seed.",dec:""},
+
+{s:"Chronicle",t:"Narrative Mode: full / minimal / off",el:"Toggle",layer:"next-intl",key:"chronicle.mode_full / .mode_minimal / .mode_off / .mode_label",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"4 strings"}],
+ action:"Add 4 keys to seed.",dec:""},
+
+// ══════════ SIDEBAR + NAV ══════════
+{s:"Dashboard Home",t:"Skill Mastery / Equipment / Community",el:"Sidebar headers",layer:"next-intl",key:"sidebar.section_skills / .section_equipment / .section_community",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"3 strings"}],
+ action:"Add 3 keys to seed.",dec:""},
+
+{s:"Dashboard Home",t:"Party Quest / 4 heroes fighting · Join the hunt",el:"Community card",layer:"next-intl",key:"sidebar.party_title / .party_desc",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"rewrite",c:"Placeholder — replace with real data when feature ships"},{tag:"i18n",c:"Add when real content"}],
+ action:"Defer until community feature. Flag as placeholder in code.",dec:""},
+
+{s:"Dashboard Home",t:"Weekly League / Opt-in · No pressure / Bronze",el:"League card",layer:"next-intl",key:"sidebar.league_title / .league_desc / .league_rank",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"rewrite",c:"Placeholder — replace when feature ships"},{tag:"i18n",c:"Add when real content"}],
+ action:"Defer until league feature. Flag as placeholder in code.",dec:""},
+
+{s:"Dashboard Home",t:"Your quest board awaits / Complete quests to unlock",el:"Empty sidebar",layer:"next-intl",key:"sidebar.empty_title / .empty_subtitle",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"2 strings"}],
+ action:"Add 2 keys to seed.",dec:""},
+
+{s:"Dashboard Home",t:"Command Center / Quest Map / The Forge / Merchant / Guild Arena / Hero Card",el:"Nav labels",layer:"next-intl",key:"nav.home / .questmap / .forge / .shop / .arena / .herocard",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"6 strings. Partially in seed-translations already — verify."}],
+ action:"Verify existing seed-translations.ts coverage. Add missing nav keys. Wire NAV_ITEMS to use <code>t()</code>.",dec:""},
+
+{s:"Dashboard Home",t:"Hero Settings / Quiet Mode / Restart Journey / Leave Guild",el:"User menu",layer:"next-intl",key:"usermenu.settings / .quiet / .restart / .leave",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"4 strings"}],
+ action:"Add 4 keys to seed. Wire USER_MENU_ITEMS to <code>t()</code>.",dec:""},
+
+{s:"Dashboard Home",t:"P2 / Plan2Skill",el:"Logo",layer:"—",key:"—",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"OK",c:"Brand name — no translation"}],
+ action:"No action.",dec:""},
+
+{s:"Dashboard Home",t:"Lv.{n} / streak / energy / coins",el:"Hero status sidebar",layer:"next-intl",key:"sidebar.level / .streak / .energy / .coins",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"4 strings, ICU {n}"}],
+ action:"Add 4 keys with ICU placeholders.",dec:""},
+
+// ══════════ SHARED COMPONENTS ══════════
+{s:"All",t:"Intent / Goal / Assessment / Hero (step labels)",el:"StepBarV2",layer:"next-intl",key:"steps.intent / .goal / .assessment / .hero",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"4 strings"}],
+ action:"Add 4 step label keys. Wire StepBarV2 to use <code>t()</code>.",dec:""},
+
+{s:"All",t:"{xp} XP / L{level}",el:"XP display",layer:"next-intl",key:"common.xp_label / .level_short",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"ICU {xp} {level}"}],
+ action:"Add 2 keys with ICU.",dec:""},
+
+{s:"All",t:"Go back (aria-label)",el:"BackButton",layer:"next-intl",key:"common.btn_back",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Accessibility"}],
+ action:"Add <code>common.btn_back</code> to seed.",dec:""},
+
+{s:"All",t:"Continue",el:"ContinueButton",layer:"next-intl",key:"common.btn_continue",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"1 string"}],
+ action:"Add <code>common.btn_continue</code> to seed.",dec:""},
+
+{s:"All",t:"Dream Quest / Performance Milestones / ~{n}w",el:"GoalPyramid labels",layer:"next-intl",key:"pyramid.dream / .milestones / .weeks",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"3 strings, ICU {n}"}],
+ action:"Add 3 keys to seed.",dec:""},
+
+{s:"All",t:"Daily quests and practice routines will be generated from these milestones",el:"GoalPyramid footer",layer:"next-intl",key:"pyramid.footer",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"1 string"}],
+ action:"Add <code>pyramid.footer</code> to seed.",dec:""},
+
+{s:"All",t:"Change language (aria-label) / locale endonyms",el:"LocalePicker",layer:"—",key:"—",type:"Dynamic",tier:"-",i18n:"Yes",
+ rec:[{tag:"OK",c:"Already i18n. Endonyms self-translating."}],
+ action:"No action.",dec:""},
+
+{s:"All",t:"Common / Uncommon / Rare / Epic / Legendary",el:"Rarity badges",layer:"next-intl",key:"rarity.common / .uncommon / .rare / .epic / .legendary",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"5 strings"}],
+ action:"Add 5 rarity keys. Wire RARITY_CONFIG to <code>t()</code>.",dec:""},
+
+{s:"All",t:"The path is blocked / Something went wrong",el:"QuestError",layer:"next-intl",key:"error.quest_title / .quest_subtitle",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"2 strings"}],
+ action:"Add 2 keys to seed.",dec:""},
+
+{s:"All",t:"Try again, hero",el:"Retry button",layer:"next-intl",key:"common.btn_retry",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"1 string"}],
+ action:"Add <code>common.btn_retry</code> to seed.",dec:""},
+
+// ══════════ DATA FILES ══════════
+{s:"Data: Domains",t:"9 domain names + 9 descriptions + icons + colors",el:"DOMAINS[]",layer:"refContent",key:"domain:* → name, description",type:"DB/Seed",tier:"-",i18n:"Partial",
+ rec:[{tag:"wire-up",c:"Complete refTranslation in uk/pl. Wire frontend."}],
+ action:"Add 18 refTranslation rows to seed-i18n-full.ts. Verify frontend uses <code>getDomains(locale)</code>.",dec:""},
+
+{s:"Data: Domains",t:"71 interest labels + domain refs + trending flags",el:"INTERESTS[]",layer:"refContent",key:"interest:* → label",type:"DB/Seed",tier:"-",i18n:"Partial",
+ rec:[{tag:"wire-up",c:"Complete refTranslation for 71 labels. Batch script."}],
+ action:"Create batch: 142 refTranslation rows (71 × uk/pl). Consider spreadsheet → seed converter.",dec:""},
+
+{s:"Data: Assessments",t:"21 quiz questions + 84 options + 42 NPC reactions",el:"QUESTIONS[]",layer:"refContent",key:"assessment_question:* / assessment_option:*",type:"DB/Seed",tier:"BALANCED",i18n:"Partial",
+ rec:[{tag:"migrate",c:"Wire frontend to API — endpoint exists"},{tag:"+AI",c:"BALANCED: dynamic question gen. Biggest quality win."}],
+ action:"Phase 1: Replace import with tRPC <code>getAssessmentQuestions(domain, locale)</code>. Phase 2: AI BALANCED question gen.",dec:""},
+
+{s:"Data: Assessments",t:"4 self-assessment options (levels + descriptions)",el:"SELF_ASSESSMENT_OPTIONS",layer:"refContent",key:"self_assessment:* → label, description",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Move to refContent + refTranslation (8 strings)"}],
+ action:"Add 4 refContent rows + 8 refTranslation rows. Update frontend to consume from service.",dec:""},
+
+{s:"Data: Domains",t:"6 pain points + 7 career targets + descriptions",el:"CAREER_DATA",layer:"refContent",key:"pain_point:* / career_target:*",type:"DB/Seed",tier:"-",i18n:"Partial",
+ rec:[{tag:"wire-up",c:"Complete refTranslation"}],
+ action:"Add 40 refTranslation rows (6+7 entities × 2 fields × 2 locales).",dec:""},
+
+{s:"Data: Domains",t:"20 milestone templates (keywords + dreams + milestones)",el:"GOAL_TEMPLATES[]",layer:"—",key:"—",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"OK",c:"AI fallback only. Low priority."}],
+ action:"No action. AI output is locale-driven; templates are last-resort English fallback.",dec:""},
+
+{s:"Data: Domains",t:"4 NPC scripts + generic",el:"GoalScript[]",layer:"next-intl",key:"npc.script_{domain}_step{n} (×~20)",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"~20 NPC lines to refTranslation"},{tag:"+AI",c:"BUDGET: dynamic NPC per domain. Cache 1h."}],
+ action:"Phase 1: Add ~20 NPC script keys to seed. Phase 2: AI BUDGET dynamic NPC dialog.",dec:""},
+
+{s:"Data: Domains",t:"9×3 skill questions + 4 options each",el:"SkillQuestion[]",layer:"refContent",key:"skill_question:* → question, options",type:"Static",tier:"BALANCED",i18n:"No",
+ rec:[{tag:"i18n",c:"108 strings"},{tag:"+AI",c:"BALANCED: dynamic skill questions. Cache 1d."}],
+ action:"Phase 1: Migrate to refContent + refTranslation. Phase 2: AI BALANCED generation. Share bank with assessment.",dec:""},
+
+{s:"Data: Domains",t:"13 goal subgoal sets + fallback",el:"SUB_GOAL_MAP",layer:"—",key:"—",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"OK",c:"Internal mapping — no user-facing text"}],
+ action:"No action.",dec:""},
+
+{s:"Data: Achievements",t:"31 achievement titles + descriptions + conditions",el:"ACHIEVEMENTS[]",layer:"refContent",key:"achievement:* → title, description",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"migrate",c:"Move to refContent + refTranslation for full i18n"}],
+ action:"Create seed-achievements.ts: 31 refContent rows + 124 refTranslation rows (31 × 2 fields × 2 locales).",dec:""},
+
+{s:"Data: Domains",t:"5 archetype names + taglines + bestFor + stats",el:"ARCHETYPES[]",layer:"refContent",key:"archetype:* → name, tagline, bestFor",type:"DB/Seed",tier:"-",i18n:"Partial",
+ rec:[{tag:"wire-up",c:"Complete refTranslation"}],
+ action:"Add 30 refTranslation rows (5 × 3 fields × 2 locales).",dec:""},
+
+// ══════════ AI GENERATORS ══════════
+{s:"AI Generator",t:"Quest titles + descriptions + knowledge checks",el:"QuestGenerator",layer:"AI gen",key:"QuestGenerator",type:"AI-Gen",tier:"BALANCED",i18n:"Locale-driven",
+ rec:[{tag:"OK",c:"Optimal tier + cache"}],
+ action:"No action.",dec:""},
+
+{s:"AI Generator",t:"90-day roadmap: milestones + tasks",el:"RoadmapGenerator",layer:"AI gen",key:"RoadmapGenerator",type:"AI-Gen",tier:"QUALITY",i18n:"Locale-driven",
+ rec:[{tag:"OK",c:"QUALITY justified — core product"}],
+ action:"No action.",dec:""},
+
+{s:"AI Generator",t:"Narrative episodes",el:"NarrativeGenerator",layer:"AI gen",key:"NarrativeGenerator",type:"AI-Gen",tier:"QUALITY",i18n:"Locale-driven",
+ rec:[{tag:"OK",c:"QUALITY justified — differentiator"}],
+ action:"No action.",dec:""},
+
+{s:"AI Generator",t:"Assessment quiz questions + options",el:"AssessmentGenerator",layer:"AI gen",key:"AssessmentGenerator",type:"AI-Gen",tier:"BALANCED",i18n:"Locale-driven",
+ rec:[{tag:"OK",c:"Optimal"}],
+ action:"No action.",dec:""},
+
+{s:"AI Generator",t:"Quiz questions (Bloom's targeted)",el:"QuizGenerator",layer:"AI gen",key:"QuizGenerator",type:"AI-Gen",tier:"BUDGET",i18n:"Locale-driven",
+ rec:[{tag:"OK",c:"Optimal"}],
+ action:"No action.",dec:""},
+
+{s:"AI Generator",t:"Motivational messages",el:"MotivationalGenerator",layer:"AI gen",key:"MotivationalGenerator",type:"AI-Gen",tier:"BUDGET",i18n:"Locale-driven",
+ rec:[{tag:"OK",c:"Consider 4h cache"}],
+ action:"Optional: increase cache TTL from 1h to 4h.",dec:""},
+
+{s:"AI Generator",t:"Fun facts",el:"FunFactGenerator",layer:"AI gen",key:"FunFactGenerator",type:"AI-Gen",tier:"BUDGET",i18n:"Locale-driven",
+ rec:[{tag:"OK",c:"Optimal"}],
+ action:"No action.",dec:""},
+
+{s:"AI Generator",t:"Code challenges",el:"CodeChallengeGenerator",layer:"AI gen",key:"CodeChallengeGenerator",type:"AI-Gen",tier:"BALANCED",i18n:"Locale-driven",
+ rec:[{tag:"OK",c:"Optimal"}],
+ action:"No action.",dec:""},
+
+{s:"AI Generator",t:"Learning resources",el:"ResourceGenerator",layer:"AI gen",key:"ResourceGenerator",type:"AI-Gen",tier:"BUDGET",i18n:"Locale-driven",
+ rec:[{tag:"OK",c:"Note: locale-specific resource URLs"}],
+ action:"Consider locale-specific resource lists for uk/pl.",dec:""},
+
+{s:"AI Generator",t:"Skill recommendations",el:"RecommendationGenerator",layer:"AI gen",key:"RecommendationGenerator",type:"AI-Gen",tier:"BUDGET",i18n:"Locale-driven",
+ rec:[{tag:"OK",c:"Consider 4h cache"}],
+ action:"Optional: increase cache TTL from 1h to 4h.",dec:""},
+
+{s:"AI Generator",t:"Milestone suggestions (skill level + custom goals)",el:"MilestoneSuggestionGenerator",layer:"AI gen",key:"MilestoneSuggestionGenerator",type:"AI-Gen",tier:"BUDGET",i18n:"Locale-driven",
+ rec:[{tag:"OK",c:"10m cache intentional for interactive use"}],
+ action:"No action.",dec:""},
+
+// ══════════ BACKEND / FALLBACKS ══════════
+{s:"API/Backend",t:"3 quest template fallbacks",el:"TemplateService",layer:"next-intl",key:"template.quest_review / .quest_practice / .quest_knowledge",type:"Static",tier:"TEMPLATE",i18n:"No",
+ rec:[{tag:"i18n",c:"Fallbacks must work in all locales"}],
+ action:"Add 6 template keys (3 titles + 3 desc) to seed (en/uk/pl). Wire TemplateService to use TranslationService.",dec:""},
+
+{s:"API/Backend",t:"5 motivational template fallbacks",el:"TemplateService",layer:"next-intl",key:"template.motivational_1..5",type:"Static",tier:"TEMPLATE",i18n:"No",
+ rec:[{tag:"i18n",c:"Critical — show when AI is down"}],
+ action:"Add 5 template keys to seed (en/uk/pl). Wire TemplateService.",dec:""},
+
+{s:"API/Backend",t:"5 fun fact template fallbacks",el:"TemplateService",layer:"next-intl",key:"template.funfact_1..5",type:"Static",tier:"TEMPLATE",i18n:"No",
+ rec:[{tag:"i18n",c:"Translate fallbacks"}],
+ action:"Add 5 template keys to seed (en/uk/pl).",dec:""},
+
+{s:"API/Backend",t:"~50 equipment items: names + descriptions",el:"DB seed catalog",layer:"refContent",key:"equipment:* → name, description",type:"DB/Seed",tier:"-",i18n:"No",
+ rec:[{tag:"migrate",c:"Add refTranslation for i18n"}],
+ action:"Create seed-equipment-translations.ts: ~200 rows (50 × 2 fields × 2 locales). Batch approach.",dec:""},
+
+{s:"API/Backend",t:"UI translations (nav, quest labels) — 3 locales",el:"refTranslation seed",layer:"—",key:"ui:* (existing)",type:"DB/Seed",tier:"-",i18n:"Yes",
+ rec:[{tag:"OK",c:"Already i18n. Expand as new keys added (~150 new)."}],
+ action:"Existing seed-translations.ts will grow as new keys are added from this audit.",dec:""},
+
+{s:"API/Backend",t:"AI system prompts (11 generators — English)",el:"buildSystemPrompt()",layer:"—",key:"—",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"OK",c:"English prompts correct. AI outputs via buildLocaleInstruction()."}],
+ action:"No action.",dec:""},
+
+{s:"API/Backend",t:"buildLocaleInstruction() — AI locale output",el:"core/locale-utils.ts",layer:"—",key:"—",type:"Dynamic",tier:"-",i18n:"Yes",
+ rec:[{tag:"OK",c:"Working correctly"}],
+ action:"No action.",dec:""},
+];
+
+let currentRows = [];
+
+function renderTable(data) {
+  const tbody = document.getElementById('auditBody');
+  tbody.innerHTML = '';
+  currentRows = data;
+  data.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    tr.className = 'data-row';
+    tr.dataset.screen = r.s;
+    tr.dataset.type = r.type;
+    tr.dataset.layer = r.layer;
+
+    const typeClass = r.type === 'Static' ? 'b-static' : r.type === 'Dynamic' ? 'b-dynamic' : r.type === 'AI-Gen' ? 'b-ai' : r.type === 'DB/Seed' ? 'b-db' : 'b-store';
+    const tierClass = r.tier === 'BUDGET' ? 'b-budget' : r.tier === 'BALANCED' ? 'b-balanced' : r.tier === 'QUALITY' ? 'b-quality' : r.tier === 'TEMPLATE' ? 'b-template' : 'b-none';
+    const i18nClass = r.i18n === 'Yes' ? 'b-yes' : r.i18n === 'Partial' ? 'b-warn' : r.i18n === 'Locale-driven' ? 'b-i18n' : 'b-no';
+    const layerClass = r.layer === 'next-intl' ? 'b-layer-intl' : r.layer === 'refContent' ? 'b-layer-ref' : r.layer === 'AI gen' ? 'b-layer-ai' : r.layer === 'computed' ? 'b-layer-compute' : 'b-layer-none';
+
+    let recHtml = '';
+    if (r.rec && r.rec.length > 0) {
+      recHtml = r.rec.map(rc => {
+        const cls = rc.tag === 'i18n' ? 'rec-i18n' : rc.tag === '+AI' ? 'rec-ai' : rc.tag === 'migrate' ? 'rec-migrate' : rc.tag === 'OK' ? 'rec-ok' : rc.tag === 'rewrite' ? 'rec-rewrite' : rc.tag === 'wire-up' ? 'rec-wire' : 'rec-ok';
+        return '<span class="rec-tag ' + cls + '">' + escHtml(rc.tag) + '</span> ' + escHtml(rc.c);
+      }).join('<br>');
+    }
+
+    tr.innerHTML =
+      '<td style="color:var(--muted);font-size:10px;">' + (i+1) + '</td>' +
+      '<td class="text-col">' + escHtml(r.t) + '</td>' +
+      '<td>' + escHtml(r.s) + '</td>' +
+      '<td>' + escHtml(r.el) + '</td>' +
+      '<td><span class="badge ' + layerClass + '">' + escHtml(r.layer) + '</span></td>' +
+      '<td class="key-col">' + escHtml(r.key) + '</td>' +
+      '<td><span class="badge ' + typeClass + '">' + r.type + '</span></td>' +
+      '<td><span class="badge ' + tierClass + '">' + r.tier + '</span></td>' +
+      '<td><span class="badge ' + i18nClass + '">' + r.i18n + '</span></td>' +
+      '<td class="rec-cell">' + recHtml + '</td>' +
+      '<td class="action-cell">' + r.action + '</td>' +
+      '<td class="decision-cell"><textarea placeholder="Decision..." data-idx="' + i + '">' + escHtml(r.dec) + '</textarea></td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function applyFilters() {
+  const screen = document.getElementById('filterScreen').value;
+  const layer = document.getElementById('filterLayer').value;
+  const type = document.getElementById('filterType').value;
+  const logic = document.getElementById('filterLogic').value;
+  const rec = document.getElementById('filterRec').value;
+  const text = document.getElementById('filterText').value.toLowerCase();
+
+  let filtered = DATA;
+  if (screen) filtered = filtered.filter(r => r.s === screen);
+  if (layer) filtered = filtered.filter(r => r.layer === layer);
+  if (type) {
+    if (type === 'Static') filtered = filtered.filter(r => r.type === 'Static');
+    else if (type === 'Dynamic') filtered = filtered.filter(r => r.type === 'Dynamic');
+    else if (type === 'AI-Gen') filtered = filtered.filter(r => r.type === 'AI-Gen');
+    else if (type === 'DB/Seed') filtered = filtered.filter(r => r.type === 'DB/Seed');
+  }
+  if (logic) filtered = filtered.filter(r => r.rec && r.rec.some(rc => rc.tag === 'migrate') ? 'MIGRATE' : r.i18n === 'Partial' ? 'REVIEW' : 'OK' === logic);
+  if (rec) filtered = filtered.filter(r => r.rec && r.rec.some(rc => rc.tag === rec));
+  if (text) filtered = filtered.filter(r =>
+    r.t.toLowerCase().includes(text) ||
+    r.s.toLowerCase().includes(text) ||
+    r.el.toLowerCase().includes(text) ||
+    r.key.toLowerCase().includes(text) ||
+    r.action.toLowerCase().includes(text) ||
+    (r.rec && r.rec.some(rc => rc.c.toLowerCase().includes(text)))
+  );
+  renderTable(filtered);
+}
+
+function exportCSV() {
+  const textareas = document.querySelectorAll('.decision-cell textarea');
+  textareas.forEach(ta => {
+    const idx = parseInt(ta.dataset.idx);
+    if (currentRows[idx]) currentRows[idx].dec = ta.value;
+  });
+
+  let csv = 'No,Text,Screen,Element,Layer,Key,Type,AI Tier,i18n,Recommendation,Action Required,Decision\n';
+  currentRows.forEach((r, i) => {
+    const recText = r.rec ? r.rec.map(rc => '[' + rc.tag + '] ' + rc.c).join(' | ') : '';
+    csv += (i+1) + ',"' + r.t.replace(/"/g,'""') + '","' + r.s + '","' + r.el + '","' + r.layer + '","' + r.key.replace(/"/g,'""') + '","' + r.type + '","' + r.tier + '","' + r.i18n + '","' + recText.replace(/"/g,'""') + '","' + r.action.replace(/<[^>]+>/g,'').replace(/"/g,'""') + '","' + r.dec.replace(/"/g,'""') + '"\n';
+  });
+
+  const blob = new Blob(['\ufeff' + csv], {type: 'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'plan2skill-content-wireup-spec.csv';
+  a.click();
+}
+
+function saveDecisions() {
+  const textareas = document.querySelectorAll('.decision-cell textarea');
+  const decisions = {};
+  textareas.forEach(ta => {
+    const idx = parseInt(ta.dataset.idx);
+    if (ta.value.trim()) {
+      decisions[idx] = {
+        text: currentRows[idx]?.t || '',
+        screen: currentRows[idx]?.s || '',
+        layer: currentRows[idx]?.layer || '',
+        key: currentRows[idx]?.key || '',
+        action: currentRows[idx]?.action?.replace(/<[^>]+>/g,'') || '',
+        recommendation: currentRows[idx]?.rec ? currentRows[idx].rec.map(rc => '[' + rc.tag + '] ' + rc.c).join(' | ') : '',
+        decision: ta.value.trim(),
+      };
+    }
+  });
+
+  const blob = new Blob([JSON.stringify(decisions, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'plan2skill-content-decisions.json';
+  a.click();
+}
+
+renderTable(DATA);
+</script>
+</body>
+</html>

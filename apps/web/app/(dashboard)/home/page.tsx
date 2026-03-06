@@ -1,14 +1,13 @@
 'use client';
 
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { useOnboardingStore, useOnboardingV2Store, useProgressionStore } from '@plan2skill/store';
+import { useOnboardingStore, useOnboardingV2Store, useProgressionStore, useCharacterStore, useSocialStore, useRoadmapStore, useI18nStore } from '@plan2skill/store';
+import { trpc } from '@plan2skill/api-client';
 import { t } from '../../(onboarding)/_components/tokens';
 import { CHARACTERS } from '../../(onboarding)/_components/characters';
 import { ARCHETYPES } from '../../(onboarding)/_data/archetypes';
-
-import { generateTasks } from './_utils/quest-templates';
-import { getGreeting } from './_utils/xp-utils';
 import { useQuestEngine } from './_hooks/useQuestEngine';
+import { useQuestSystem } from './_hooks/useQuestSystem';
 import { useDailyProgress } from './_hooks/useDailyProgress';
 import { useServerHydration } from './_hooks/useServerHydration';
 import { QuestCardModal } from './_components/QuestCardModal';
@@ -22,8 +21,10 @@ import { SocialCards } from './_components/SocialCards';
 import { WeeklyChallenges } from './_components/WeeklyChallenges';
 import { QuestError } from './_components/QuestError';
 import { AttributeWidget } from './_components/AttributeWidget';
+import { DailyEpisodeCard } from './_components/DailyEpisodeCard';
 import { useWeeklyChallenges } from './_hooks/useWeeklyChallenges';
 import { useSpacedRepetition } from './_hooks/useSpacedRepetition';
+import { useRoadmapProgress } from './_hooks/useRoadmapProgress';
 import { MasteryRing } from './_components/MasteryRing';
 import { NeonIcon } from '../../(onboarding)/_components/NeonIcon';
 
@@ -35,6 +36,7 @@ import { NeonIcon } from '../../(onboarding)/_components/NeonIcon';
 const CONFETTI_COLORS = [t.violet, t.cyan, t.rose, t.gold, '#6EE7B7', '#818CF8', '#E879F9', '#FFD166'];
 
 function LevelUpCelebration({ newLevel, onDismiss }: { newLevel: number; onDismiss: () => void }) {
+  const tr = useI18nStore((s) => s.t);
   const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   useEffect(() => {
@@ -89,7 +91,7 @@ function LevelUpCelebration({ newLevel, onDismiss }: { newLevel: number; onDismi
         animation: reducedMotion ? 'none' : 'celebratePop 0.6s cubic-bezier(0.34,1.56,0.64,1)',
         marginBottom: 16,
       }}>
-        Ascension!
+        {tr('dashboard.levelup_title', 'Ascension!')}
       </div>
 
       {/* New level number */}
@@ -98,7 +100,7 @@ function LevelUpCelebration({ newLevel, onDismiss }: { newLevel: number; onDismi
         color: t.text,
         animation: reducedMotion ? 'none' : 'bounceIn 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.3s both',
       }}>
-        Level {newLevel}
+        {tr('dashboard.levelup_level', 'Level {level}').replace('{level}', String(newLevel))}
       </div>
 
       {/* Tap to skip hint */}
@@ -107,7 +109,7 @@ function LevelUpCelebration({ newLevel, onDismiss }: { newLevel: number; onDismi
         marginTop: 24,
         animation: reducedMotion ? 'none' : 'fadeUp 0.4s ease-out 0.6s both',
       }}>
-        Tap anywhere to continue
+        {tr('dashboard.levelup_tap', 'Tap anywhere to continue')}
       </div>
     </div>
   );
@@ -126,8 +128,16 @@ const STREAK_MILESTONES: Record<number, string> = {
 };
 
 function StreakMilestoneCelebration({ streak, onDismiss }: { streak: number; onDismiss: () => void }) {
+  const tr = useI18nStore((s) => s.t);
   const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const label = STREAK_MILESTONES[streak] || `${streak}-Day Streak!`;
+  const STREAK_MILESTONE_KEYS: Record<number, [string, string]> = {
+    7: ['dashboard.streak_7', '7-Day Streak!'],
+    30: ['dashboard.streak_30', '30-Day Legend!'],
+    100: ['dashboard.streak_100', '100-Day Master!'],
+    365: ['dashboard.streak_365', '365-Day Immortal!'],
+  };
+  const milestone = STREAK_MILESTONE_KEYS[streak];
+  const label = milestone ? tr(milestone[0], milestone[1]) : `${streak}-Day Streak!`;
 
   useEffect(() => {
     const timer = setTimeout(onDismiss, reducedMotion ? 800 : 2000);
@@ -196,7 +206,7 @@ function StreakMilestoneCelebration({ streak, onDismiss }: { streak: number; onD
         marginTop: 16,
         animation: reducedMotion ? 'none' : 'fadeUp 0.3s ease-out 0.4s both',
       }}>
-        Tap to continue
+        {tr('dashboard.tap_dismiss', 'Tap to continue')}
       </div>
     </div>
   );
@@ -207,13 +217,24 @@ function StreakMilestoneCelebration({ streak, onDismiss }: { streak: number; onD
 // ═══════════════════════════════════════════
 
 export default function HomePage() {
-  const { selectedGoals, skillAssessments, characterId, archetypeId } = useOnboardingStore();
+  const tr = useI18nStore((s) => s.t);
+  const { selectedGoals, skillAssessments } = useOnboardingStore();
   const { onboardingCompletedAt } = useOnboardingV2Store();
-  const { totalXp, level, currentStreak, energyCrystals, maxEnergyCrystals,
+  const { totalXp, level, currentStreak, coins, energyCrystals, maxEnergyCrystals,
     lastActivityDate, quietMode, consumeCrystal } = useProgressionStore();
+
+  // Character identity — from character store (hydrated from DB by useServerHydration)
+  const dbCharacterId = useCharacterStore((s) => s.characterId);
+  const dbArchetypeId = useCharacterStore((s) => s.archetypeId);
+  // Fallback to onboarding store for fresh onboarding (before hydration completes)
+  const obCharacterId = useOnboardingStore((s) => s.characterId);
+  const obArchetypeId = useOnboardingStore((s) => s.archetypeId);
+  const characterId = dbCharacterId || obCharacterId;
+  const archetypeId = dbArchetypeId || obArchetypeId;
 
   const charMeta = CHARACTERS.find(c => c.id === characterId);
   const archetype = archetypeId ? ARCHETYPES[archetypeId] : null;
+  const displayName = useSocialStore((s) => s.displayName);
 
   // Hydration guard — show skeleton until store rehydrates
   const [hydrated, setHydrated] = useState(false);
@@ -222,10 +243,30 @@ export default function HomePage() {
   }, []);
 
   // Server hydration — sync progression from backend on load
-  const { isHydrating } = useServerHydration();
+  const { isHydrating, isHydrationError, erroredQueries } = useServerHydration();
+
+  // Energy recharge mutation
+  const rechargeMutation = trpc.progression.rechargeEnergy.useMutation();
+  const handleRechargeEnergy = useCallback(() => {
+    useProgressionStore.getState().rechargeCrystals();
+    rechargeMutation.mutate(undefined, {
+      onError: () => console.warn('[rechargeEnergy] failed'),
+    });
+  }, [rechargeMutation]);
 
   // Quest engine — persistence pipeline
   const engine = useQuestEngine();
+
+  // Phase W1: Server quest system — real quests only (no mock fallback)
+  const questSystem = useQuestSystem();
+  const roadmaps = useRoadmapStore((s) => s.roadmaps);
+
+  // SSE-based roadmap generation progress (real-time updates from backend)
+  const roadmapProgress = useRoadmapProgress(() => {
+    // On generation complete → refetch quests
+    questSystem.refetchQuests();
+  });
+  const isRoadmapGenerating = roadmapProgress.isGenerating || roadmaps.some((r) => r.status === 'generating');
 
   // Weekly challenges (Phase 5E)
   const weekly = useWeeklyChallenges();
@@ -233,16 +274,8 @@ export default function HomePage() {
   // Spaced repetition mastery (Phase 5D)
   const mastery = useSpacedRepetition();
 
-  // Generate quest groups from goals
-  const questGroups = useMemo(() => {
-    return selectedGoals.map(g => {
-      return {
-        goal: g,
-        goalData: null,
-        tasks: generateTasks(g.label, g.id, 'target'),
-      };
-    });
-  }, [selectedGoals]);
+  // Quest groups: server quests only, empty array if none available
+  const questGroups = questSystem.serverQuestGroups ?? [];
 
   // Daily progress (derived state)
   const { dailyTotal, dailyCompleted, allTasks, getNextQuest } =
@@ -322,6 +355,20 @@ export default function HomePage() {
 
   return (
     <div style={{ animation: 'fadeUp 0.4s ease-out' }}>
+      {/* Hydration error banner — non-fatal, partial data still renders */}
+      {isHydrationError && (
+        <div style={{
+          padding: '12px 16px', borderRadius: 12,
+          background: `${t.rose}12`, border: `1px solid ${t.rose}30`,
+          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16,
+        }}>
+          <NeonIcon type="blocked" size={16} color="rose" />
+          <span style={{ fontFamily: t.body, fontSize: 13, color: t.rose }}>
+            {tr('dashboard.load_error', 'Some data failed to load. Pull to refresh.')}
+          </span>
+        </div>
+      )}
+
       {/* Quest Card Modal */}
       {openTask && (
         <QuestCardModal
@@ -377,7 +424,7 @@ export default function HomePage() {
       <WelcomeBack
         lastActivityDate={lastActivityDate}
         characterId={characterId}
-        characterName={charMeta?.name || 'Hero'}
+        characterName={displayName || charMeta?.name || 'Hero'}
         warmupQuest={warmupQuest}
         isQuestCompleted={warmupQuest ? engine.completedQuests.has(warmupQuest.id) : false}
         onStartQuest={setOpenQuestId}
@@ -396,11 +443,11 @@ export default function HomePage() {
           fontFamily: t.display, fontSize: 26, fontWeight: 900,
           color: t.text, marginBottom: 6, lineHeight: 1.3,
         }}>
-          {getGreeting()}, {charMeta?.name || 'Hero'}!
+          {tr('dashboard.greeting', '{name}, let\'s get going!').replace('{name}', displayName || charMeta?.name || 'Hero')}
         </h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontFamily: t.body, fontSize: 14, color: t.textSecondary }}>
-            Today&apos;s focus: Level up your skills
+            {tr('dashboard.todays_focus', "Today's focus: Level up your skills")}
           </span>
           {archetype && (
             <span style={{
@@ -409,7 +456,7 @@ export default function HomePage() {
               background: `${archetype.color}12`, border: `1px solid ${archetype.color}25`,
               fontFamily: t.mono, fontSize: 10, fontWeight: 700, color: archetype.color,
             }}>
-              {archetype.icon} {archetype.name}
+              {archetype.icon} {archetypeId ? tr(`archetype.${archetypeId}`, archetype.name) : archetype.name}
             </span>
           )}
         </div>
@@ -420,8 +467,11 @@ export default function HomePage() {
         level={level}
         currentStreak={currentStreak}
         totalXp={totalXp}
+        coins={coins}
         energyCrystals={energyCrystals}
         maxEnergyCrystals={maxEnergyCrystals}
+        onRechargeEnergy={handleRechargeEnergy}
+        isRecharging={rechargeMutation.isPending}
       />
 
       {/* Phase 5H: Attribute Widget — inline on mobile, hidden on desktop (shown in sidebar) */}
@@ -429,25 +479,179 @@ export default function HomePage() {
         <AttributeWidget />
       </div>
 
+      {/* Daily Episode — narrative system (Phase P) */}
+      <DailyEpisodeCard />
+
       {/* Today's Quests — BL-004: moved up as PRIMARY ACTION */}
       <div ref={dailyQuestsRef} />
-      <DailyQuests
-        questGroups={questGroups}
-        completedQuests={engine.completedQuests}
-        dailyCompleted={dailyCompleted}
-        dailyTotal={dailyTotal}
-        xpFloatId={engine.xpFloatId}
-        xpFloatAmount={engine.xpFloatAmount}
-        onCompleteQuest={(taskId, xp) => {
-          const task = allTasks.get(taskId);
-          engine.completeQuest(taskId, task?.goalLabel || '', xp);
-        }}
-        onUndoQuest={(taskId) => {
-          const task = allTasks.get(taskId);
-          engine.undoQuest(taskId, task?.xp || 0);
-        }}
-        onOpenQuest={setOpenQuestId}
-      />
+
+      {/* AI Generating State — SSE real-time progress from backend */}
+      {(isRoadmapGenerating || questSystem.isGeneratingQuests) && questGroups.length === 0 && (() => {
+        const pct = roadmapProgress.progress.percent;
+        const msg = roadmapProgress.progress.message;
+        const milestones = roadmapProgress.progress.milestones;
+        const phase = roadmapProgress.progress.phase;
+        return (
+          <div style={{
+            padding: '24px 20px', borderRadius: 16,
+            background: t.bgCard, border: `1px solid ${t.violet}20`,
+            marginBottom: 24, animation: 'fadeUp 0.4s ease-out',
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: 12,
+                background: `${t.violet}15`, border: `1px solid ${t.violet}30`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                animation: 'pulse 2s ease-in-out infinite',
+              }}>
+                <NeonIcon type="compass" size={20} color="violet" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  fontFamily: t.display, fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 2,
+                }}>
+                  {tr('dashboard.ai_generating', 'Crafting your quest line...')}
+                </div>
+                <div style={{ fontFamily: t.body, fontSize: 12, color: t.textSecondary }}>
+                  {msg || tr('dashboard.ai_generating_sub', 'AI is building personalized quests based on your goals')}
+                </div>
+              </div>
+              {/* Percent badge */}
+              {pct > 0 && (
+                <span style={{
+                  fontFamily: t.mono, fontSize: 12, fontWeight: 800,
+                  color: t.violet, padding: '4px 10px', borderRadius: 10,
+                  background: `${t.violet}12`, flexShrink: 0,
+                }}>
+                  {pct}%
+                </span>
+              )}
+            </div>
+
+            {/* Progress bar */}
+            <div style={{
+              height: 6, borderRadius: 3, background: t.border,
+              overflow: 'hidden', marginBottom: 16,
+            }}>
+              <div style={{
+                height: '100%', borderRadius: 3,
+                background: t.gradient,
+                width: `${Math.max(pct, 5)}%`,
+                transition: 'width 0.6s ease-out',
+                boxShadow: pct > 50 ? `0 0 8px ${t.violet}60` : 'none',
+              }} />
+            </div>
+
+            {/* Milestones — revealed as they arrive from SSE */}
+            {milestones.length > 0 ? (
+              milestones.map((ms, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '10px 14px', borderRadius: 12,
+                  background: t.bgElevated, border: `1px solid ${t.border}`,
+                  marginBottom: i < milestones.length - 1 ? 6 : 0,
+                  animation: `fadeUp 0.3s ease-out ${i * 0.08}s both`,
+                }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 8,
+                    background: `${t.cyan}15`, border: `1px solid ${t.cyan}30`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                  }}>
+                    <NeonIcon type="check" size={12} color="cyan" />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontFamily: t.display, fontSize: 12, fontWeight: 700,
+                      color: t.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}>
+                      {ms.title}
+                    </div>
+                    <div style={{ fontFamily: t.mono, fontSize: 10, color: t.textMuted }}>
+                      {ms.taskCount} quests
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              /* Skeleton cards — shown before milestones arrive */
+              [0, 1, 2].map((i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '12px 14px', borderRadius: 12,
+                  background: t.bgElevated, border: `1px solid ${t.border}`,
+                  marginBottom: i < 2 ? 6 : 0,
+                  animation: `fadeUp 0.4s ease-out ${0.1 + i * 0.1}s both`,
+                }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 10,
+                    background: `linear-gradient(90deg, ${t.border} 25%, ${t.bgCard} 50%, ${t.border} 75%)`,
+                    backgroundSize: '200% 100%',
+                    animation: 'shimmer 1.5s linear infinite',
+                    flexShrink: 0,
+                  }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{
+                      width: `${60 + i * 12}%`, height: 12, borderRadius: 6, marginBottom: 6,
+                      background: `linear-gradient(90deg, ${t.border} 25%, ${t.bgCard} 50%, ${t.border} 75%)`,
+                      backgroundSize: '200% 100%',
+                      animation: 'shimmer 1.5s linear infinite',
+                    }} />
+                    <div style={{
+                      width: `${40 + i * 8}%`, height: 8, borderRadius: 4,
+                      background: `linear-gradient(90deg, ${t.border} 25%, ${t.bgCard} 50%, ${t.border} 75%)`,
+                      backgroundSize: '200% 100%',
+                      animation: 'shimmer 1.5s linear infinite',
+                    }} />
+                  </div>
+                </div>
+              ))
+            )}
+
+            {/* Status hint */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              marginTop: 14, padding: '8px 12px', borderRadius: 10,
+              background: `${t.violet}06`,
+            }}>
+              <div style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: phase === 'error' ? t.rose : t.violet,
+                animation: phase === 'error' ? 'none' : 'pulse 1.5s ease-in-out infinite',
+              }} />
+              <span style={{ fontFamily: t.body, fontSize: 11, color: t.textMuted }}>
+                {phase === 'error'
+                  ? msg
+                  : pct > 0
+                    ? tr('dashboard.ai_progress_hint', 'This usually takes 15-30 seconds')
+                    : tr('dashboard.ai_connecting', 'Connecting to AI...')}
+              </span>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Quest list — only shown when quests are available */}
+      {questGroups.length > 0 && (
+        <DailyQuests
+          questGroups={questGroups}
+          completedQuests={engine.completedQuests}
+          dailyCompleted={dailyCompleted}
+          dailyTotal={dailyTotal}
+          xpFloatId={engine.xpFloatId}
+          xpFloatAmount={engine.xpFloatAmount}
+          onCompleteQuest={(taskId, xp) => {
+            const task = allTasks.get(taskId);
+            engine.completeQuest(taskId, task?.goalLabel || '', xp);
+          }}
+          onUndoQuest={(taskId) => {
+            const task = allTasks.get(taskId);
+            engine.undoQuest(taskId, task?.xp || 0);
+          }}
+          onOpenQuest={setOpenQuestId}
+        />
+      )}
 
       {/* Active Quests — BL-004: moved after daily quests */}
       <ActiveQuests
@@ -467,7 +671,7 @@ export default function HomePage() {
               letterSpacing: '0.08em', marginBottom: 12,
             }}>
               <NeonIcon type="book" size={14} color="cyan" />
-              Skill Mastery
+              {tr('sidebar.skill_mastery', 'Skill Mastery')}
               {mastery.dueCount > 0 && (
                 <span style={{
                   marginLeft: 'auto',

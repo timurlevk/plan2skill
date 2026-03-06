@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useOnboardingV2Store } from '@plan2skill/store';
+import { useOnboardingV2Store, useI18nStore } from '@plan2skill/store';
+import { trpc } from '@plan2skill/api-client';
 import { t } from '../_components/tokens';
 import { StepBarV2 } from '../_components/StepBarV2';
 import { BackButton, ContinueButton } from '../_components/ContinueButton';
@@ -11,13 +12,31 @@ import { QuizCardV2 } from '../_components/QuizCardV2';
 import { XPFloat } from '../_components/XPFloat';
 import { NeonIcon } from '../_components/NeonIcon';
 import { WizardShell } from '../_components/WizardShell';
+import { NPCLoadingMessages } from '../_components/NPCLoadingMessages';
+import { ASSESSMENT_LOADING_MESSAGES } from '../_data/loading-messages';
 import {
   getNextQuestion, shouldStopAssessment,
   computeLevel as computeAssessmentLevel,
   SELF_ASSESSMENT_OPTIONS, QUESTIONS,
+  type AssessmentQuestion,
 } from '../_data/assessment-questions';
 import { DOMAINS } from '../_data/domains';
-import type { SkillAssessmentV2 } from '@plan2skill/types';
+import type { SkillAssessmentV2, ArchetypeId, AssessmentLevel } from '@plan2skill/types';
+
+/** Infer archetype from onboarding intent + assessment level */
+function inferArchetype(
+  intentVal: string | null,
+  pathVal: string | null,
+  level: AssessmentLevel,
+): ArchetypeId {
+  if (intentVal === 'know' || pathVal === 'direct') return 'strategist';
+  if (intentVal === 'career' || pathVal === 'career') return 'builder';
+  if (intentVal === 'explore_guided' || pathVal === 'guided') {
+    if (level === 'advanced' || level === 'intermediate') return 'innovator';
+    return 'explorer';
+  }
+  return 'explorer';
+}
 
 // ═══════════════════════════════════════════
 // ASSESSMENT — Step 3: Adaptive 2-5 questions
@@ -29,32 +48,165 @@ export default function AssessmentPage() {
   const router = useRouter();
   const {
     selectedDomain, intent, discoveryPath,
-    setAssessment, addXP,
+    assessments, aiAssessmentStatus,
+    setAssessment, setInferredArchetype, addXP,
   } = useOnboardingV2Store();
+  const locale = useI18nStore((s) => s.locale);
+  const tr = useI18nStore((s) => s.t);
+  const submitAssessmentMutation = trpc.onboarding.submitAssessment.useMutation();
+
+  // ─── AI-generated questions ─────────────────────────────
+  const generateQuestionsMutation = trpc.onboarding.generateAssessmentQuestions.useMutation();
+  // Sync-init from store so mode/hasQuestions are correct on first render
+  const [aiQuestions, setAiQuestions] = useState<AssessmentQuestion[] | null>(() => {
+    const { aiAssessmentQuestions, aiAssessmentStatus } = useOnboardingV2Store.getState();
+    if (aiAssessmentQuestions?.length && aiAssessmentStatus === 'ready') {
+      return aiAssessmentQuestions as unknown as AssessmentQuestion[];
+    }
+    return null;
+  });
+  const [aiError, setAiError] = useState(false);
+  const hasRequestedAi = useRef(false);
+
+  // Own generation — used as fallback when background gen fails/times out
+  const fireOwnGeneration = useCallback(() => {
+    if (hasRequestedAi.current) return;
+    hasRequestedAi.current = true;
+
+    const store = useOnboardingV2Store.getState();
+    const path = store.discoveryPath;
+    const base = {
+      intent: (store.intent ?? 'exploring') as 'know' | 'explore_guided' | 'career' | 'exploring',
+      locale,
+      dreamGoal: store.dreamGoal || 'Learn new skills',
+    };
+
+    let context: Parameters<typeof generateQuestionsMutation.mutate>[0];
+    if (path === 'guided') {
+      context = {
+        ...base,
+        path: 'guided' as const,
+        selectedDomain: store.selectedDomain ?? 'tech',
+        selectedInterests: store.selectedInterests,
+        customInterests: store.customInterests,
+        skillLevel: (store.guidedAssessmentLevel as 'beginner' | 'familiar' | 'intermediate' | 'advanced') ?? null,
+        customGoals: store.guidedCustomGoals,
+        assessments: store.assessments.map((a) => ({
+          domain: a.domain,
+          level: a.level as 'beginner' | 'familiar' | 'intermediate' | 'advanced',
+          method: a.method as 'quiz' | 'self_assessment',
+          score: a.score,
+          confidence: a.confidence,
+        })),
+      };
+    } else if (path === 'career') {
+      context = {
+        ...base,
+        path: 'career' as const,
+        careerCurrent: store.careerCurrent || 'Unknown',
+        careerPains: store.careerPains,
+        careerTarget: store.careerTarget,
+      };
+    } else {
+      context = { ...base, path: 'direct' as const };
+    }
+
+    generateQuestionsMutation.mutate(context, {
+      onSuccess: (data) => setAiQuestions(data as AssessmentQuestion[]),
+      onError: (err) => {
+        console.warn('[AI assessment] fallback:', err.message);
+        setAiError(true);
+      },
+    });
+  }, [locale, generateQuestionsMutation]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    // Already initialized synchronously from store
+    if (aiQuestions) return;
+
+    const { aiAssessmentQuestions, aiAssessmentStatus } = useOnboardingV2Store.getState();
+
+    // Double-check: store became ready between init and effect
+    if (aiAssessmentQuestions?.length && aiAssessmentStatus === 'ready') {
+      setAiQuestions(aiAssessmentQuestions as unknown as AssessmentQuestion[]);
+      return;
+    }
+
+    // Still loading from guided flow — subscribe with timeout safety net
+    if (aiAssessmentStatus === 'loading') {
+      let resolved = false;
+
+      const unsub = useOnboardingV2Store.subscribe((state) => {
+        if (resolved) return;
+        if (state.aiAssessmentStatus === 'ready' && state.aiAssessmentQuestions?.length) {
+          resolved = true;
+          setAiQuestions(state.aiAssessmentQuestions as unknown as AssessmentQuestion[]);
+          unsub();
+          clearTimeout(timeout);
+        } else if (state.aiAssessmentStatus === 'error') {
+          resolved = true;
+          unsub();
+          clearTimeout(timeout);
+          fireOwnGeneration();
+        }
+      });
+
+      // Safety net: if background gen doesn't resolve in 8s, generate ourselves
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          unsub();
+          fireOwnGeneration();
+        }
+      }, 8000);
+
+      return () => { clearTimeout(timeout); unsub(); };
+    }
+
+    // No background gen — generate immediately (non-guided or idle state)
+    fireOwnGeneration();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Determine which domain to assess
   const assessDomain = useMemo(() => {
+    if (aiQuestions?.length) return aiQuestions[0]!.domain;
     if (selectedDomain) return selectedDomain;
     if (discoveryPath === 'direct') return 'tech'; // default for direct path
     return 'tech';
-  }, [selectedDomain, discoveryPath]);
+  }, [aiQuestions, selectedDomain, discoveryPath]);
+
+  // Fetch questions from API with mock fallback
+  const { data: apiQuestions } = trpc.onboarding.assessmentQuestions.useQuery(
+    { domain: assessDomain, locale },
+    { staleTime: 5 * 60 * 1000, retry: 1 },
+  );
+
+  // 3-tier fallback: AI questions → DB seed → frontend QUESTIONS array
+  const questionPool: AssessmentQuestion[] = useMemo(() => {
+    if (aiQuestions?.length) return aiQuestions;
+    if (apiQuestions && apiQuestions.length > 0) return apiQuestions as AssessmentQuestion[];
+    return QUESTIONS;
+  }, [aiQuestions, apiQuestions]);
 
   // Check if we have questions for this domain
   const hasQuestions = useMemo(() => {
-    return QUESTIONS.some((q) => q.domain === assessDomain);
-  }, [assessDomain]);
+    return questionPool.some((q) => q.domain === assessDomain);
+  }, [questionPool, assessDomain]);
 
   const [mode, setMode] = useState<'quiz' | 'self'>(!hasQuestions ? 'self' : 'quiz');
   const [answered, setAnswered] = useState<{ questionId: string; correct: boolean }[]>([]);
-  const [npcMessage, setNpcMessage] = useState(
-    'Time to gauge your power level, hero! Don\'t worry — there are no wrong answers, only XP to gain.'
-  );
+  const [npcMessage, setNpcMessage] = useState('');
   const [npcEmotion, setNpcEmotion] = useState<'neutral' | 'happy' | 'impressed' | 'thinking'>('happy');
   const [showXP, setShowXP] = useState(false);
   const [xpAmount, setXpAmount] = useState(0);
   const [totalXpEarned, setTotalXpEarned] = useState(0);
   const [complete, setComplete] = useState(false);
   const [selfLevel, setSelfLevel] = useState<string | null>(null);
+
+  // Hydration-safe: set translated NPC message after mount
+  useEffect(() => {
+    setNpcMessage(tr('npc.assessment_intro'));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // prefers-reduced-motion
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -68,14 +220,14 @@ export default function AssessmentPage() {
 
   const currentQuestion = useMemo(() => {
     if (mode !== 'quiz' || complete) return null;
-    return getNextQuestion(assessDomain, answered);
-  }, [assessDomain, answered, mode, complete]);
+    return getNextQuestion(assessDomain, answered, questionPool);
+  }, [assessDomain, answered, mode, complete, questionPool]);
 
   // Calculate current streak (consecutive correct from the end)
   const currentStreak = useMemo(() => {
     let streak = 0;
     for (let i = answered.length - 1; i >= 0; i--) {
-      if (answered[i].correct) streak++;
+      if (answered[i]?.correct) streak++;
       else break;
     }
     return streak;
@@ -90,7 +242,7 @@ export default function AssessmentPage() {
 
     // NPC reaction
     if (correct) {
-      setNpcMessage(q.npcReaction.correct);
+      setNpcMessage(tr('npc.assessment_feedback_correct'));
       setNpcEmotion(q.npcReaction.correctEmotion);
       setXpAmount(5);
       setShowXP(true);
@@ -98,17 +250,17 @@ export default function AssessmentPage() {
       addXP(5);
       setTimeout(() => setShowXP(false), 1200);
     } else {
-      setNpcMessage(q.npcReaction.wrong);
+      setNpcMessage(tr('npc.assessment_feedback_wrong'));
       setNpcEmotion(q.npcReaction.wrongEmotion);
     }
 
     // Check if we should stop
-    if (shouldStopAssessment(newAnswered) || !getNextQuestion(assessDomain, newAnswered)) {
+    if (shouldStopAssessment(newAnswered, questionPool) || !getNextQuestion(assessDomain, newAnswered, questionPool)) {
       setTimeout(() => {
         setComplete(true);
-        setNpcMessage('Assessment complete! I\'ve measured your abilities.');
+        setNpcMessage(tr('npc.assessment_complete'));
         setNpcEmotion('impressed');
-        const level = computeAssessmentLevel(newAnswered);
+        const level = computeAssessmentLevel(newAnswered, questionPool);
         const assessment: SkillAssessmentV2 = {
           domain: assessDomain,
           level,
@@ -117,11 +269,16 @@ export default function AssessmentPage() {
           confidence: 0.8,
         };
         setAssessment(assessment);
+        setInferredArchetype(inferArchetype(intent, discoveryPath, level));
         setTotalXpEarned((prev) => prev + 5);
         addXP(5); // completion bonus
+        // Background server sync
+        submitAssessmentMutation.mutate({
+          assessments: [assessment],
+        }, { onError: (err) => console.warn('[submitAssessment]', err.message) });
       }, 1000);
     }
-  }, [currentQuestion, answered, assessDomain, addXP, setAssessment]);
+  }, [currentQuestion, answered, assessDomain, addXP, setAssessment, setInferredArchetype, intent, discoveryPath]);
 
   const handleSelfAssessment = (levelId: string) => {
     setSelfLevel(levelId);
@@ -136,11 +293,16 @@ export default function AssessmentPage() {
       confidence: 0.5,
     };
     setAssessment(assessment);
+    setInferredArchetype(inferArchetype(intent, discoveryPath, option.level as AssessmentLevel));
     setTotalXpEarned(5);
     addXP(5);
     setComplete(true);
-    setNpcMessage('Self-assessment noted! Every hero knows their starting point.');
+    setNpcMessage(tr('npc.assessment_complete'));
     setNpcEmotion('happy');
+    // Background server sync
+    submitAssessmentMutation.mutate({
+      assessments: [assessment],
+    }, { onError: (err) => console.warn('[submitAssessment]', err.message) });
   };
 
   const domainData = DOMAINS.find((d) => d.id === assessDomain);
@@ -149,28 +311,40 @@ export default function AssessmentPage() {
   if (complete) {
     const level = selfLevel
       ? SELF_ASSESSMENT_OPTIONS.find((o) => o.id === selfLevel)?.level || 'beginner'
-      : computeAssessmentLevel(answered);
-    const levelLabel = level.charAt(0).toUpperCase() + level.slice(1);
+      : computeAssessmentLevel(answered, questionPool);
+    const LEVEL_LABEL_KEYS: Record<string, string> = {
+      beginner: 'assessment.beginner',
+      familiar: 'assessment.familiar',
+      intermediate: 'assessment.intermediate',
+      advanced: 'assessment.advanced',
+    };
+    const levelLabel = tr(LEVEL_LABEL_KEYS[level] || level);
     const correctCount = answered.filter((a) => a.correct).length;
 
     // Level description — RPG vocabulary (UX-R141: positive framing)
-    const LEVEL_DESCRIPTIONS: Record<string, string> = {
-      beginner: 'Every hero starts somewhere! Your quests will guide you from the basics.',
-      familiar: 'You know the terrain! Your quests will build on your existing awareness.',
-      intermediate: 'Solid foundations! Your quests will build on what you already know.',
-      advanced: 'Impressive power level! Your quests will challenge you at a high tier.',
+    const LEVEL_DESC_KEYS: Record<string, string> = {
+      beginner: 'assessment.beginner_desc',
+      familiar: 'assessment.familiar_desc',
+      intermediate: 'assessment.intermediate_desc',
+      advanced: 'assessment.advanced_desc',
     };
-    const levelDesc = LEVEL_DESCRIPTIONS[level] || LEVEL_DESCRIPTIONS.intermediate;
+    const levelDesc = tr(LEVEL_DESC_KEYS[level] || LEVEL_DESC_KEYS.intermediate!);
 
     // Self-assessment description — different from quiz
     const selfOption = selfLevel ? SELF_ASSESSMENT_OPTIONS.find((o) => o.id === selfLevel) : null;
 
     return (
       <WizardShell
-        header={<StepBarV2 current={2} />}
+        header={<StepBarV2 current={1} />}
         footer={
-          <ContinueButton onClick={() => router.push('/character')}>
-            Onward!
+          <ContinueButton onClick={() => {
+            if (discoveryPath === 'guided') {
+              router.push('/goal/guided');
+            } else {
+              router.push('/character');
+            }
+          }}>
+            {tr('onboarding.onward')}
           </ContinueButton>
         }
       >
@@ -258,7 +432,7 @@ export default function AssessmentPage() {
                   <div style={{
                     fontSize: 10, color: t.textMuted, marginTop: 2, letterSpacing: '0.03em',
                   }}>
-                    Trials
+                    {tr('assessment.trials')}
                   </div>
                 </div>
                 {/* Correct */}
@@ -278,7 +452,7 @@ export default function AssessmentPage() {
                   <div style={{
                     fontSize: 10, color: t.textMuted, marginTop: 2, letterSpacing: '0.03em',
                   }}>
-                    Correct
+                    {tr('assessment.correct')}
                   </div>
                 </div>
                 {/* XP earned */}
@@ -298,7 +472,7 @@ export default function AssessmentPage() {
                   <div style={{
                     fontSize: 10, color: t.textMuted, marginTop: 2, letterSpacing: '0.03em',
                   }}>
-                    XP
+                    {tr('assessment.xp')}
                   </div>
                 </div>
               </>
@@ -321,7 +495,7 @@ export default function AssessmentPage() {
                   <div style={{
                     fontSize: 10, color: t.textMuted, marginTop: 2, letterSpacing: '0.03em',
                   }}>
-                    Level
+                    {tr('assessment.level')}
                   </div>
                 </div>
                 <div style={{
@@ -340,7 +514,7 @@ export default function AssessmentPage() {
                   <div style={{
                     fontSize: 10, color: t.textMuted, marginTop: 2, letterSpacing: '0.03em',
                   }}>
-                    Self-rated
+                    {tr('assessment.self_rated')}
                   </div>
                 </div>
                 <div style={{
@@ -359,7 +533,7 @@ export default function AssessmentPage() {
                   <div style={{
                     fontSize: 10, color: t.textMuted, marginTop: 2, letterSpacing: '0.03em',
                   }}>
-                    XP
+                    {tr('assessment.xp')}
                   </div>
                 </div>
               </>
@@ -376,10 +550,10 @@ export default function AssessmentPage() {
       <WizardShell
         header={
           <>
-            <StepBarV2 current={2} />
+            <StepBarV2 current={1} />
             <BackButton onClick={() => {
-              if (discoveryPath === 'direct') router.push('/goal/direct');
-              else if (discoveryPath === 'guided') router.push('/goal/guided');
+              if (discoveryPath === 'guided') router.push('/legend');
+              else if (discoveryPath === 'direct') router.push('/goal/direct');
               else if (discoveryPath === 'career') router.push('/goal/career');
               else router.push('/intent');
             }} />
@@ -388,7 +562,7 @@ export default function AssessmentPage() {
       >
         <NPCBubble
           characterId="sage"
-          message="How would you describe your experience with this realm?"
+          message={tr('npc.assessment_self')}
           emotion="thinking"
         />
 
@@ -401,7 +575,7 @@ export default function AssessmentPage() {
           color: t.text,
           marginBottom: 4,
         }}>
-          Gauge your mastery
+          {tr('onboarding.gauge_mastery')}
         </h2>
         <p style={{
           fontFamily: t.body,
@@ -409,7 +583,7 @@ export default function AssessmentPage() {
           color: t.textSecondary,
           marginBottom: 16,
         }}>
-          in {domainData?.name || 'this realm'}
+          {tr('onboarding.in_domain').replace('{domain}', domainData?.name || 'this realm')}
         </p>
 
         {/* 2×2 grid */}
@@ -472,23 +646,38 @@ export default function AssessmentPage() {
     );
   }
 
+  // ─── Loading Skeleton — AI questions in flight ───
+  const isAiLoading = (generateQuestionsMutation.isPending || aiAssessmentStatus === 'loading') && !aiError && !aiQuestions;
+  if (isAiLoading) {
+    return (
+      <WizardShell
+        header={<StepBarV2 current={1} />}
+      >
+        <NPCLoadingMessages
+          messages={ASSESSMENT_LOADING_MESSAGES}
+          subtitle={tr('assessment.ai_generating_subtitle', 'Generating quick questions to gauge your level — this helps craft a precise roadmap')}
+        />
+      </WizardShell>
+    );
+  }
+
   // ─── Quiz Mode ───
   if (!currentQuestion) return null;
 
   const questionNum = answered.length + 1;
-  const maxQuestions = Math.min(QUESTIONS.filter((q) => q.domain === assessDomain).length, 5);
+  const maxQuestions = Math.min(questionPool.filter((q) => q.domain === assessDomain).length, 5);
 
   return (
     <WizardShell
       header={
         <>
-          <StepBarV2 current={2} />
+          <StepBarV2 current={1} />
           <BackButton onClick={() => {
             if (answered.length > 0) {
               setAnswered((prev) => prev.slice(0, -1));
             } else {
-              if (discoveryPath === 'direct') router.push('/goal/direct');
-              else if (discoveryPath === 'guided') router.push('/goal/guided');
+              if (discoveryPath === 'guided') router.push('/legend');
+              else if (discoveryPath === 'direct') router.push('/goal/direct');
               else if (discoveryPath === 'career') router.push('/goal/career');
               else router.push('/intent');
             }

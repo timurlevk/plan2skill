@@ -5,28 +5,29 @@ import { t } from '../../(onboarding)/_components/tokens';
 import { trpc } from '@plan2skill/api-client';
 
 export default function AiOpsPage() {
-  const { data: costs, isLoading: costsLoading } = trpc.admin.llmCosts.useQuery(
+  const { data: costs, isLoading: costsLoading, isError: costsError } = trpc.admin.llmCosts.useQuery(
     { days: 30 },
     { staleTime: 1000 * 60 * 5, retry: 1 },
   );
-  const { data: usage, isLoading: usageLoading } = trpc.admin.llmUsage.useQuery(
+  const { data: usage, isLoading: usageLoading, isError: usageError } = trpc.admin.llmUsage.useQuery(
     { days: 30 },
     { staleTime: 1000 * 60 * 5, retry: 1 },
   );
-  const { data: errors } = trpc.admin.llmErrors.useQuery(
+  const { data: errors, isError: errorsError } = trpc.admin.llmErrors.useQuery(
     { limit: 20 },
     { staleTime: 1000 * 60 * 5, retry: 1 },
   );
-  const { data: cacheStats } = trpc.admin.llmCacheStats.useQuery(
+  const { data: cacheStats, isError: cacheError } = trpc.admin.llmCacheStats.useQuery(
     undefined,
     { staleTime: 1000 * 60 * 5, retry: 1 },
   );
-  const { data: topUsers } = trpc.admin.llmTopUsers.useQuery(
+  const { data: topUsers, isError: topUsersError } = trpc.admin.llmTopUsers.useQuery(
     { days: 30, limit: 10 },
     { staleTime: 1000 * 60 * 5, retry: 1 },
   );
 
   const isLoading = costsLoading || usageLoading;
+  const hasErrors = costsError || usageError || errorsError || cacheError || topUsersError;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -45,6 +46,29 @@ export default function AiOpsPage() {
           LLM usage, costs, and performance (last 30 days)
         </p>
       </div>
+
+      {/* Error banner */}
+      {hasErrors && (
+        <div style={{
+          padding: '10px 16px', borderRadius: 10,
+          background: `${t.rose}12`, border: `1px solid ${t.rose}25`,
+          fontFamily: t.body, fontSize: 13, color: t.rose,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <span>Some AI metrics failed to load — data may be incomplete</span>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              padding: '4px 12px', borderRadius: 6,
+              background: `${t.rose}20`, border: 'none',
+              fontFamily: t.body, fontSize: 12, fontWeight: 600, color: t.rose,
+              cursor: 'pointer',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {isLoading ? (
         <div style={{

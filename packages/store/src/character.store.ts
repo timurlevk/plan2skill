@@ -10,10 +10,10 @@ import type {
   ComputedAttributes,
 } from '@plan2skill/types';
 
-const DEFAULT_ATTRIBUTES: CharacterAttributes = { MAS: 10, INS: 10, INF: 10, RES: 10, VER: 10, DIS: 10 };
+const DEFAULT_ATTRIBUTES: CharacterAttributes = { STR: 10, INT: 10, CHA: 10, CON: 10, DEX: 10, WIS: 10 };
 const DEFAULT_COMPUTED: ComputedAttributes = {
   base: { ...DEFAULT_ATTRIBUTES },
-  bonus: { MAS: 0, INS: 0, INF: 0, RES: 0, VER: 0, DIS: 0 },
+  bonus: { STR: 0, INT: 0, CHA: 0, CON: 0, DEX: 0, WIS: 0 },
   total: { ...DEFAULT_ATTRIBUTES },
 };
 

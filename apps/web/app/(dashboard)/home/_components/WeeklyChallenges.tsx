@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
 import type { NeonIconType } from '../../../(onboarding)/_components/NeonIcon';
 import { t } from '../../../(onboarding)/_components/tokens';
+import { useI18nStore } from '@plan2skill/store';
 
 // ─── Weekly Challenges card (Phase 5E, BL-005 redesign) ──────────
 // Type-specific icons, descriptions, difficulty double-coding, reward preview,
@@ -31,44 +32,44 @@ const CHALLENGE_ICONS: Record<string, NeonIconType> = {
 };
 
 // Challenge type → human-readable description
-const CHALLENGE_DESCRIPTIONS: Record<string, (target: number, domain?: string) => string> = {
-  quest_count: (n) => `Complete ${n} quests`,
-  quest_volume: (n) => `Complete ${n} quests`,
-  xp_earn: (n) => `Earn ${n} XP`,
-  xp_target: (n) => `Earn ${n} XP`,
-  review_count: (n) => `Review ${n} skills`,
-  review_sprint: (n) => `Review ${n} skills`,
-  streak_maintain: () => `Keep your streak all week`,
-  streak_guard: () => `Keep your streak all week`,
-  accuracy: (n) => `Score ${n}%+ accuracy`,
-  domain_variety: (n) => `Quest in ${n} domains`,
-  domain_focus: (n, d) => `Complete ${n} ${d ?? ''} quests`.trim(),
-  time_spent: (n) => `Train for ${n} minutes`,
-  perfect_day: (n) => `Have ${n} Perfect Day${n > 1 ? 's' : ''}`,
-  mastery_push: (n) => `Level up ${n} skill${n > 1 ? 's' : ''}`,
+const CHALLENGE_DESCRIPTIONS: Record<string, (n: number, tr: (key: string, fallback?: string) => string, domain?: string) => string> = {
+  quest_count: (n, tr) => tr('weekly.challenge_complete_quests', 'Complete {n} quests').replace('{n}', String(n)),
+  quest_volume: (n, tr) => tr('weekly.challenge_complete_quests', 'Complete {n} quests').replace('{n}', String(n)),
+  xp_earn: (n, tr) => tr('weekly.challenge_earn_xp', 'Earn {n} XP').replace('{n}', String(n)),
+  xp_target: (n, tr) => tr('weekly.challenge_earn_xp', 'Earn {n} XP').replace('{n}', String(n)),
+  review_count: (n, tr) => tr('weekly.challenge_review_skills', 'Review {n} skills').replace('{n}', String(n)),
+  review_sprint: (n, tr) => tr('weekly.challenge_review_skills', 'Review {n} skills').replace('{n}', String(n)),
+  streak_maintain: (_n, tr) => tr('weekly.challenge_keep_streak', 'Keep your streak all week'),
+  streak_guard: (_n, tr) => tr('weekly.challenge_keep_streak', 'Keep your streak all week'),
+  accuracy: (n, tr) => tr('weekly.challenge_score_accuracy', 'Score {n}%+ accuracy').replace('{n}', String(n)),
+  domain_variety: (n, tr) => tr('weekly.challenge_quest_domains', 'Quest in {n} domains').replace('{n}', String(n)),
+  domain_focus: (n, tr, d) => tr('weekly.challenge_domain_focus', 'Complete {n} {domain} quests').replace('{n}', String(n)).replace('{domain}', d ?? ''),
+  time_spent: (n, tr) => tr('weekly.challenge_train_minutes', 'Train for {n} minutes').replace('{n}', String(n)),
+  perfect_day: (n, tr) => tr('weekly.challenge_perfect_days', 'Have {n} Perfect Day(s)').replace('{n}', String(n)),
+  mastery_push: (n, tr) => tr('weekly.challenge_level_skills', 'Level up {n} skill(s)').replace('{n}', String(n)),
 };
 
 // Challenge type → contextual hint for expanded view
 const CHALLENGE_HINTS: Record<string, string> = {
-  quest_count: 'Complete any quests — daily or roadmap',
-  quest_volume: 'Complete any quests — daily or roadmap',
-  xp_earn: 'Every quest, review, and challenge earns XP',
-  xp_target: 'Every quest, review, and challenge earns XP',
-  review_count: 'Practice your skills in the Mastery Hub',
-  review_sprint: 'Practice your skills in the Mastery Hub',
-  streak_maintain: 'Visit each day to keep your streak alive',
-  streak_guard: 'Visit each day to keep your streak alive',
-  accuracy: 'Aim for high scores on quest answers',
-  domain_variety: 'Try quests from different skill domains',
-  domain_focus: 'Focus on your target domain this week',
-  time_spent: 'Every minute of training counts',
-  perfect_day: 'Complete all 5 daily quests in one day',
-  mastery_push: 'Review skills to push them to the next level',
+  quest_count: 'weekly.hint_quests',
+  quest_volume: 'weekly.hint_quests',
+  xp_earn: 'weekly.hint_xp',
+  xp_target: 'weekly.hint_xp',
+  review_count: 'weekly.hint_review',
+  review_sprint: 'weekly.hint_review',
+  streak_maintain: 'weekly.hint_streak',
+  streak_guard: 'weekly.hint_streak',
+  accuracy: 'weekly.hint_accuracy',
+  domain_variety: 'weekly.hint_domains',
+  domain_focus: 'weekly.hint_domain_focus',
+  time_spent: 'weekly.hint_time',
+  perfect_day: 'weekly.hint_perfect',
+  mastery_push: 'weekly.hint_mastery',
 };
 
-function getChallengeDescription(type: string, target: number, domain?: string): string {
+function getChallengeDescription(type: string, target: number, tr: (key: string, fallback?: string) => string, domain?: string): string {
   const fn = CHALLENGE_DESCRIPTIONS[type];
-  return fn ? fn(target, domain) : `Complete ${target} tasks`;
+  return fn ? fn(target, tr, domain) : tr('weekly.challenge_default', 'Complete {n} tasks').replace('{n}', String(target));
 }
 
 // BL-005: Difficulty double-coding — color + Roman numeral + border style
@@ -115,6 +116,7 @@ export function WeeklyChallenges({
   compact = false, style,
 }: WeeklyChallengesProps) {
   const router = useRouter();
+  const tr = useI18nStore((s) => s.t);
 
   // Track recently completed challenges for celebration flash
   const [celebratingId, setCelebratingId] = useState<string | null>(null);
@@ -159,7 +161,9 @@ export function WeeklyChallenges({
   const now = new Date();
   const hoursLeft = Math.max(0, Math.floor((endDate.getTime() - now.getTime()) / 3600000));
   const daysLeft = Math.floor(hoursLeft / 24);
-  const timeLabel = daysLeft > 0 ? `${daysLeft}d ${hoursLeft % 24}h` : `${hoursLeft}h`;
+  const timeLabel = daysLeft > 0
+    ? tr('weekly.time_days', '{d}d {h}h').replace('{d}', String(daysLeft)).replace('{h}', String(hoursLeft % 24))
+    : tr('weekly.time_hours', '{h}h').replace('{h}', String(hoursLeft));
   const timerStyle = getTimerStyle(hoursLeft);
   const completedCount = challenges.filter(c => c.completed).length;
 
@@ -193,7 +197,7 @@ export function WeeklyChallenges({
             color: t.textSecondary, textTransform: 'uppercase' as const,
             letterSpacing: '0.06em', flex: 1,
           }}>
-            Weekly Quests
+            {tr('weekly.title', 'Weekly Quests')}
           </span>
           <span style={{
             fontFamily: t.mono, fontSize: 9, color: timerStyle.color,
@@ -215,7 +219,7 @@ export function WeeklyChallenges({
           const icon = CHALLENGE_ICONS[c.type] ?? 'target';
           const nearComplete = c.progress >= 0.8 && !c.completed;
           const pct = Math.min(100, c.progress * 100);
-          const desc = getChallengeDescription(c.type, c.targetValue);
+          const desc = getChallengeDescription(c.type, c.targetValue, tr);
           const isHovered = hoveredRow === c.id;
           return (
             <div
@@ -249,7 +253,7 @@ export function WeeklyChallenges({
                 role="progressbar"
                 aria-valuenow={c.currentValue}
                 aria-valuemax={c.targetValue}
-                aria-label={`${desc}: ${c.currentValue} of ${c.targetValue}`}
+                aria-label={tr('weekly.aria_progress', '{desc}: {current} of {target}').replace('{desc}', desc).replace('{current}', String(c.currentValue)).replace('{target}', String(c.targetValue))}
                 style={{
                   width: 40, height: 4, borderRadius: 2,
                   background: t.border, overflow: 'hidden',
@@ -277,7 +281,7 @@ export function WeeklyChallenges({
                 fontFamily: t.mono, fontSize: 9, fontWeight: 700,
                 color: c.completed ? t.cyan : t.gold,
               }}>
-                +{c.xpReward} XP
+                {tr('weekly.xp_reward', '+{n} XP').replace('{n}', String(c.xpReward))}
               </span>
             </div>
           );
@@ -301,8 +305,8 @@ export function WeeklyChallenges({
             flex: 1,
           }}>
             {allCompleted
-              ? (bonusClaimed ? 'Weekly Champion! +150 XP claimed' : 'Weekly Champion! +150 XP + 🪙 50')
-              : `Complete all 3 → +150 XP bonus`}
+              ? (bonusClaimed ? tr('weekly.champion_compact_claimed', 'Weekly Champion! +150 XP claimed') : tr('weekly.champion_compact_unclaimed', 'Weekly Champion! +150 XP + 🪙 50'))
+              : tr('weekly.bonus_hint', 'Complete all 3 → +150 XP bonus')}
           </span>
         </div>
       </div>
@@ -337,7 +341,7 @@ export function WeeklyChallenges({
           color: t.textSecondary, textTransform: 'uppercase' as const,
           letterSpacing: '0.06em', flex: 1,
         }}>
-          Weekly Quests
+          {tr('weekly.title', 'Weekly Quests')}
         </span>
         <span style={{
           fontFamily: t.mono, fontSize: 10,
@@ -361,7 +365,7 @@ export function WeeklyChallenges({
         const nearComplete = c.progress >= 0.8 && !c.completed;
         const pct = Math.min(100, c.progress * 100);
         const isCelebrating = celebratingId === c.id;
-        const desc = getChallengeDescription(c.type, c.targetValue);
+        const desc = getChallengeDescription(c.type, c.targetValue, tr);
         const hint = CHALLENGE_HINTS[c.type] ?? '';
         const isHovered = hoveredRow === c.id;
         return (
@@ -407,7 +411,7 @@ export function WeeklyChallenges({
                 </span>
                 {/* Difficulty double-coded: color + numeral + border */}
                 <span
-                  aria-label={`Difficulty: ${c.difficulty}`}
+                  aria-label={tr('weekly.aria_difficulty', 'Difficulty: {level}').replace('{level}', c.difficulty)}
                   style={{
                     fontFamily: t.mono, fontSize: 9, fontWeight: 800,
                     color: diff.color,
@@ -427,7 +431,7 @@ export function WeeklyChallenges({
                   marginBottom: 6, paddingLeft: 22,
                   fontStyle: 'italic' as const,
                 }}>
-                  {hint}
+                  {tr(hint, hint)}
                 </div>
               )}
 
@@ -437,7 +441,7 @@ export function WeeklyChallenges({
                   role="progressbar"
                   aria-valuenow={c.currentValue}
                   aria-valuemax={c.targetValue}
-                  aria-label={`${desc}: ${c.currentValue} of ${c.targetValue}`}
+                  aria-label={tr('weekly.aria_progress', '{desc}: {current} of {target}').replace('{desc}', desc).replace('{current}', String(c.currentValue)).replace('{target}', String(c.targetValue))}
                   style={{
                     flex: 1, height: 4, borderRadius: 2,
                     background: t.border, overflow: 'hidden',
@@ -473,7 +477,7 @@ export function WeeklyChallenges({
                 fontFamily: t.mono, fontSize: 10, fontWeight: 700,
               }}>
                 <span style={{ color: c.completed ? t.cyan : t.gold }}>
-                  +{c.xpReward} XP
+                  {tr('weekly.xp_reward', '+{n} XP').replace('{n}', String(c.xpReward))}
                 </span>
                 {c.coinReward > 0 && (
                   <span style={{ color: c.completed ? t.cyan : t.gold }}>
@@ -485,7 +489,7 @@ export function WeeklyChallenges({
                     marginLeft: 'auto', fontSize: 9,
                     color: t.cyan, fontWeight: 700,
                   }}>
-                    Claimed
+                    {tr('weekly.claimed', 'Claimed')}
                   </span>
                 )}
               </div>
@@ -512,16 +516,16 @@ export function WeeklyChallenges({
             color: allCompleted ? t.gold : t.text,
           }}>
             {allCompleted
-              ? (bonusClaimed ? 'Weekly Champion! Bonus claimed' : 'Weekly Champion!')
-              : 'Weekly Champion'}
+              ? (bonusClaimed ? tr('weekly.champion_claimed', 'Weekly Champion! Bonus claimed') : tr('weekly.champion_unclaimed', 'Weekly Champion!'))
+              : tr('weekly.champion', 'Weekly Champion')}
           </div>
           <div style={{
             fontFamily: t.mono, fontSize: 10,
             color: allCompleted ? t.gold : t.textMuted,
           }}>
             {allCompleted
-              ? '+150 XP + 🪙 50'
-              : `${completedCount}/3 completed → +150 XP + 🪙 50 bonus`}
+              ? tr('weekly.champion_reward', '+150 XP + 🪙 50')
+              : tr('weekly.champion_progress', '{n}/3 completed → +150 XP + 🪙 50 bonus').replace('{n}', String(completedCount))}
           </div>
         </div>
         {allCompleted && (

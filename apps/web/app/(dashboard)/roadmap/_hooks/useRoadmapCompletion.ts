@@ -18,7 +18,7 @@ export function useRoadmapCompletion() {
   const isWhatsNext = state.matches('whatsNext') || state.matches('optionSelected');
 
   // Fetch completion stats when celebrating
-  const { data: stats } = trpc.roadmap.completionStats.useQuery(
+  const { data: stats, isError: statsError } = trpc.roadmap.completionStats.useQuery(
     { roadmapId: roadmapId! },
     {
       enabled: !!roadmapId && isCelebrating && !state.context.stats,
@@ -27,7 +27,7 @@ export function useRoadmapCompletion() {
   );
 
   // Fetch trending domains when showing What's Next
-  const { data: trending } = trpc.roadmap.trending.useQuery(undefined, {
+  const { data: trending, isError: trendingError } = trpc.roadmap.trending.useQuery(undefined, {
     enabled: isWhatsNext,
     staleTime: 1000 * 60 * 10, // 10min
   });
@@ -41,12 +41,29 @@ export function useRoadmapCompletion() {
     },
   );
 
+  // prefers-reduced-motion: skip celebration animation immediately (Крок 9 / MICRO_ANIMATION_GUIDELINES §10)
+  useEffect(() => {
+    if (!isCelebrating) return;
+    const prefersReducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion && state.matches('celebrating')) {
+      send({ type: 'SKIP' });
+    }
+  }, [isCelebrating, state, send]);
+
   // Hydrate stats into machine context when they arrive
   useEffect(() => {
     if (stats && isCelebrating) {
       send({ type: 'STATS_LOADED', stats: stats as any });
     }
   }, [stats, isCelebrating, send]);
+
+  // Phase W5: Unblock machine if stats query fails — send fallback stats
+  useEffect(() => {
+    if (statsError && isCelebrating && !state.context.stats) {
+      send({ type: 'STATS_LOADED', stats: { totalTasks: 0, daysSpent: 0, xpEarned: 0 } as any });
+      console.warn('[RoadmapCompletion] Stats query failed, using fallback');
+    }
+  }, [statsError, isCelebrating, state.context.stats, send]);
 
   const overdueReviewCount = dueReviews ? (Array.isArray(dueReviews) ? dueReviews.length : 0) : 0;
 
@@ -60,5 +77,7 @@ export function useRoadmapCompletion() {
     isWhatsNext,
     isDone: state.matches('done'),
     isIdle: state.matches('idle'),
+    statsError,
+    trendingError,
   };
 }

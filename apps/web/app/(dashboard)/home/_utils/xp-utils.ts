@@ -14,13 +14,17 @@ export function rollBonusXP(baseXP: number): BonusResult {
 
 // ─── Daily Quest Proximity Messaging (Goal-Gradient Effect) ───
 
-export function getDailyProgressMessage(completed: number, total: number): string {
-  if (completed === 0) return 'Begin your journey, hero!';
-  if (completed === total) return 'All quests conquered! Glorious!';
+export function getDailyProgressMessage(
+  completed: number,
+  total: number,
+  tr: (key: string, fallback: string) => string = (_k, fb) => fb,
+): string {
+  if (completed === 0) return tr('progress.begin', 'Begin your journey, hero!');
+  if (completed === total) return tr('progress.all_done', 'All quests conquered! Glorious!');
   const remaining = total - completed;
-  if (remaining === 1) return 'One quest away from glory!';
-  if (completed / total >= 0.5) return 'Over halfway — keep the momentum!';
-  return `${remaining} quests remain on your path`;
+  if (remaining === 1) return tr('progress.one_left', 'One quest away from glory!');
+  if (completed / total >= 0.5) return tr('progress.halfway', 'Over halfway — keep the momentum!');
+  return tr('progress.remaining', '{n} quests remain on your path').replace('{n}', String(remaining));
 }
 
 // ─── Greeting ───

@@ -1,19 +1,20 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { t } from '../../../(onboarding)/_components/tokens';
+import { useI18nStore } from '@plan2skill/store';
 
 // ─── Mastery Ring — per-skill mastery indicator (Phase 5D) ──────
 // Displays SM-2 mastery level as a circular progress ring.
 // Design tokens from EFA §6.5 + MASTERY_RING_SPEC.md
 
 const MASTERY_TOKENS = [
-  { level: 0, color: '#71717A', ring: 0.0, label: 'New', glow: false },
-  { level: 1, color: '#6EE7B7', ring: 0.2, label: 'Attempted', glow: false },
-  { level: 2, color: '#3B82F6', ring: 0.4, label: 'Familiar', glow: false },
-  { level: 3, color: '#9D7AFF', ring: 0.6, label: 'Proficient', glow: false },
-  { level: 4, color: '#4ECDC4', ring: 0.8, label: 'Advanced', glow: false },
-  { level: 5, color: '#FFD166', ring: 1.0, label: 'Mastered', glow: true },
+  { level: 0, color: t.textMuted, ring: 0.0, label: 'New', labelKey: 'mastery.new', glow: false },
+  { level: 1, color: t.mint, ring: 0.2, label: 'Attempted', labelKey: 'mastery.attempted', glow: false },
+  { level: 2, color: t.indigo, ring: 0.4, label: 'Familiar', labelKey: 'mastery.familiar', glow: false },
+  { level: 3, color: t.violet, ring: 0.6, label: 'Proficient', labelKey: 'mastery.proficient', glow: false },
+  { level: 4, color: t.cyan, ring: 0.8, label: 'Advanced', labelKey: 'mastery.advanced', glow: false },
+  { level: 5, color: t.gold, ring: 1.0, label: 'Mastered', labelKey: 'mastery.mastered', glow: true },
 ];
 
 const DOMAIN_ICONS: Record<string, string> = {
@@ -48,17 +49,31 @@ export function MasteryRing({
   onClick,
   style,
 }: MasteryRingProps) {
+  const tr = useI18nStore((s) => s.t);
   const token = MASTERY_TOKENS[masteryLevel] ?? MASTERY_TOKENS[0];
   const dim = SIZES[size];
   const circumference = 2 * Math.PI * dim.radius;
   const dashOffset = circumference * (1 - (token?.ring ?? 0));
   const domainIcon = DOMAIN_ICONS[skillDomain] ?? DOMAIN_ICONS.general;
 
+  // Hover state for interactive rings
+  const [isHovered, setIsHovered] = useState(false);
+
+  // prefers-reduced-motion guard
+  const prefersReduced = useRef(false);
+  useEffect(() => {
+    prefersReduced.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }, []);
+
+  const isMastered = masteryLevel === 5;
+
   return (
     <div
       onClick={onClick}
+      onMouseEnter={onClick ? () => setIsHovered(true) : undefined}
+      onMouseLeave={onClick ? () => setIsHovered(false) : undefined}
       role="img"
-      aria-label={`Skill: ${skillDomain}, Mastery: ${token?.label ?? 'New'} (${masteryLevel}/5)`}
+      aria-label={tr('mastery.aria_ring', 'Skill: {domain}, Mastery: {label} ({level}/5)').replace('{domain}', skillDomain).replace('{label}', tr(token?.labelKey ?? 'mastery.new', token?.label ?? 'New')).replace('{level}', String(masteryLevel))}
       style={{
         display: 'inline-flex',
         flexDirection: 'column',
@@ -66,17 +81,29 @@ export function MasteryRing({
         gap: 6,
         cursor: onClick ? 'pointer' : 'default',
         position: 'relative',
+        transform: isHovered && onClick ? 'scale(1.05)' : 'scale(1)',
+        transition: 'transform 0.2s ease',
         ...style,
       }}
     >
-      <div style={{ position: 'relative', width: dim.size, height: dim.size }}>
+      {/* Mastered glow wrapper — animated boxShadow for level 5, guarded */}
+      <div style={{
+        position: 'relative', width: dim.size, height: dim.size,
+        borderRadius: '50%',
+        ...(isMastered && !prefersReduced.current
+          ? { animation: 'glowPulse 8s ease-in-out infinite', boxShadow: `0 0 12px ${token?.color ?? t.gold}40` }
+          : {}),
+      }}>
         <svg
           viewBox={`0 0 ${dim.size} ${dim.size}`}
           width={dim.size}
           height={dim.size}
           style={{
-            ...(token?.glow
+            ...(token?.glow && prefersReduced.current
               ? { filter: `drop-shadow(0 0 8px ${token.color}60)` }
+              : {}),
+            ...(token?.glow && !prefersReduced.current
+              ? {} // glow handled by wrapper animation
               : {}),
           }}
         >
@@ -97,7 +124,7 @@ export function MasteryRing({
               cy={dim.size / 2}
               r={dim.radius}
               fill="none"
-              stroke={token?.color ?? '#71717A'}
+              stroke={token?.color ?? t.textMuted}
               strokeWidth={dim.stroke}
               strokeLinecap="round"
               strokeDasharray={circumference}
@@ -119,10 +146,10 @@ export function MasteryRing({
           </text>
         </svg>
 
-        {/* Overdue dot */}
+        {/* Overdue dot — pulse animation when due, guarded by reduced-motion */}
         {isOverdue && (
           <div
-            aria-label="Review overdue"
+            aria-label={tr('mastery.aria_overdue', 'Review overdue')}
             role="status"
             style={{
               position: 'absolute',
@@ -131,7 +158,8 @@ export function MasteryRing({
               width: 8,
               height: 8,
               borderRadius: '50%',
-              background: '#FF6B8A',
+              background: t.rose,
+              animation: prefersReduced.current ? 'none' : 'pulse 2s ease-in-out infinite',
             }}
           />
         )}
@@ -141,10 +169,10 @@ export function MasteryRing({
       {showLabel && (
         <span
           style={{
-            fontFamily: '"Inter", system-ui, sans-serif',
+            fontFamily: t.body,
             fontSize: size === 'sm' ? 9 : 11,
             fontWeight: 600,
-            color: token?.color ?? '#71717A',
+            color: token?.color ?? t.textMuted,
             textAlign: 'center',
             lineHeight: 1.2,
             maxWidth: dim.size + 8,
@@ -153,7 +181,7 @@ export function MasteryRing({
             whiteSpace: 'nowrap',
           }}
         >
-          {token?.label ?? 'New'}
+          {tr(token?.labelKey ?? 'mastery.new', token?.label ?? 'New')}
         </span>
       )}
     </div>

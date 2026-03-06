@@ -1,13 +1,11 @@
 import { create } from 'zustand';
-import type { Roadmap, Task, RoadmapCompletionStats, TrendingDomain } from '@plan2skill/types';
+import type { Roadmap, Task, RoadmapCompletionStats, TrendingDomain, RoadmapStatus } from '@plan2skill/types';
 
 interface RoadmapState {
   roadmaps: Roadmap[];
   activeRoadmap: Roadmap | null;
   todaysTasks: Task[];
   isGenerating: boolean;
-  forgeProgress: number;
-  forgePhase: string;
   // BL-007: Completion stats + trending
   completionStats: RoadmapCompletionStats | null;
   trendingDomains: TrendingDomain[];
@@ -15,10 +13,14 @@ interface RoadmapState {
   setRoadmaps: (roadmaps: Roadmap[]) => void;
   setActiveRoadmap: (roadmap: Roadmap | null) => void;
   setTodaysTasks: (tasks: Task[]) => void;
-  setForgeState: (isGenerating: boolean, progress: number, phase: string) => void;
+  setGenerating: (isGenerating: boolean) => void;
   updateTaskStatus: (taskId: string, status: string) => void;
   setCompletionStats: (stats: RoadmapCompletionStats | null) => void;
   setTrendingDomains: (domains: TrendingDomain[]) => void;
+  // Phase 5H: Roadmap lifecycle
+  pauseRoadmap: (roadmapId: string) => void;
+  resumeRoadmap: (roadmapId: string) => void;
+  updateRoadmap: (roadmap: Roadmap) => void;
   reset: () => void;
 }
 
@@ -27,16 +29,13 @@ export const useRoadmapStore = create<RoadmapState>((set) => ({
   activeRoadmap: null,
   todaysTasks: [],
   isGenerating: false,
-  forgeProgress: 0,
-  forgePhase: '',
   completionStats: null,
   trendingDomains: [],
 
   setRoadmaps: (roadmaps) => set({ roadmaps }),
   setActiveRoadmap: (activeRoadmap) => set({ activeRoadmap }),
   setTodaysTasks: (todaysTasks) => set({ todaysTasks }),
-  setForgeState: (isGenerating, forgeProgress, forgePhase) =>
-    set({ isGenerating, forgeProgress, forgePhase }),
+  setGenerating: (isGenerating) => set({ isGenerating }),
   updateTaskStatus: (taskId, status) =>
     set((s) => ({
       todaysTasks: s.todaysTasks.map((t) =>
@@ -45,14 +44,29 @@ export const useRoadmapStore = create<RoadmapState>((set) => ({
     })),
   setCompletionStats: (completionStats) => set({ completionStats }),
   setTrendingDomains: (trendingDomains) => set({ trendingDomains }),
+  // Phase 5H: optimistic status updates
+  pauseRoadmap: (roadmapId) =>
+    set((s) => ({
+      roadmaps: s.roadmaps.map((r) =>
+        r.id === roadmapId ? { ...r, status: 'paused' as RoadmapStatus } : r,
+      ),
+    })),
+  resumeRoadmap: (roadmapId) =>
+    set((s) => ({
+      roadmaps: s.roadmaps.map((r) =>
+        r.id === roadmapId ? { ...r, status: 'active' as RoadmapStatus } : r,
+      ),
+    })),
+  updateRoadmap: (roadmap) =>
+    set((s) => ({
+      roadmaps: s.roadmaps.map((r) => (r.id === roadmap.id ? roadmap : r)),
+    })),
   reset: () =>
     set({
       roadmaps: [],
       activeRoadmap: null,
       todaysTasks: [],
       isGenerating: false,
-      forgeProgress: 0,
-      forgePhase: '',
       completionStats: null,
       trendingDomains: [],
     }),

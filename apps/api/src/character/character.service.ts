@@ -1,10 +1,27 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService } from '../ai/core/cache.service';
 import type { ArchetypeId, CharacterId, CompanionId } from '@plan2skill/types';
+
+/**
+ * Diminishing returns for attribute growth.
+ * Canonical formula — ОДНА СКРІЗЬ (client: level-utils.ts, server: here).
+ * Scale factor: linear from 1.0 (at base 10) to 0.0 (at cap 100).
+ * Always grants minimum 1 if below cap and rawGrowth > 0.
+ */
+function attributeGrowth(rawGrowth: number, currentValue: number): number {
+  if (currentValue >= 100 || rawGrowth <= 0) return 0;
+  const remaining = (100 - currentValue) / 90;
+  const effective = rawGrowth * remaining;
+  return Math.max(1, Math.round(effective));
+}
 
 @Injectable()
 export class CharacterService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cacheService: CacheService,
+  ) {}
 
   async getCharacter(userId: string) {
     const character = await this.prisma.character.findUnique({
@@ -31,32 +48,46 @@ export class CharacterService {
         archetypeId,
         companionId,
         evolutionTier: 'novice',
-        mastery: 10,
-        insight: 10,
-        influence: 10,
-        resilience: 10,
-        versatility: 10,
-        discovery: 10,
+        strength: 10,
+        intelligence: 10,
+        charisma: 10,
+        constitution: 10,
+        dexterity: 10,
+        wisdom: 10,
       },
       include: { equipment: true },
     });
+
+    this.cacheService.invalidateForEvent(userId, 'character_change').catch(() => {});
 
     return this.mapCharacter(character);
   }
 
   async updateArchetype(userId: string, archetypeId: ArchetypeId) {
-    return this.prisma.character.update({
+    const result = await this.prisma.character.update({
       where: { userId },
       data: { archetypeId },
     });
+    await this.cacheService.invalidateForEvent(userId, 'character_change');
+    return result;
   }
 
-  async addAttribute(userId: string, attribute: string, amount: number) {
+  /** Add attribute with diminishing returns (Phase 5H). Returns effective growth amount. */
+  async addAttribute(userId: string, attribute: string, rawAmount: number): Promise<number> {
     const field = this.attributeField(attribute);
-    return this.prisma.character.update({
+    const character = await this.prisma.character.findUnique({ where: { userId } });
+    if (!character) return 0;
+
+    const currentValue = (character as any)[field] ?? 10;
+    const effective = attributeGrowth(rawAmount, currentValue);
+    if (effective <= 0) return 0;
+
+    await this.prisma.character.update({
       where: { userId },
-      data: { [field]: { increment: amount } },
+      data: { [field]: { increment: effective } },
     });
+    await this.cacheService.invalidateForEvent(userId, 'character_change');
+    return effective;
   }
 
   async checkEvolution(userId: string) {
@@ -64,12 +95,12 @@ export class CharacterService {
     if (!character) return null;
 
     const totalAttrs =
-      character.mastery +
-      character.insight +
-      character.influence +
-      character.resilience +
-      character.versatility +
-      character.discovery;
+      character.strength +
+      character.intelligence +
+      character.charisma +
+      character.constitution +
+      character.dexterity +
+      character.wisdom;
 
     let newTier = 'novice';
     if (totalAttrs >= 300) newTier = 'master';
@@ -81,6 +112,7 @@ export class CharacterService {
         where: { userId },
         data: { evolutionTier: newTier },
       });
+      this.cacheService.invalidateForEvent(userId, 'character_change').catch(() => {});
       return newTier;
     }
     return null;
@@ -88,14 +120,14 @@ export class CharacterService {
 
   private attributeField(attr: string): string {
     const map: Record<string, string> = {
-      MAS: 'mastery',
-      INS: 'insight',
-      INF: 'influence',
-      RES: 'resilience',
-      VER: 'versatility',
-      DIS: 'discovery',
+      STR: 'strength',
+      INT: 'intelligence',
+      CHA: 'charisma',
+      CON: 'constitution',
+      DEX: 'dexterity',
+      WIS: 'wisdom',
     };
-    return map[attr] || 'mastery';
+    return map[attr] || 'strength';
   }
 
   private mapCharacter(character: {
@@ -105,12 +137,12 @@ export class CharacterService {
     archetypeId: string;
     evolutionTier: string;
     companionId: string | null;
-    mastery: number;
-    insight: number;
-    influence: number;
-    resilience: number;
-    versatility: number;
-    discovery: number;
+    strength: number;
+    intelligence: number;
+    charisma: number;
+    constitution: number;
+    dexterity: number;
+    wisdom: number;
     createdAt: Date;
     updatedAt: Date;
     equipment: Array<{
@@ -130,12 +162,12 @@ export class CharacterService {
       evolutionTier: character.evolutionTier,
       companionId: character.companionId,
       attributes: {
-        MAS: character.mastery,
-        INS: character.insight,
-        INF: character.influence,
-        RES: character.resilience,
-        VER: character.versatility,
-        DIS: character.discovery,
+        STR: character.strength,
+        INT: character.intelligence,
+        CHA: character.charisma,
+        CON: character.constitution,
+        DEX: character.dexterity,
+        WIS: character.wisdom,
       },
       equipment: character.equipment.map((e) => ({
         id: e.id,

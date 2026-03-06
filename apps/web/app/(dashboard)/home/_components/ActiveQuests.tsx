@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useRoadmapStore, useOnboardingStore } from '@plan2skill/store';
+import { useRoadmapStore, useOnboardingStore, useI18nStore } from '@plan2skill/store';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
 import { t, rarity, skillLevelRarity } from '../../../(onboarding)/_components/tokens';
 import type { GoalSelection, SkillAssessment, Roadmap, Milestone, Task, Rarity, MilestoneStatus, TaskStatus, TaskType, RoadmapStatus } from '@plan2skill/types';
@@ -76,9 +76,19 @@ interface ActiveQuestsProps {
 }
 
 export function ActiveQuests({ selectedGoals, skillAssessments }: ActiveQuestsProps) {
+  const tr = useI18nStore((s) => s.t);
   const router = useRouter();
   const serverRoadmaps = useRoadmapStore((s) => s.roadmaps);
   const { dailyMinutes, aiEstimateWeeks } = useOnboardingStore();
+
+  // prefers-reduced-motion guard
+  const prefersReduced = useRef(false);
+  useEffect(() => {
+    prefersReduced.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }, []);
+
+  // Hover state for quest line cards
+  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
 
   // Resolve roadmaps: server data or mock from onboarding
   const roadmaps = useMemo<Roadmap[]>(() => {
@@ -96,8 +106,8 @@ export function ActiveQuests({ selectedGoals, skillAssessments }: ActiveQuestsPr
         color: t.textSecondary, textTransform: 'uppercase',
         letterSpacing: '0.08em', marginBottom: 14,
       }}>
-        <NeonIcon type="compass" size={14} color="cyan" />
-        Quest Lines
+        <NeonIcon type="scroll" size={14} color="cyan" />
+        {tr('dashboard.quest_lines', 'Quest Lines')}
       </h2>
 
       {roadmaps.length === 0 ? (
@@ -106,14 +116,17 @@ export function ActiveQuests({ selectedGoals, skillAssessments }: ActiveQuestsPr
           background: t.bgCard, border: `1px solid ${t.border}`,
           textAlign: 'center',
         }}>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
-            <NeonIcon type="compass" size={40} color="muted" />
+          <div style={{
+            display: 'flex', justifyContent: 'center', marginBottom: 12,
+            animation: prefersReduced.current ? 'none' : 'float 3s ease-in-out infinite',
+          }}>
+            <NeonIcon type="scroll" size={40} color="muted" />
           </div>
           <p style={{ fontFamily: t.display, fontSize: 16, fontWeight: 700, color: t.textMuted, marginBottom: 4 }}>
-            No quest lines yet, hero!
+            {tr('dashboard.no_quest_lines', 'No quest lines yet, hero!')}
           </p>
           <p style={{ fontFamily: t.body, fontSize: 13, color: t.textMuted }}>
-            Complete onboarding to begin your journey
+            {tr('quest.begin_journey', 'Complete onboarding to begin your journey')}
           </p>
         </div>
       ) : (
@@ -136,24 +149,21 @@ export function ActiveQuests({ selectedGoals, skillAssessments }: ActiveQuestsPr
             const borderColor = isCompleted ? t.gold : t.border;
 
             return (
+              <div key={rm.id} style={{ animation: `fadeUp 0.4s ease-out ${i * 0.1}s both` }}>
               <button
-                key={rm.id}
                 onClick={() => router.push(`/roadmap/${rm.id}`)}
+                onMouseEnter={() => setHoveredCard(rm.id)}
+                onMouseLeave={() => setHoveredCard(null)}
                 style={{
                   padding: 20, borderRadius: 16,
-                  background: t.bgCard, border: `1px solid ${borderColor}`,
-                  animation: `fadeUp 0.4s ease-out ${i * 0.1}s both`,
-                  transition: 'all 0.2s ease',
+                  background: t.bgCard,
+                  border: `1px solid ${hoveredCard === rm.id ? (isCompleted ? t.gold : t.violet) : borderColor}`,
+                  transition: 'border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease',
                   cursor: 'pointer', textAlign: 'left', width: '100%',
-                  boxShadow: isCompleted ? `0 0 12px ${t.gold}20` : 'none',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = isCompleted ? t.gold : t.violet;
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = borderColor;
-                  e.currentTarget.style.transform = 'translateY(0)';
+                  transform: hoveredCard === rm.id ? 'translateY(-2px)' : 'translateY(0)',
+                  boxShadow: hoveredCard === rm.id
+                    ? `0 8px 24px rgba(0,0,0,0.25)${isCompleted ? `, 0 0 12px ${t.gold}20` : ''}`
+                    : (isCompleted ? `0 0 12px ${t.gold}20` : 'none'),
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
@@ -199,7 +209,7 @@ export function ActiveQuests({ selectedGoals, skillAssessments }: ActiveQuestsPr
                           color: t.gold, background: `${t.gold}15`,
                           textTransform: 'uppercase',
                         }}>
-                          Quest Line Complete!
+                          {tr('quest.line_complete', 'Quest Line Complete!')}
                         </span>
                       )}
                     </div>
@@ -212,71 +222,143 @@ export function ActiveQuests({ selectedGoals, skillAssessments }: ActiveQuestsPr
                   </span>
                 </div>
 
-                {/* Mini-timeline dots */}
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  marginBottom: 10,
-                }}>
-                  {rm.milestones.map((ms, j) => {
-                    const msCompleted = ms.status === 'completed';
-                    const msActive = ms.status === 'active';
-                    const isBoss = j === rm.milestones.length - 1;
-                    return (
-                      <React.Fragment key={ms.id}>
-                        {j > 0 && (
-                          <div style={{
-                            flex: 1, height: 2, borderRadius: 1,
-                            background: msCompleted
-                              ? `linear-gradient(90deg, ${t.cyan}, ${t.violet})`
-                              : t.border,
-                          }} />
-                        )}
-                        <div style={{
-                          width: isBoss ? 10 : 7,
-                          height: isBoss ? 10 : 7,
-                          borderRadius: '50%', flexShrink: 0,
-                          background: msCompleted ? t.cyan : msActive ? t.violet : '#252530',
-                          border: msActive ? `2px solid ${t.violet}` : 'none',
-                          boxShadow: msActive ? `0 0 6px ${t.violet}50` : 'none',
-                          animation: msActive ? 'pulse 2s ease-in-out infinite' : 'none',
-                        }} />
-                      </React.Fragment>
-                    );
-                  })}
-                </div>
-
-                {/* Progress bar */}
-                <div style={{ height: 4, borderRadius: 2, background: '#252530', overflow: 'hidden' }}>
+                {/* ── Horizontal milestone path ── */}
+                <div style={{ position: 'relative', padding: '6px 0 28px', margin: '4px 0 0' }}>
+                  {/* Background track line */}
                   <div style={{
-                    width: `${progress}%`, height: '100%', borderRadius: 3,
-                    background: isCompleted
-                      ? `linear-gradient(90deg, ${t.gold}, ${t.cyan})`
-                      : t.gradient,
-                    transition: 'width 0.6s ease-out',
+                    position: 'absolute',
+                    top: 20, left: 16, right: 16,
+                    height: 3, borderRadius: 2,
+                    background: t.border,
                   }} />
+                  {/* Progress fill on track */}
+                  <div style={{
+                    position: 'absolute',
+                    top: 20, left: 16, right: 16,
+                    height: 3, borderRadius: 2,
+                    overflow: 'hidden',
+                  }}>
+                    <div style={{
+                      width: '100%', height: '100%',
+                      background: isCompleted
+                        ? `linear-gradient(90deg, ${t.gold}, ${t.cyan})`
+                        : t.gradient,
+                      transform: `scaleX(${progress / 100})`,
+                      transformOrigin: 'left',
+                      transition: 'transform 0.6s ease-out',
+                      boxShadow: progress >= 85 && !isCompleted && !prefersReduced.current
+                        ? `0 0 8px rgba(78,205,196,0.3)` : 'none',
+                    }} />
+                  </div>
+
+                  {/* Milestone icons on the line */}
+                  <div style={{
+                    position: 'relative', display: 'flex',
+                    justifyContent: 'space-between', alignItems: 'flex-start',
+                    padding: '0 4px',
+                  }}>
+                    {rm.milestones.map((ms, j) => {
+                      const msCompleted = ms.status === 'completed';
+                      const msActive = ms.status === 'active';
+                      const isBoss = j === rm.milestones.length - 1;
+                      const iconSize = isBoss ? 22 : 16;
+                      const nodeSize = isBoss ? 34 : 26;
+
+                      const iconColor = msCompleted
+                        ? (isBoss ? t.gold : t.cyan)
+                        : msActive
+                          ? t.violet
+                          : t.textMuted;
+
+                      return (
+                        <div key={ms.id} style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center',
+                          flex: 1, minWidth: 0,
+                        }}>
+                          {/* Icon node */}
+                          <div style={{
+                            position: 'relative',
+                            width: nodeSize, height: nodeSize,
+                            borderRadius: '50%',
+                            overflow: 'hidden',
+                            background: msCompleted
+                              ? `${iconColor}18`
+                              : msActive
+                                ? `${t.violet}15`
+                                : `${t.border}`,
+                            border: msActive
+                              ? `2px solid ${t.violet}`
+                              : msCompleted
+                                ? `2px solid ${iconColor}40`
+                                : `1px solid ${t.border}`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            boxShadow: msActive
+                              ? `0 0 10px ${t.violet}50`
+                              : msCompleted && isBoss
+                                ? `0 0 12px ${t.gold}30`
+                                : 'none',
+                            animation: msActive && !prefersReduced.current
+                              ? 'pulse 2s ease-in-out infinite' : 'none',
+                            transition: 'all 0.3s ease',
+                          }}>
+                            <NeonIcon
+                              type={isBoss ? 'trophy' : 'medal'}
+                              size={iconSize}
+                              color={iconColor}
+                            />
+                            {/* Shine sweep on locked milestones */}
+                            {!msCompleted && !msActive && !prefersReduced.current && (
+                              <div style={{
+                                position: 'absolute',
+                                top: 0, left: 0, width: '100%', height: '100%',
+                                background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.12) 45%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.12) 55%, transparent 100%)',
+                                animation: `shineSweep ${5 + j * 0.7}s ease-in-out infinite`,
+                                animationDelay: `${j * 1.2}s`,
+                                pointerEvents: 'none',
+                              }} />
+                            )}
+                          </div>
+                          {/* Milestone label */}
+                          <span style={{
+                            fontFamily: t.mono, fontSize: 8, fontWeight: 600,
+                            color: msActive ? t.text : msCompleted ? t.textSecondary : t.textMuted,
+                            textAlign: 'center',
+                            marginTop: 4,
+                            lineHeight: 1.2,
+                            width: '100%',
+                            overflow: 'hidden',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical' as const,
+                          }}>
+                            {ms.title}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                {/* Footer: active milestone + quest count */}
+                {/* Footer: quest count */}
                 <div style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  marginTop: 8,
                 }}>
                   <p style={{
                     fontFamily: t.body, fontSize: 11, color: t.textMuted, margin: 0,
                   }}>
                     {isGenerating
-                      ? 'Forging your quest line...'
+                      ? tr('quest.forging', 'Forging your quest line...')
                       : isCompleted
-                        ? 'All milestones conquered!'
+                        ? tr('quest.all_conquered', 'All milestones conquered!')
                         : activeMilestone
-                          ? `Current milestone: ${activeMilestone.title}`
-                          : 'Ready to begin'}
+                          ? tr('quest.current_milestone', 'Current milestone: {title}').replace('{title}', activeMilestone.title)
+                          : tr('quest.ready', 'Ready to begin')}
                   </p>
                   <span style={{
                     fontFamily: t.mono, fontSize: 10, fontWeight: 700,
                     color: t.textMuted,
                   }}>
-                    {completedQuests}/{totalQuests} quests
+                    {tr('quest.count', '{done}/{total} quests').replace('{done}', String(completedQuests)).replace('{total}', String(totalQuests))}
                   </span>
                 </div>
 
@@ -302,6 +384,7 @@ export function ActiveQuests({ selectedGoals, skillAssessments }: ActiveQuestsPr
                   </div>
                 )}
               </button>
+              </div>
             );
           })}
         </div>

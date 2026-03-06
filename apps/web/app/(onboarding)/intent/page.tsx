@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useOnboardingV2Store } from '@plan2skill/store';
+import { useOnboardingV2Store, useI18nStore } from '@plan2skill/store';
 import { t } from '../_components/tokens';
+import { trpc } from '@plan2skill/api-client';
 import { StepBarV2 } from '../_components/StepBarV2';
 import { NPCBubble } from '../_components/NPCBubble';
-import { IntentCard } from '../_components/IntentCard';
+import { TileCard } from '../_components/TileCard';
+import { TileGrid } from '../_components/TileGrid';
 import { WizardShell } from '../_components/WizardShell';
 import { INTENTS } from '../_data/intents';
 import type { OnboardingIntent } from '@plan2skill/types';
@@ -20,7 +22,30 @@ import type { OnboardingIntent } from '@plan2skill/types';
 export default function IntentPage() {
   const router = useRouter();
   const { intent, setIntent, addXP, completeOnboarding } = useOnboardingV2Store();
+  const locale = useI18nStore((s) => s.locale);
+  const tr = useI18nStore((s) => s.t);
+  const completeOnboardingMutation = trpc.user.completeOnboarding.useMutation();
   const [selected, setSelected] = useState<OnboardingIntent | null>(intent);
+
+  // API data with mock fallback
+  const { data: apiIntents } = trpc.onboarding.intents.useQuery(
+    { locale },
+    { staleTime: 5 * 60 * 1000, retry: 1 },
+  );
+  const intents = useMemo(() => {
+    if (!apiIntents?.length) return INTENTS;
+    return apiIntents.map((ai) => {
+      const mock = INTENTS.find((m) => m.id === ai.id);
+      return {
+        id: ai.id as OnboardingIntent,
+        title: ai.title,
+        description: ai.description,
+        icon: (ai.icon ?? mock?.icon ?? 'target') as typeof INTENTS[number]['icon'],
+        color: ai.color ?? mock?.color ?? '#9D7AFF',
+        nextRoute: mock?.nextRoute ?? ai.nextRoute ?? '/legend',
+      };
+    });
+  }, [apiIntents]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // prefers-reduced-motion
@@ -38,7 +63,7 @@ export default function IntentPage() {
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, []);
 
-  const handleSelect = (intentConfig: typeof INTENTS[number]) => {
+  const handleSelect = (intentConfig: typeof intents[number]) => {
     setSelected(intentConfig.id);
 
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -53,6 +78,7 @@ export default function IntentPage() {
       // "Exploring" skips all steps → complete onboarding immediately
       if (intentConfig.id === 'exploring') {
         completeOnboarding();
+        completeOnboardingMutation.mutate();
       }
       router.push(intentConfig.nextRoute);
     }, advanceDelay);
@@ -68,13 +94,13 @@ export default function IntentPage() {
           color: t.textMuted,
           textAlign: 'center',
         }}>
-          You can always change your path later in Hero Settings
+          {tr('onboarding.step1_footer')}
         </p>
       }
     >
       <NPCBubble
         characterId="sage"
-        message="Welcome, hero! Every great quest begins with a single choice. What brings you here today?"
+        message={tr('npc.intent_welcome')}
         emotion="happy"
       />
 
@@ -90,29 +116,24 @@ export default function IntentPage() {
         letterSpacing: '0.05em',
         marginBottom: 16,
       }}>
-        Choose your path
+        {tr('onboarding.step1_subtitle')}
       </p>
 
       {/* 2×2 Intent Grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(2, 1fr)',
-        gap: 10,
-      }}>
-        {INTENTS.map((intentConfig, i) => (
-          <div key={intentConfig.id} style={{ position: 'relative' }}>
-            <IntentCard
-              icon={intentConfig.icon}
-              color={intentConfig.color}
-              title={intentConfig.title}
-              description={intentConfig.description}
-              selected={selected === intentConfig.id}
-              onClick={() => handleSelect(intentConfig)}
-              index={i}
-            />
-          </div>
+      <TileGrid columns={{ desktop: 2, mobile: 2 }} gap={8}>
+        {intents.map((intentConfig, i) => (
+          <TileCard
+            key={intentConfig.id}
+            icon={intentConfig.icon}
+            color={intentConfig.color}
+            label={intentConfig.title}
+            description={intentConfig.description}
+            selected={selected === intentConfig.id}
+            onClick={() => handleSelect(intentConfig)}
+            index={i}
+          />
         ))}
-      </div>
+      </TileGrid>
     </WizardShell>
   );
 }

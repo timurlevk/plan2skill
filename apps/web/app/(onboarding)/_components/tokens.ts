@@ -51,3 +51,11 @@ export const skillLevelRarity = {
   intermediate: rarity.rare,
   advanced:     rarity.epic,
 } as const;
+
+// League tier colors
+export const LEAGUE_TIERS = {
+  bronze:  { color: '#CD7F32', label: 'Bronze' },
+  silver:  { color: '#C0C0C0', label: 'Silver' },
+  gold:    { color: '#FFD700', label: 'Gold' },
+  diamond: { color: '#4ECDC4', label: 'Diamond' },
+} as const;

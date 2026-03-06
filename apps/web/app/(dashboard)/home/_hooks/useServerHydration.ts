@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { useAuthStore, useProgressionStore, useCharacterStore, useRoadmapStore } from '@plan2skill/store';
+import { useAuthStore, useProgressionStore, useCharacterStore, useRoadmapStore, useSkillStore, useSocialStore } from '@plan2skill/store';
 import { trpc } from '@plan2skill/api-client';
+import type { SubscriptionTier } from '@plan2skill/types';
 
 /**
  * Server hydration hook — syncs progression state from server on initial load.
@@ -11,45 +12,59 @@ export function useServerHydration() {
   const hydratedRef = useRef(false);
 
 
-  const { data: profile, isLoading } = trpc.progression.getProfile.useQuery(undefined, {
+  const queryOpts = {
     enabled: isAuthenticated && !hydratedRef.current,
     staleTime: 1000 * 60 * 5, // 5 min
     retry: 1,
-  });
+  } as const;
 
-
-  const { data: mastery } = trpc.review.mastery.useQuery(undefined, {
-    enabled: isAuthenticated && !hydratedRef.current,
-    staleTime: 1000 * 60 * 5,
-    retry: 1,
-  });
-
-
-  const { data: serverAchievements } = trpc.achievement.list.useQuery(undefined, {
-    enabled: isAuthenticated && !hydratedRef.current,
-    staleTime: 1000 * 60 * 5,
-    retry: 1,
-  });
+  const { data: profile, isLoading, isError: profileError } = trpc.progression.getProfile.useQuery(undefined, queryOpts);
+  const { data: mastery, isError: masteryError } = trpc.review.mastery.useQuery(undefined, queryOpts);
+  const { data: serverAchievements, isError: achievementsError } = trpc.achievement.list.useQuery(undefined, queryOpts);
 
   // Phase 5F: equipment inventory + computed attributes
-  const { data: inventory } = trpc.equipment.inventory.useQuery(undefined, {
-    enabled: isAuthenticated && !hydratedRef.current,
-    staleTime: 1000 * 60 * 5,
-    retry: 1,
-  });
-
-  const { data: computedAttributes } = trpc.equipment.attributes.useQuery(undefined, {
-    enabled: isAuthenticated && !hydratedRef.current,
-    staleTime: 1000 * 60 * 5,
-    retry: 1,
-  });
+  const { data: inventory, isError: inventoryError } = trpc.equipment.inventory.useQuery(undefined, queryOpts);
+  const { data: computedAttributes, isError: attributesError } = trpc.equipment.attributes.useQuery(undefined, queryOpts);
 
   // BL-007: Roadmap list hydration
-  const { data: roadmaps } = trpc.roadmap.list.useQuery(undefined, {
-    enabled: isAuthenticated && !hydratedRef.current,
-    staleTime: 1000 * 60 * 5,
-    retry: 1,
-  });
+  const { data: roadmaps, isError: roadmapsError } = trpc.roadmap.list.useQuery(undefined, queryOpts);
+
+  // Character identity hydration
+  const { data: character, isError: characterError } = trpc.character.get.useQuery(undefined, queryOpts);
+
+  // Phase W2: Skill Elo ratings hydration
+  const { data: skillElos, isError: skillElosError } = trpc.skillElo.list.useQuery(undefined, queryOpts);
+
+  // Phase W4: Equipped items hydration (dedicated endpoint, not just character.equipment join)
+  const { data: equippedItems, isError: equippedError } = trpc.equipment.equipped.useQuery(undefined, queryOpts);
+
+  // User profile (displayName for social features)
+  const { data: userProfile, isError: userProfileError } = trpc.user.profile.useQuery(undefined, queryOpts);
+
+  // Phase S: Social data hydration (Guild Arena)
+  const { data: leagueData, isError: leagueError } = trpc.social.myLeague.useQuery(undefined, queryOpts);
+  const { data: socialFriends, isError: friendsError } = trpc.social.getFriends.useQuery(undefined, queryOpts);
+  const { data: activePartyQuest, isError: partyQuestError } = trpc.social.activePartyQuest.useQuery(undefined, queryOpts);
+
+  // Aggregate errors across all queries
+  const hasAnyError = profileError || masteryError || achievementsError || inventoryError
+    || attributesError || roadmapsError || characterError || skillElosError || equippedError
+    || userProfileError || leagueError || friendsError || partyQuestError;
+
+  const erroredQueries: string[] = [];
+  if (profileError) erroredQueries.push('profile');
+  if (masteryError) erroredQueries.push('mastery');
+  if (achievementsError) erroredQueries.push('achievements');
+  if (inventoryError) erroredQueries.push('inventory');
+  if (attributesError) erroredQueries.push('attributes');
+  if (roadmapsError) erroredQueries.push('roadmaps');
+  if (characterError) erroredQueries.push('character');
+  if (skillElosError) erroredQueries.push('skillElos');
+  if (equippedError) erroredQueries.push('equipped');
+  if (userProfileError) erroredQueries.push('userProfile');
+  if (leagueError) erroredQueries.push('league');
+  if (friendsError) erroredQueries.push('friends');
+  if (partyQuestError) erroredQueries.push('partyQuest');
 
   useEffect(() => {
     if (!profile || hydratedRef.current) return;
@@ -58,17 +73,22 @@ export function useServerHydration() {
     // Merge server data into local store (server is source of truth for XP/level/streak)
     const store = useProgressionStore.getState();
 
-    // Only update if server has data (non-zero XP or different level)
-    if (profile.totalXp > 0 || profile.level > 1) {
+    // Always sync server → store (server is source of truth)
+    useProgressionStore.setState({
+      totalXp: profile.totalXp,
+      level: profile.level,
+      coins: profile.coins,
+      energyCrystals: profile.energyCrystals,
+      maxEnergyCrystals: profile.maxEnergyCrystals,
+      currentStreak: profile.streak?.currentStreak ?? store.currentStreak,
+      longestStreak: profile.streak?.longestStreak ?? store.longestStreak,
+      lastActivityDate: profile.streak?.lastActivityDate ?? store.lastActivityDate,
+    });
+
+    // Hydrate subscription tier
+    if (profile.subscriptionTier) {
       useProgressionStore.setState({
-        totalXp: profile.totalXp,
-        level: profile.level,
-        coins: profile.coins,
-        energyCrystals: profile.energyCrystals,
-        maxEnergyCrystals: profile.maxEnergyCrystals,
-        currentStreak: profile.streak?.currentStreak ?? store.currentStreak,
-        longestStreak: profile.streak?.longestStreak ?? store.longestStreak,
-        lastActivityDate: profile.streak?.lastActivityDate ?? store.lastActivityDate,
+        subscriptionTier: profile.subscriptionTier as SubscriptionTier,
       });
     }
 
@@ -101,13 +121,55 @@ export function useServerHydration() {
       useCharacterStore.getState().setComputedAttributes(computedAttributes as any);
     }
 
+    // Phase W4: Hydrate equipped items (dedicated endpoint)
+    if (equippedItems && Array.isArray(equippedItems)) {
+      useCharacterStore.getState().setEquipment(equippedItems as any);
+    }
+
     // BL-007: Hydrate roadmap store
     if (roadmaps && Array.isArray(roadmaps)) {
       useRoadmapStore.getState().setRoadmaps(roadmaps as any);
       const active = (roadmaps as any[]).find((r: any) => r.status === 'active');
       useRoadmapStore.getState().setActiveRoadmap(active ?? null);
     }
-  }, [profile, mastery, serverAchievements, inventory, computedAttributes, roadmaps]);
 
-  return { isHydrating: isAuthenticated && isLoading, isAuthenticated };
+    // Phase W2: Hydrate skill Elo ratings
+    if (skillElos && Array.isArray(skillElos)) {
+      useSkillStore.getState().setSkillElos(skillElos);
+    }
+
+    // Hydrate character identity
+    if (character) {
+      useCharacterStore.getState().setCharacter({
+        id: character.id,
+        characterId: character.characterId as any,
+        archetypeId: character.archetypeId as any,
+        evolutionTier: character.evolutionTier as any,
+        companionId: character.companionId as any,
+        attributes: character.attributes as any,
+        equipment: character.equipment as any,
+      });
+    }
+
+    // Phase S: Hydrate social data (Guild Arena)
+    if (userProfile?.displayName) {
+      useSocialStore.getState().setDisplayName(userProfile.displayName);
+    }
+    if (leagueData) {
+      useSocialStore.getState().setLeagueData(leagueData as any);
+    }
+    if (socialFriends && Array.isArray(socialFriends)) {
+      useSocialStore.getState().setFriends(socialFriends as any);
+    }
+    if (activePartyQuest !== undefined) {
+      useSocialStore.getState().setPartyQuest(activePartyQuest as any);
+    }
+  }, [profile, mastery, serverAchievements, inventory, computedAttributes, roadmaps, character, skillElos, equippedItems, userProfile, leagueData, socialFriends, activePartyQuest]);
+
+  return {
+    isHydrating: isAuthenticated && isLoading,
+    isAuthenticated,
+    isHydrationError: !!hasAnyError,
+    erroredQueries,
+  };
 }

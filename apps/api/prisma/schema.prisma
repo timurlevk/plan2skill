@@ -45,6 +45,17 @@ model User {
   forgeHistory        ForgeHistory[]
   llmUsage            LlmUsage[]
   skillElos           SkillElo[]
+  onboardingSubmission OnboardingSubmission?
+
+  taskAttempts        TaskAttempt[]
+  learnerInsights     LearnerInsight[]
+  featureUnlocks      FeatureUnlock[]
+
+  // Phase S: Social (Guild Arena)
+  friendshipsSent     Friendship[]    @relation("FriendshipSent")
+  friendshipsReceived Friendship[]    @relation("FriendshipReceived")
+  leagueMemberships   LeagueMember[]
+  partyMemberships    PartyMember[]
 
   @@map("users")
 }
@@ -191,6 +202,13 @@ model Roadmap {
   progress     Float    @default(0) // 0-100
   aiModel      String   @default("claude-sonnet-4-6") @db.VarChar(50)
   locale       String   @default("en") @db.VarChar(10) // locale of generated content
+
+  // Phase A: Domain classification (populated by DomainClassifierService after roadmap generation)
+  domainCategories     String[]  @default([])
+  hasCodingComponent   Boolean   @default(false)
+  hasPhysicalComponent Boolean   @default(false)
+  domainMeta           Json?
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -251,6 +269,9 @@ model Task {
 
   milestone        Milestone         @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
   questCompletions QuestCompletion[]
+  taskAttempts     TaskAttempt[]
+  questContent     QuestContent?
+  featureUnlocks   FeatureUnlock[]
 
   @@index([milestoneId])
   @@map("tasks")
@@ -268,6 +289,13 @@ model UserProgression {
   maxEnergyCrystals Int       @default(3)
   subscriptionTier  String    @default("free") @db.VarChar(20)
   energyRechargeAt  DateTime?
+
+  // Phase A: Daily AI quota counters (reset at midnight)
+  aiHintsToday      Int       @default(0)
+  aiTutorToday      Int       @default(0)
+  aiExplainsToday   Int       @default(0)
+  lastResetDate     String    @default("") @db.VarChar(10)
+
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -588,4 +616,227 @@ model AiCache {
   @@index([generatorType, expiresAt], name: "idx_ai_cache_generator_expires")
   @@index([expiresAt], name: "idx_ai_cache_expires")
   @@map("ai_cache")
+}
+
+// ─── Onboarding Reference Content ────────────────────────────────
+
+model RefContent {
+  id         String   @id @default(uuid())
+  entityType String   @db.VarChar(50)   // intent, domain, interest, pain_point, career_target, archetype
+  entityId   String   @db.VarChar(100)  // unique slug within entityType
+  parentId   String?  @db.VarChar(100)  // e.g. domain id for interests
+  data       Json     @default("{}")    // icon, color, nextRoute, suggestedDomain, stats, etc.
+  sortOrder  Int      @default(0)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([entityType, entityId], name: "uq_ref_content")
+  @@index([entityType, active], name: "idx_ref_content_type_active")
+  @@index([entityType, parentId], name: "idx_ref_content_parent")
+  @@map("ref_content")
+}
+
+model OnboardingSubmission {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  intent        String?  @db.VarChar(30)
+  path          String?  @db.VarChar(30)   // direct, guided, career
+  dreamGoal     String?  @db.Text
+  domain        String?  @db.VarChar(50)
+  interests     Json?                       // string[]
+  careerTarget  String?  @db.VarChar(50)
+  pains         Json?                       // string[] — career pain points
+  milestones    Json?                       // PerformanceGoal[]
+  assessments   Json?                       // SkillAssessmentV2[]
+  locale        String   @default("en") @db.VarChar(10)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("onboarding_submissions")
+}
+
+// ─── Translation Infrastructure ─────────────────────────────────
+
+model RefTranslation {
+  id         String   @id @default(uuid())
+  entityType String   @db.VarChar(50)   // e.g. "achievement", "skill_domain", "equipment", "ui"
+  entityId   String   @db.VarChar(100)  // e.g. "first_quest", "nav.quests", "javascript"
+  field      String   @db.VarChar(50)   // e.g. "name", "description", "label"
+  locale     String   @db.VarChar(10)   // e.g. "en", "uk", "pl"
+  value      String   @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([entityType, entityId, field, locale], name: "uq_translation")
+  @@index([entityType, locale], name: "idx_translation_type_locale")
+  @@index([locale], name: "idx_translation_locale")
+  @@map("ref_translations")
+}
+
+// ─── Social System (Phase S — Guild Arena) ──────────────────────
+
+model Friendship {
+  id        String   @id @default(uuid())
+  userId    String
+  friendId  String
+  status    String   @default("pending") @db.VarChar(10) // pending | accepted | blocked
+  createdAt DateTime @default(now())
+
+  user   User @relation("FriendshipSent", fields: [userId], references: [id], onDelete: Cascade)
+  friend User @relation("FriendshipReceived", fields: [friendId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, friendId])
+  @@index([friendId, status])
+  @@map("friendships")
+}
+
+model League {
+  id        String   @id @default(uuid())
+  tier      String   @db.VarChar(20) // bronze | silver | gold | diamond | master
+  weekStart DateTime
+  createdAt DateTime @default(now())
+
+  members LeagueMember[]
+
+  @@unique([tier, weekStart])
+  @@index([weekStart])
+  @@map("leagues")
+}
+
+model LeagueMember {
+  id       String @id @default(uuid())
+  leagueId String
+  userId   String
+  weeklyXp Int    @default(0)
+  rank     Int    @default(0)
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, userId])
+  @@index([leagueId, weeklyXp(sort: Desc)])
+  @@map("league_members")
+}
+
+model PartyQuest {
+  id             String   @id @default(uuid())
+  bossName       String   @db.VarChar(100)
+  bossRarity     String   @db.VarChar(20) // common | rare | epic | legendary
+  maxHp          Int
+  currentHp      Int
+  rewardXp       Int      @default(200)
+  rewardCrystals Int      @default(5)
+  weekStart      DateTime
+  status         String   @default("active") @db.VarChar(10) // active | defeated | expired
+  createdAt      DateTime @default(now())
+
+  members PartyMember[]
+
+  @@index([status, weekStart])
+  @@map("party_quests")
+}
+
+model PartyMember {
+  id           String   @id @default(uuid())
+  partyQuestId String
+  userId       String
+  totalDamage  Int      @default(0)
+  joinedAt     DateTime @default(now())
+
+  partyQuest PartyQuest @relation(fields: [partyQuestId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([partyQuestId, userId])
+  @@map("party_members")
+}
+
+// ─── Task Attempts (L3 Quest Session) ────────────────────────────
+
+model TaskAttempt {
+  id               String    @id @default(uuid())
+  userId           String
+  taskId           String
+  attemptNumber    Int       @default(1)
+  selectedIndex    Int?                      // quiz: which answer was selected
+  answerData       Json?                     // other types: effort, journal, etc.
+  correct          Boolean?
+  startedAt        DateTime  @default(now())
+  submittedAt      DateTime?
+  timeSpentSeconds Int?
+  hintsRequested   Int       @default(0)
+  qualityScore     Float?
+  createdAt        DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([userId, taskId])
+  @@index([userId, createdAt])
+  @@map("task_attempts")
+}
+
+// ─── Quest Content (Phase A: Content Pipeline) ──────────────────
+
+model QuestContent {
+  id            String   @id @default(uuid())
+  taskId        String   @unique
+  task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  articleBody   String?  @db.Text
+  codeChallenge Json?
+  resources     Json?
+  funFacts      Json?
+  quizQuestions Json?
+
+  contentFormat String   @default("article") @db.VarChar(30)
+  generatedAt   DateTime @default(now())
+  generatorMeta Json?
+  status        String   @default("pending") @db.VarChar(20)
+
+  @@index([taskId])
+  @@map("quest_content")
+}
+
+// ─── Feature Unlocks (Phase D: Coin-gated content) ──────────────
+
+model FeatureUnlock {
+  id         String   @id @default(uuid())
+  userId     String
+  taskId     String
+  feature    String   @db.VarChar(30)
+  unlockedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, taskId, feature])
+  @@map("feature_unlocks")
+}
+
+// ─── Learner Insights (L4 Ledger) ────────────────────────────────
+
+model LearnerInsight {
+  id             String   @id @default(uuid())
+  userId         String
+  insightType    String   @db.VarChar(30) // error_pattern | misconception | learning_velocity | summary
+  skillDomain    String?  @db.VarChar(50)
+  title          String   @db.VarChar(200)
+  description    String   @db.Text
+  confidence     Float    @default(0.5)
+  metadata       Json     @default("{}")
+  generatedBy    String   @db.VarChar(50) // generator name that created this
+  validUntil     DateTime
+  supersededById String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, insightType])
+  @@index([userId, skillDomain])
+  @@index([validUntil])
+  @@map("learner_insights")
 }

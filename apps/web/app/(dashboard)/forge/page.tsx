@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useMachine } from '@xstate/react';
-import { useCharacterStore, useProgressionStore } from '@plan2skill/store';
+import { useCharacterStore, useProgressionStore, useI18nStore } from '@plan2skill/store';
 import { trpc } from '@plan2skill/api-client';
 import { forgeMachine } from '../home/_machines/forge.machine';
 import { NeonIcon } from '../../(onboarding)/_components/NeonIcon';
-import { t } from '../../(onboarding)/_components/tokens';
+import { t, rarity } from '../../(onboarding)/_components/tokens';
 import type { Rarity } from '@plan2skill/types';
 
 // ═══════════════════════════════════════════
@@ -15,17 +15,25 @@ import type { Rarity } from '@plan2skill/types';
 // RPG vocabulary, hammerStrike + sparkBurst animations
 // ═══════════════════════════════════════════
 
-const RARITY_CONFIG: Record<string, { color: string; icon: string; label: string; next: string }> = {
-  common:    { color: '#71717A', icon: '●',  label: 'Common',    next: 'Uncommon' },
-  uncommon:  { color: '#6EE7B7', icon: '◆',  label: 'Uncommon',  next: 'Rare' },
-  rare:      { color: '#3B82F6', icon: '⬡',  label: 'Rare',      next: 'Epic' },
-  epic:      { color: '#9D7AFF', icon: '◈',  label: 'Epic',      next: 'Legendary' },
-  legendary: { color: '#FFD166', icon: '★',  label: 'Legendary', next: '' },
+// Forge-specific: maps rarity → next tier label (not in canonical tokens)
+const RARITY_NEXT: Record<string, string> = {
+  common: 'Uncommon', uncommon: 'Rare', rare: 'Epic', epic: 'Legendary', legendary: '',
 };
 
 const RARITY_ORDER: Rarity[] = ['legendary', 'epic', 'rare', 'uncommon', 'common'];
 
 export default function ForgePage() {
+  // Reduced-motion check — §N MICRO_ANIMATION_GUIDELINES §10 (BLOCKER) — SSR-safe
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setPrefersReducedMotion(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  const tr = useI18nStore((s) => s.t);
   const { inventory } = useCharacterStore();
   const { coins } = useProgressionStore();
   const [state, send] = useMachine(forgeMachine);
@@ -57,6 +65,10 @@ export default function ForgePage() {
   const isSuccess = state.matches('success');
   const isError = state.matches('error');
 
+  // Forge button & item selection press states — §N Tier Micro
+  const [pressedForge, setPressedForge] = useState(false);
+  const [pressedItemId, setPressedItemId] = useState<string | null>(null);
+
   // Handle forge confirmation — call backend
   const handleForge = useCallback(() => {
     if (selectedItems.length !== 3) return;
@@ -77,22 +89,49 @@ export default function ForgePage() {
   }, [selectedItems, send, forgeMutation]);
 
   return (
-    <div style={{ animation: 'fadeUp 0.5s ease-out' }}>
+    <div style={{ animation: prefersReducedMotion ? 'none' : 'fadeUp 0.4s ease-out' }}>
+      {/* Spark particle keyframes for forging state — §N §3 Reward sequence */}
+      <style>{`
+        @keyframes sparkUp { 0% { transform: translate(0,0) scale(1); opacity: 1; } 100% { transform: translate(-8px,-20px) scale(0); opacity: 0; } }
+        @keyframes sparkRight { 0% { transform: translate(0,0) scale(1); opacity: 1; } 100% { transform: translate(16px,-12px) scale(0); opacity: 0; } }
+        @keyframes sparkLeft { 0% { transform: translate(0,0) scale(1); opacity: 1; } 100% { transform: translate(-16px,-10px) scale(0); opacity: 0; } }
+        @keyframes sparkDown { 0% { transform: translate(0,0) scale(1); opacity: 1; } 100% { transform: translate(6px,16px) scale(0); opacity: 0; } }
+      `}</style>
+
+      {/* Background glow orbs — §N §6 Ambient, aria-hidden */}
+      {!prefersReducedMotion && (
+        <>
+          <div aria-hidden="true" style={{
+            position: 'fixed', top: '20%', left: '15%',
+            width: 200, height: 200, borderRadius: '50%',
+            background: `radial-gradient(circle, ${t.gold}08 0%, transparent 70%)`,
+            pointerEvents: 'none', zIndex: 0,
+            filter: 'blur(40px)',
+          }} />
+          <div aria-hidden="true" style={{
+            position: 'fixed', bottom: '25%', right: '10%',
+            width: 160, height: 160, borderRadius: '50%',
+            background: `radial-gradient(circle, ${t.violet}08 0%, transparent 70%)`,
+            pointerEvents: 'none', zIndex: 0,
+            filter: 'blur(40px)',
+          }} />
+        </>
+      )}
+
       {/* Page Title */}
       <h1 style={{
         display: 'flex', alignItems: 'center', gap: 10,
         fontFamily: t.display, fontSize: 26, fontWeight: 900,
         color: t.text, marginBottom: 8,
       }}>
-        <NeonIcon type="fire" size={24} color="gold" />
-        The Forge
+        <NeonIcon type="hammer" size={24} color="gold" />
+        {tr('forge.title')}
       </h1>
       <p style={{
         fontFamily: t.body, fontSize: 13, color: t.textSecondary,
         marginBottom: 24, lineHeight: 1.4,
       }}>
-        Combine 3 artifacts of the same rarity to forge a more powerful one.
-        The forge transforms dedication into legend.
+        {tr('forge.subtitle')}
       </p>
 
       {/* ─── Input Slots ─── */}
@@ -103,7 +142,7 @@ export default function ForgePage() {
         {[0, 1, 2].map((slotIdx) => {
           const itemId = selectedItems[slotIdx];
           const item = itemId ? inventory.find((i) => i.itemId === itemId) : null;
-          const rc = item ? (RARITY_CONFIG[item.rarity] ?? RARITY_CONFIG.common!) : null;
+          const rc = item ? (rarity[item.rarity as keyof typeof rarity] ?? rarity.common) : null;
 
           return (
             <div
@@ -114,8 +153,8 @@ export default function ForgePage() {
                 border: `2px dashed ${item ? `${rc!.color}40` : t.border}`,
                 display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center', gap: 6,
-                transition: 'all 0.3s ease',
-                animation: item ? 'bounceIn 0.3s ease-out' : 'none',
+                transition: 'border-color 0.3s ease, background 0.3s ease',
+                animation: item && !prefersReducedMotion ? 'bounceIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'none',
               }}
             >
               {item ? (
@@ -136,14 +175,14 @@ export default function ForgePage() {
                       color: t.rose, cursor: 'pointer',
                     }}
                   >
-                    Remove
+                    {tr('forge.remove')}
                   </button>
                 </>
               ) : (
                 <>
                   <NeonIcon type="gem" size={24} color="muted" />
                   <span style={{ fontFamily: t.mono, fontSize: 9, color: t.textMuted }}>
-                    Slot {slotIdx + 1}
+                    {tr('forge.slot').replace('{n}', String(slotIdx + 1))}
                   </span>
                 </>
               )}
@@ -157,12 +196,34 @@ export default function ForgePage() {
         {isForging ? (
           <div style={{
             display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+            position: 'relative',
           }}>
-            <div style={{ fontSize: 48, animation: 'hammerStrike 0.5s ease-out infinite' }}>
+            <div style={{ fontSize: 48, animation: prefersReducedMotion ? 'none' : 'hammerStrike 0.5s ease-out infinite', position: 'relative' }}>
               🔨
+              {/* Spark particles — §N §3 reward sequence, 4 sparks staggered */}
+              {!prefersReducedMotion && (
+                <>
+                  <div style={{ position: 'absolute', top: '30%', left: '50%', width: 4, height: 4, borderRadius: '50%', background: '#FFD166', animation: 'sparkUp 0.6s ease-out infinite', animationDelay: '0s' }} />
+                  <div style={{ position: 'absolute', top: '40%', left: '60%', width: 4, height: 4, borderRadius: '50%', background: '#FFD166', animation: 'sparkRight 0.6s ease-out infinite', animationDelay: '0.15s' }} />
+                  <div style={{ position: 'absolute', top: '40%', left: '40%', width: 4, height: 4, borderRadius: '50%', background: '#FFD166', animation: 'sparkLeft 0.6s ease-out infinite', animationDelay: '0.3s' }} />
+                  <div style={{ position: 'absolute', top: '60%', left: '55%', width: 4, height: 4, borderRadius: '50%', background: '#FFD166', animation: 'sparkDown 0.6s ease-out infinite', animationDelay: '0.45s' }} />
+                </>
+              )}
             </div>
-            <span style={{ fontFamily: t.display, fontSize: 14, fontWeight: 700, color: t.gold }}>
-              Forging...
+            <span style={{
+              fontFamily: t.display, fontSize: 14, fontWeight: 700,
+              ...(prefersReducedMotion
+                ? { color: t.gold }
+                : {
+                    background: 'linear-gradient(90deg, #FFD166, #FFF5D6, #FFD166)',
+                    backgroundSize: '200% 100%',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    animation: 'shimmer 1.5s linear infinite',
+                  }
+              ),
+            }}>
+              {tr('forge.forging')}
             </span>
             <button
               onClick={() => send({ type: 'SKIP' })}
@@ -172,21 +233,21 @@ export default function ForgePage() {
                 color: t.textMuted, cursor: 'pointer',
               }}
             >
-              Tap to skip
+              {tr('forge.skip')}
             </button>
           </div>
         ) : isSuccess && state.context.outputItem ? (
-          <div style={{ animation: 'celebratePop 0.7s ease-out' }}>
+          <div style={{ animation: prefersReducedMotion ? 'none' : 'celebratePop 0.7s ease-out' }}>
             <div style={{
               padding: 20, borderRadius: 16, display: 'inline-block',
-              background: `${RARITY_CONFIG[state.context.outputItem.rarity]?.color ?? t.violet}10`,
-              border: `1px solid ${RARITY_CONFIG[state.context.outputItem.rarity]?.color ?? t.violet}30`,
+              background: `${rarity[state.context.outputItem.rarity as keyof typeof rarity]?.color ?? t.violet}10`,
+              border: `1px solid ${rarity[state.context.outputItem.rarity as keyof typeof rarity]?.color ?? t.violet}30`,
             }}>
               <span style={{
                 fontSize: 24,
-                color: RARITY_CONFIG[state.context.outputItem.rarity]?.color ?? t.violet,
+                color: rarity[state.context.outputItem.rarity as keyof typeof rarity]?.color ?? t.violet,
               }}>
-                {RARITY_CONFIG[state.context.outputItem.rarity]?.icon ?? '◈'}
+                {rarity[state.context.outputItem.rarity as keyof typeof rarity]?.icon ?? '◈'}
               </span>
               <h3 style={{
                 fontFamily: t.display, fontSize: 16, fontWeight: 900,
@@ -196,13 +257,13 @@ export default function ForgePage() {
               </h3>
               <span style={{
                 fontFamily: t.mono, fontSize: 10, fontWeight: 700,
-                color: RARITY_CONFIG[state.context.outputItem.rarity]?.color ?? t.violet,
+                color: rarity[state.context.outputItem.rarity as keyof typeof rarity]?.color ?? t.violet,
                 textTransform: 'uppercase',
               }}>
-                {RARITY_CONFIG[state.context.outputItem.rarity]?.label ?? state.context.outputItem.rarity}
+                {rarity[state.context.outputItem.rarity as keyof typeof rarity]?.label ?? state.context.outputItem.rarity}
               </span>
               <p style={{ fontFamily: t.body, fontSize: 11, color: t.textSecondary, marginTop: 8 }}>
-                +5 coins awarded!
+                {tr('forge.coins')}
               </p>
             </div>
             <div style={{ marginTop: 12 }}>
@@ -214,14 +275,14 @@ export default function ForgePage() {
                   fontWeight: 800, color: '#FFF', cursor: 'pointer',
                 }}
               >
-                Forge Again
+                {tr('forge.again')}
               </button>
             </div>
           </div>
         ) : isError ? (
           <div>
             <p style={{ fontFamily: t.display, fontSize: 14, fontWeight: 700, color: t.rose, marginBottom: 8 }}>
-              The path is blocked
+              {tr('error.quest_title')}
             </p>
             <p style={{ fontFamily: t.body, fontSize: 12, color: t.textMuted, marginBottom: 12 }}>
               {state.context.error || 'Something went wrong at the forge.'}
@@ -234,7 +295,7 @@ export default function ForgePage() {
                 fontWeight: 700, color: t.violet, cursor: 'pointer', marginRight: 8,
               }}
             >
-              Try again, hero
+              {tr('common.btn_retry')}
             </button>
             <button
               onClick={() => send({ type: 'RESET' })}
@@ -251,6 +312,9 @@ export default function ForgePage() {
           <button
             onClick={handleForge}
             disabled={selectedItems.length !== 3}
+            onMouseDown={() => setPressedForge(true)}
+            onMouseUp={() => setPressedForge(false)}
+            onMouseLeave={() => setPressedForge(false)}
             style={{
               padding: '14px 40px', borderRadius: 14, border: 'none',
               background: selectedItems.length === 3
@@ -260,11 +324,12 @@ export default function ForgePage() {
               color: selectedItems.length === 3 ? '#FFF' : t.textMuted,
               cursor: selectedItems.length === 3 ? 'pointer' : 'not-allowed',
               boxShadow: selectedItems.length === 3 ? `0 4px 20px ${t.gold}30` : 'none',
-              transition: 'all 0.3s ease',
+              transition: 'background 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, transform 0.15s ease',
+              transform: pressedForge && selectedItems.length === 3 ? 'scale(0.98) translateY(1px)' : 'none',
             }}
           >
             {selectedItems.length === 3
-              ? `Forge → ${selectedRarity ? (RARITY_CONFIG[selectedRarity]?.next ?? '???') : '???'}`
+              ? `Forge → ${selectedRarity ? (RARITY_NEXT[selectedRarity] ?? '???') : '???'}`
               : `Select ${3 - selectedItems.length} more artifact${3 - selectedItems.length > 1 ? 's' : ''}`}
           </button>
         )}
@@ -283,16 +348,16 @@ export default function ForgePage() {
             letterSpacing: '0.08em', marginBottom: 16,
           }}>
             <NeonIcon type="gift" size={14} color="gold" />
-            Available Artifacts
+            {tr('forge.artifacts')}
           </h3>
 
           {forgeableItems.length === 0 ? (
             <p style={{ fontFamily: t.body, fontSize: 12, color: t.textMuted, textAlign: 'center', padding: 20 }}>
-              No artifacts available for forging. Complete quests to earn drops!
+              {tr('forge.no_artifacts')}
             </p>
           ) : (
             Object.entries(itemsByRarity).map(([rar, items]) => {
-              const rc = RARITY_CONFIG[rar] ?? RARITY_CONFIG.common!;
+              const rc = rarity[rar as keyof typeof rarity] ?? rarity.common;
               // If a rarity is already selected, only show that rarity
               if (selectedRarity && rar !== selectedRarity) return null;
 
@@ -323,13 +388,17 @@ export default function ForgePage() {
                               send({ type: 'ADD_ITEM', itemId: item.itemId, rarity: item.rarity });
                             }
                           }}
+                          onMouseDown={() => setPressedItemId(item.itemId)}
+                          onMouseUp={() => setPressedItemId(null)}
+                          onMouseLeave={() => setPressedItemId(null)}
                           style={{
                             padding: 10, borderRadius: 10, textAlign: 'left',
                             background: alreadySelected ? `${rc.color}12` : t.bgElevated,
                             border: `1px solid ${alreadySelected ? `${rc.color}30` : t.border}`,
                             cursor: canAdd && selectedItems.length < 3 ? 'pointer' : 'not-allowed',
                             opacity: canAdd && selectedItems.length < 3 ? 1 : 0.4,
-                            transition: 'all 0.15s ease',
+                            transition: 'border-color 0.15s ease, background 0.15s ease, opacity 0.15s ease, transform 0.15s ease',
+                            transform: pressedItemId === item.itemId ? 'scale(0.98)' : 'none',
                           }}
                         >
                           <div style={{

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { t } from './tokens';
 
 // ═══════════════════════════════════════════
@@ -14,6 +14,8 @@ export function ContinueButton({ onClick, disabled = false, children = 'Continue
   children?: React.ReactNode;
   style?: React.CSSProperties;
 }) {
+  const [pressed, setPressed] = useState(false);
+
   return (
     <button
       onClick={onClick}
@@ -29,11 +31,15 @@ export function ContinueButton({ onClick, disabled = false, children = 'Continue
         fontSize: 16,
         fontWeight: 700,
         cursor: disabled ? 'not-allowed' : 'pointer',
-        transition: 'all 0.3s ease',
+        transition: 'all 0.2s ease',
         opacity: disabled ? 0.5 : 1,
         boxShadow: disabled ? 'none' : `0 0 20px ${t.violet}30`,
+        transform: pressed && !disabled ? 'scale(0.98) translateY(1px)' : 'translateY(0)',
         ...extraStyle,
       }}
+      onMouseDown={() => { if (!disabled) setPressed(true); }}
+      onMouseUp={() => setPressed(false)}
+      onMouseLeave={() => setPressed(false)}
     >
       {children}
     </button>
@@ -44,6 +50,8 @@ export function BackButton({ onClick, style: extraStyle = {} }: {
   onClick: () => void;
   style?: React.CSSProperties;
 }) {
+  const [pressed, setPressed] = useState(false);
+
   return (
     <button
       onClick={onClick}
@@ -60,10 +68,14 @@ export function BackButton({ onClick, style: extraStyle = {} }: {
         fontSize: 18,
         cursor: 'pointer',
         transition: 'all 0.2s ease',
+        transform: pressed ? 'scale(0.98) translateY(1px)' : 'translateY(0)',
         flexShrink: 0,
         ...extraStyle,
       }}
       aria-label="Go back"
+      onMouseDown={() => setPressed(true)}
+      onMouseUp={() => setPressed(false)}
+      onMouseLeave={() => setPressed(false)}
     >
       ←
     </button>

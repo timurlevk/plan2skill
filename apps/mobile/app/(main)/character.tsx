@@ -1,12 +1,12 @@
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 
 const ATTRIBUTES = [
-  { key: 'MAS', name: 'Mastery', value: 10, color: '#9D7AFF' },
-  { key: 'INS', name: 'Insight', value: 10, color: '#3B82F6' },
-  { key: 'INF', name: 'Influence', value: 10, color: '#FF6B8A' },
-  { key: 'RES', name: 'Resilience', value: 10, color: '#6EE7B7' },
-  { key: 'VER', name: 'Versatility', value: 10, color: '#4ECDC4' },
-  { key: 'DIS', name: 'Discovery', value: 10, color: '#FFD166' },
+  { key: 'STR', name: 'Strength', value: 10, color: '#9D7AFF' },
+  { key: 'INT', name: 'Intelligence', value: 10, color: '#3B82F6' },
+  { key: 'CHA', name: 'Charisma', value: 10, color: '#FF6B8A' },
+  { key: 'CON', name: 'Constitution', value: 10, color: '#6EE7B7' },
+  { key: 'DEX', name: 'Dexterity', value: 10, color: '#4ECDC4' },
+  { key: 'WIS', name: 'Wisdom', value: 10, color: '#FFD166' },
 ];
 
 export default function CharacterScreen() {

@@ -7,23 +7,25 @@ import { trpc } from '@plan2skill/api-client';
 export function useSpacedRepetition() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
-
-  const { data: mastery } = trpc.review.mastery.useQuery(undefined, {
+  const { data: mastery, isError: masteryError } = trpc.review.mastery.useQuery(undefined, {
     enabled: isAuthenticated,
     staleTime: 1000 * 60 * 5,
   });
 
-
-  const { data: dueReviews } = trpc.review.due.useQuery(
+  const { data: dueReviews, isError: dueError } = trpc.review.due.useQuery(
     { limit: 5 },
     { enabled: isAuthenticated, staleTime: 1000 * 60 * 2 },
   );
 
-
   const submitReviewMutation = trpc.review.submit.useMutation();
 
   const submitReview = async (skillId: string, quality: number) => {
-    return submitReviewMutation.mutateAsync({ skillId, quality });
+    try {
+      return await submitReviewMutation.mutateAsync({ skillId, quality });
+    } catch (err) {
+      console.warn('[SpacedRepetition] submit failed:', err);
+      return null;
+    }
   };
 
   return {
@@ -35,5 +37,7 @@ export function useSpacedRepetition() {
     dueItems: dueReviews?.items ?? [],
     submitReview,
     isSubmitting: submitReviewMutation.isPending,
+    isError: masteryError || dueError,
+    submitError: submitReviewMutation.error?.message ?? null,
   };
 }

@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RoadmapGenerator } from '../ai/generators/roadmap.generator';
+import { DomainClassifierService } from '../ai/generators/domain-classifier.service';
 import { RoadmapGateway } from './roadmap.gateway';
+import { CacheService } from '../ai/core/cache.service';
 import type { GenerateRoadmapInput } from '@plan2skill/types';
 
 @Injectable()
@@ -15,8 +17,10 @@ export class RoadmapService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly roadmapGenerator: RoadmapGenerator,
+    private readonly domainClassifier: DomainClassifierService,
     @Inject(forwardRef(() => RoadmapGateway))
     private readonly gateway: RoadmapGateway,
+    private readonly cacheService: CacheService,
   ) {}
 
   async validateRoadmapLimit(userId: string) {
@@ -141,25 +145,24 @@ export class RoadmapService {
         },
       });
 
-      for (let j = 0; j < ms.tasks.length; j++) {
-        const task = ms.tasks[j]!;
-        await this.prisma.task.create({
-          data: {
-            milestoneId: milestone.id,
-            title: task.title,
-            description: task.description,
-            taskType: task.taskType,
-            estimatedMinutes: task.estimatedMinutes,
-            xpReward: task.xpReward,
-            coinReward: task.coinReward,
-            rarity: task.rarity,
-            skillDomain: task.skillDomain,
-            bloomLevel: task.bloomLevel,
-            status: i === 0 && j === 0 ? 'available' : 'locked',
-            order: j,
-          },
-        });
-      }
+      await this.prisma.task.createMany({
+        data: ms.tasks.map((task, j) => ({
+          milestoneId: milestone.id,
+          title: task.title,
+          description: task.description,
+          taskType: task.taskType,
+          questType: task.questType ?? 'knowledge',
+          difficultyTier: task.difficultyTier ?? 3,
+          estimatedMinutes: task.estimatedMinutes,
+          xpReward: task.xpReward,
+          coinReward: task.coinReward,
+          rarity: task.rarity,
+          skillDomain: task.skillDomain,
+          bloomLevel: task.bloomLevel,
+          status: i === 0 && j === 0 ? 'available' : 'locked',
+          order: j,
+        })),
+      });
 
       // SSE: emit milestone progress
       const percent = 60 + Math.round((i + 1) / aiResult.milestones.length * 30);
@@ -169,6 +172,29 @@ export class RoadmapService {
       });
     }
 
+    // Domain classification — one-time cheap LLM call to classify the domain
+    this.gateway.emitProgress(roadmapId, {
+      type: 'progress',
+      data: { phase: 'classifying', percent: 92, message: 'Analyzing domain...' },
+    });
+
+    let domainData: Record<string, unknown> = {};
+
+    try {
+      const classification = await this.domainClassifier.generate(userId, {
+        goal: input.goal,
+        title: aiResult.title,
+      });
+      domainData = {
+        domainCategories: classification.categories,
+        hasCodingComponent: classification.hasCodingComponent,
+        hasPhysicalComponent: classification.hasPhysicalComponent,
+        domainMeta: classification as object,
+      };
+    } catch (err) {
+      console.warn('[RoadmapService] Domain classification failed, continuing without:', (err as Error).message);
+    }
+
     // Update roadmap
     await this.prisma.roadmap.update({
       where: { id: roadmapId },
@@ -176,8 +202,12 @@ export class RoadmapService {
         title: aiResult.title,
         description: aiResult.description,
         status: 'active',
+        ...domainData,
       },
     });
+
+    // Cache invalidation — roadmap structure changed
+    this.cacheService.invalidateForEvent(userId, 'roadmap_change').catch(() => {});
 
     // SSE: complete
     this.gateway.emitProgress(roadmapId, {
@@ -193,18 +223,6 @@ export class RoadmapService {
       where: { id: roadmapId },
       data: { status: 'completed', progress: 100 },
     });
-
-    // Activate next locked milestone's roadmap if any (auto-advance)
-    const nextActive = await this.prisma.milestone.findFirst({
-      where: { roadmapId, status: 'locked' },
-      orderBy: { order: 'asc' },
-    });
-    if (nextActive) {
-      await this.prisma.milestone.update({
-        where: { id: nextActive.id },
-        data: { status: 'active' },
-      });
-    }
 
     return this.getCompletionStats(userId, roadmapId);
   }
@@ -223,23 +241,22 @@ export class RoadmapService {
     const allTasks = roadmap.milestones.flatMap((m) => m.tasks);
     const completedTasks = allTasks.filter((t) => t.status === 'completed');
 
-    // Aggregate XP earned for this roadmap's tasks
-    const xpEvents = await this.prisma.xPEvent.findMany({
-      where: {
-        userId,
-        source: { in: ['task_complete', 'milestone_complete'] },
-        createdAt: { gte: roadmap.createdAt },
-      },
-    });
-    const totalXpEarned = xpEvents.reduce((sum, e) => sum + e.amount, 0);
-
-    // Get time invested from quest completions
+    // Get quest completions scoped to this roadmap's tasks
+    const roadmapTaskIds = allTasks.map((t) => t.id);
     const completions = await this.prisma.questCompletion.findMany({
       where: {
         userId,
-        taskId: { in: completedTasks.map((t) => t.id) },
+        taskId: { in: roadmapTaskIds },
       },
     });
+
+    // Aggregate XP earned for this roadmap only (from quest completions)
+    const totalXpEarned = completions.reduce(
+      (sum, c) => sum + c.baseXp + c.bonusXp,
+      0,
+    );
+
+    // Get time invested from quest completions
     const timeInvestedMinutes = Math.round(
       completions.reduce((sum, c) => sum + (c.timeSpentSeconds ?? 0), 0) / 60,
     );
@@ -381,6 +398,9 @@ export class RoadmapService {
         break;
       }
     }
+
+    // Cache invalidation — roadmap structure changed
+    this.cacheService.invalidateForEvent(userId, 'roadmap_change').catch(() => {});
 
     return this.getRoadmap(userId, roadmapId);
   }

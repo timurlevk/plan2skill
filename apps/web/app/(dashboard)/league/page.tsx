@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useOnboardingStore } from '@plan2skill/store';
+import { useI18nStore, useSocialStore, useProgressionStore, useCharacterStore } from '@plan2skill/store';
+import { trpc } from '@plan2skill/api-client';
 import { NeonIcon } from '../../(onboarding)/_components/NeonIcon';
 import type { NeonIconType } from '../../(onboarding)/_components/NeonIcon';
 import { t, rarity, LEAGUE_TIERS as LEAGUE_TOKEN_TIERS } from '../../(onboarding)/_components/tokens';
@@ -17,87 +18,82 @@ import { useWeeklyChallenges } from '../home/_hooks/useWeeklyChallenges';
 
 // ─── League tiers (Duolingo model) ───
 const LEAGUE_TIERS = [
-  { id: 'bronze',  label: 'Bronze',  color: LEAGUE_TOKEN_TIERS.bronze.color, icon: '●', nextAt: 0 },
-  { id: 'silver',  label: 'Silver',  color: LEAGUE_TOKEN_TIERS.silver.color, icon: '◆', nextAt: 500 },
-  { id: 'gold',    label: 'Gold',    color: LEAGUE_TOKEN_TIERS.gold.color, icon: '⬡', nextAt: 1500 },
-  { id: 'diamond', label: 'Diamond', color: LEAGUE_TOKEN_TIERS.diamond.color, icon: '★', nextAt: 3000 },
+  { id: 'bronze',  label: 'Bronze',  labelKey: 'league.bronze',  color: LEAGUE_TOKEN_TIERS.bronze.color, icon: 'tierBronze'  as const, nextAt: 0 },
+  { id: 'silver',  label: 'Silver',  labelKey: 'league.silver',  color: LEAGUE_TOKEN_TIERS.silver.color, icon: 'tierSilver'  as const, nextAt: 500 },
+  { id: 'gold',    label: 'Gold',    labelKey: 'league.gold',    color: LEAGUE_TOKEN_TIERS.gold.color,   icon: 'tierGold'    as const, nextAt: 1500 },
+  { id: 'diamond', label: 'Diamond', labelKey: 'league.diamond', color: LEAGUE_TOKEN_TIERS.diamond.color, icon: 'tierDiamond' as const, nextAt: 3000 },
 ] as const;
 
-// ─── Mock league members (30 per league) ───
-const MOCK_MEMBERS = [
-  { name: 'Aria', xp: 320, charId: 'aria', rank: 1 },
-  { name: 'Kofi', xp: 285, charId: 'kofi', rank: 2 },
-  { name: 'Mei', xp: 260, charId: 'mei', rank: 3 },
-  { name: 'Diego', xp: 230, charId: 'diego', rank: 4 },
-  { name: 'Zara', xp: 210, charId: 'zara', rank: 5 },
-  { name: 'Alex', xp: 195, charId: 'alex', rank: 6 },
-  { name: 'Priya', xp: 180, charId: 'priya', rank: 7 },
-  { name: 'Liam', xp: 165, charId: 'liam', rank: 8 },
-  { name: 'NovaStar', xp: 140, charId: 'aria', rank: 9 },
-  { name: 'ByteKnight', xp: 130, charId: 'kofi', rank: 10 },
-  { name: 'PixelWiz', xp: 115, charId: 'mei', rank: 11 },
-  { name: 'CodeFox', xp: 100, charId: 'diego', rank: 12 },
-  { name: 'QuestRunner', xp: 90, charId: 'zara', rank: 13 },
-  { name: 'SkyLearner', xp: 80, charId: 'alex', rank: 14 },
-  { name: 'DataDruid', xp: 70, charId: 'priya', rank: 15 },
-  // ... more would come from API
-];
-
-// ─── Mock friends ───
-const MOCK_FRIENDS = [
-  { name: 'Mei', xp: 260, charId: 'mei', streak: 12, level: 4 },
-  { name: 'Kofi', xp: 285, charId: 'kofi', streak: 8, level: 5 },
-  { name: 'Zara', xp: 210, charId: 'zara', streak: 3, level: 3 },
-];
-
-// ─── Mock party boss ───
-const PARTY_BOSS = {
-  name: 'Procrastination Dragon',
-  rarity: 'epic' as const,
-  hp: 847,
-  maxHp: 1200,
-  reward: { xp: 200, crystals: 5 },
-  members: [
-    { name: 'Aria', charId: 'aria', dmg: 120 },
-    { name: 'Kofi', charId: 'kofi', dmg: 95 },
-    { name: 'Mei', charId: 'mei', dmg: 80 },
-  ],
+// ─── Rarity config for party quest bosses ───
+const BOSS_RARITY_CONFIG: Record<string, { color: string; bg: string; icon: string; label: string }> = {
+  common:    { color: rarity.common?.color ?? '#9CA3AF', bg: rarity.common?.bg ?? '#9CA3AF12', icon: '', label: 'Common Boss' },
+  rare:      { color: rarity.rare?.color ?? '#60A5FA', bg: rarity.rare?.bg ?? '#60A5FA12', icon: rarity.rare?.icon ?? '💎', label: 'Rare Boss' },
+  epic:      { color: rarity.epic?.color ?? '#A78BFA', bg: rarity.epic?.bg ?? '#A78BFA12', icon: rarity.epic?.icon ?? '🔮', label: 'Epic Boss' },
+  legendary: { color: rarity.legendary?.color ?? '#FBBF24', bg: rarity.legendary?.bg ?? '#FBBF2412', icon: rarity.legendary?.icon ?? '⭐', label: 'Legendary Boss' },
 };
 
 // ─── Challenge descriptions + hints (shared with WeeklyChallenges widget) ───
-const CHALLENGE_DESCRIPTIONS: Record<string, (target: number, domain?: string) => string> = {
-  quest_count: (n) => `Complete ${n} quests`,
-  quest_volume: (n) => `Complete ${n} quests`,
-  xp_earn: (n) => `Earn ${n} XP`,
-  xp_target: (n) => `Earn ${n} XP`,
-  review_count: (n) => `Review ${n} skills`,
-  review_sprint: (n) => `Review ${n} skills`,
-  streak_maintain: () => `Keep your streak all week`,
-  streak_guard: () => `Keep your streak all week`,
-  accuracy: (n) => `Score ${n}%+ accuracy`,
-  domain_variety: (n) => `Quest in ${n} domains`,
-  domain_focus: (n, d) => `Complete ${n} ${d ?? ''} quests`.trim(),
-  time_spent: (n) => `Train for ${n} minutes`,
-  perfect_day: (n) => `Have ${n} Perfect Day${n > 1 ? 's' : ''}`,
-  mastery_push: (n) => `Level up ${n} skill${n > 1 ? 's' : ''}`,
-};
+function getChallengeDescriptionI18n(type: string, target: number, tr: (k: string, fb: string) => string, domain?: string): string {
+  switch (type) {
+    case 'quest_count':
+    case 'quest_volume':
+      return tr('league.ch_quest_count', 'Complete {n} quests').replace('{n}', String(target));
+    case 'xp_earn':
+    case 'xp_target':
+      return tr('league.ch_xp_earn', 'Earn {n} XP').replace('{n}', String(target));
+    case 'review_count':
+    case 'review_sprint':
+      return tr('league.ch_review', 'Review {n} skills').replace('{n}', String(target));
+    case 'streak_maintain':
+    case 'streak_guard':
+      return tr('league.ch_streak', 'Keep your streak all week');
+    case 'accuracy':
+      return tr('league.ch_accuracy', 'Score {n}%+ accuracy').replace('{n}', String(target));
+    case 'domain_variety':
+      return tr('league.ch_domain_variety', 'Quest in {n} domains').replace('{n}', String(target));
+    case 'domain_focus':
+      return tr('league.ch_domain_focus', 'Complete {n} {domain} quests').replace('{n}', String(target)).replace('{domain}', domain ?? '');
+    case 'time_spent':
+      return tr('league.ch_time_spent', 'Train for {n} minutes').replace('{n}', String(target));
+    case 'perfect_day':
+      return tr('league.ch_perfect_day', 'Have {n} Perfect Day(s)').replace('{n}', String(target));
+    case 'mastery_push':
+      return tr('league.ch_mastery_push', 'Level up {n} skill(s)').replace('{n}', String(target));
+    default:
+      return tr('league.ch_default', 'Complete {n} tasks').replace('{n}', String(target));
+  }
+}
 
-const CHALLENGE_HINTS: Record<string, string> = {
-  quest_count: 'Complete any quests — daily or roadmap',
-  quest_volume: 'Complete any quests — daily or roadmap',
-  xp_earn: 'Every quest, review, and challenge earns XP',
-  xp_target: 'Every quest, review, and challenge earns XP',
-  review_count: 'Practice your skills in the Mastery Hub',
-  review_sprint: 'Practice your skills in the Mastery Hub',
-  streak_maintain: 'Visit each day to keep your streak alive',
-  streak_guard: 'Visit each day to keep your streak alive',
-  accuracy: 'Aim for high scores on quest answers',
-  domain_variety: 'Try quests from different skill domains',
-  domain_focus: 'Focus on your target domain this week',
-  time_spent: 'Every minute of training counts',
-  perfect_day: 'Complete all 5 daily quests in one day',
-  mastery_push: 'Review skills to push them to the next level',
-};
+function getChallengeHintI18n(type: string, tr: (k: string, fb: string) => string): string {
+  switch (type) {
+    case 'quest_count':
+    case 'quest_volume':
+      return tr('league.hint_quest', 'Complete any quests — daily or roadmap');
+    case 'xp_earn':
+    case 'xp_target':
+      return tr('league.hint_xp', 'Every quest, review, and challenge earns XP');
+    case 'review_count':
+    case 'review_sprint':
+      return tr('league.hint_review', 'Practice your skills in the Mastery Hub');
+    case 'streak_maintain':
+    case 'streak_guard':
+      return tr('league.hint_streak', 'Visit each day to keep your streak alive');
+    case 'accuracy':
+      return tr('league.hint_accuracy', 'Aim for high scores on quest answers');
+    case 'domain_variety':
+      return tr('league.hint_variety', 'Try quests from different skill domains');
+    case 'domain_focus':
+      return tr('league.hint_focus', 'Focus on your target domain this week');
+    case 'time_spent':
+      return tr('league.hint_time', 'Every minute of training counts');
+    case 'perfect_day':
+      return tr('league.hint_perfect', 'Complete all 5 daily quests in one day');
+    case 'mastery_push':
+      return tr('league.hint_mastery', 'Review skills to push them to the next level');
+    default:
+      return '';
+  }
+}
 
 const CHALLENGE_ICONS: Record<string, NeonIconType> = {
   quest_count: 'lightning', quest_volume: 'lightning',
@@ -108,31 +104,27 @@ const CHALLENGE_ICONS: Record<string, NeonIconType> = {
   time_spent: 'clock', perfect_day: 'star', mastery_push: 'shield',
 };
 
-type DifficultyToken = { color: string; numeral: string; borderStyle: string };
+interface DifficultyToken { color: string; numeral: string; borderStyle: string }
+const DEFAULT_DIFF: DifficultyToken = { color: '#4ECDC4', numeral: 'Ⅰ', borderStyle: 'solid' };
 const DIFFICULTY_MAP: Record<string, DifficultyToken> = {
   easy:   { color: t.mint,   numeral: 'Ⅰ', borderStyle: 'solid' },
   medium: { color: t.indigo, numeral: 'Ⅱ', borderStyle: 'dashed' },
   hard:   { color: t.violet, numeral: 'Ⅲ', borderStyle: 'double' },
 };
 
-function getChallengeDescription(type: string, target: number, domain?: string): string {
-  const fn = CHALLENGE_DESCRIPTIONS[type];
-  return fn ? fn(target, domain) : `Complete ${target} tasks`;
-}
-
-function getChallengeStatus(completed: boolean, currentValue: number): { label: string; color: string } {
-  if (completed) return { label: '✓ Complete — Claimed', color: t.cyan };
-  if (currentValue > 0) return { label: 'In progress', color: t.gold };
-  return { label: 'Not started', color: t.textMuted };
+function getChallengeStatus(completed: boolean, currentValue: number, tr: (k: string, fb: string) => string): { label: string; color: string } {
+  if (completed) return { label: tr('league.status_complete', '✓ Complete — Claimed'), color: t.cyan };
+  if (currentValue > 0) return { label: tr('league.status_progress', 'In progress'), color: t.gold };
+  return { label: tr('league.status_not_started', 'Not started'), color: t.textMuted };
 }
 
 // ─── Tabs ───
 type TabId = 'league' | 'weekly' | 'friends' | 'party';
-const TABS: { id: TabId; label: string; icon: NeonIconType }[] = [
-  { id: 'league',  label: 'League',        icon: 'trophy' },
-  { id: 'weekly',  label: 'Weekly Quests',  icon: 'target' },
-  { id: 'friends', label: 'Friends',       icon: 'users' },
-  { id: 'party',   label: 'Party Quest',   icon: 'lightning' },
+const TABS: { id: TabId; label: string; labelKey: string; icon: NeonIconType }[] = [
+  { id: 'league',  label: 'League',        labelKey: 'league.tab_league',  icon: 'trophy' },
+  { id: 'weekly',  label: 'Weekly Quests',  labelKey: 'league.tab_weekly',  icon: 'target' },
+  { id: 'friends', label: 'Friends',       labelKey: 'league.tab_friends', icon: 'users' },
+  { id: 'party',   label: 'Party Quest',   labelKey: 'league.tab_party',   icon: 'lightning' },
 ];
 
 function getCharArt(charId: string) {
@@ -141,6 +133,7 @@ function getCharArt(charId: string) {
 }
 
 export default function LeaguePage() {
+  const tr = useI18nStore((s) => s.t);
   // Reduced-motion check — §N MICRO_ANIMATION_GUIDELINES §10 (BLOCKER)
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   useEffect(() => {
@@ -152,8 +145,20 @@ export default function LeaguePage() {
   }, []);
 
   const searchParams = useSearchParams();
-  const { characterId, xpTotal, level } = useOnboardingStore();
+  const characterId = useCharacterStore((s) => s.characterId);
   const weekly = useWeeklyChallenges();
+  const { leaderboard, friends, activePartyQuest, leagueTier, weeklyXp, displayName } = useSocialStore();
+  const { level, currentStreak } = useProgressionStore();
+
+  // tRPC mutations for social actions
+  const sendFriendRequest = trpc.social.sendFriendRequest.useMutation();
+  const joinPartyQuest = trpc.social.joinPartyQuest.useMutation();
+  const trpcUtils = trpc.useUtils();
+
+  // Add friend modal state
+  const [showAddFriend, setShowAddFriend] = useState(false);
+  const [friendPublicId, setFriendPublicId] = useState('');
+  const [friendError, setFriendError] = useState('');
 
   // Read initial tab from URL ?tab=weekly (deep link from dashboard widget)
   const initialTab = searchParams.get('tab') as TabId | null;
@@ -189,7 +194,7 @@ export default function LeaguePage() {
   const [hoveredFriend, setHoveredFriend] = useState<string | null>(null);
 
   const charMeta = CHARACTERS.find(c => c.id === characterId);
-  const currentTier = LEAGUE_TIERS[0]; // Bronze — placeholder
+  const currentTier = LEAGUE_TIERS.find(lt => lt.id === leagueTier) ?? LEAGUE_TIERS[0];
 
   return (
     <div style={{ animation: prefersReducedMotion ? 'none' : 'fadeUp 0.4s ease-out' }}>
@@ -220,13 +225,13 @@ export default function LeaguePage() {
         color: t.text, marginBottom: 8,
       }}>
         <NeonIcon type="trophy" size={24} color="gold" />
-        Guild Arena
+        {tr('dashboard.guild_arena', 'GUILD ARENA')}
       </h1>
       <p style={{
         fontFamily: t.body, fontSize: 14, color: t.textSecondary,
         marginBottom: 24,
       }}>
-        Compete, cooperate, and climb the ranks
+        {tr('dashboard.guild_subtitle', 'Leagues, Friends, Party Quests')}
       </p>
 
       {/* ─── Tab bar ─── */}
@@ -256,7 +261,7 @@ export default function LeaguePage() {
                 fontFamily: t.display, fontSize: 12, fontWeight: active ? 700 : 500,
                 color: active ? t.text : t.textMuted,
               }}>
-                {tab.label}
+                {tr(tab.labelKey, tab.label)}
               </span>
             </button>
           );
@@ -289,16 +294,16 @@ export default function LeaguePage() {
                   boxShadow: `0 0 12px ${currentTier.color}40`,
                   animation: 'pulse 2s ease-in-out infinite',
                 }}>
-                  <span style={{ fontSize: 18, color: currentTier.color }}>{currentTier.icon}</span>
+                  <NeonIcon type={currentTier.icon} size={18} color={currentTier.color} />
                 </div>
                 <div>
                   <div style={{
                     fontFamily: t.display, fontSize: 18, fontWeight: 800, color: t.text,
                   }}>
-                    {currentTier.label} League
+                    {tr('league.league_label', '{tier} League').replace('{tier}', tr(currentTier.labelKey, currentTier.label))}
                   </div>
                   <div style={{ fontFamily: t.body, fontSize: 12, color: t.textMuted }}>
-                    Week 1 • 6 days remaining
+                    {tr('league.week_remaining', 'Week {n} • {d} days remaining').replace('{n}', '1').replace('{d}', '6')}
                   </div>
                 </div>
               </div>
@@ -307,7 +312,7 @@ export default function LeaguePage() {
                 color: t.textMuted, padding: '4px 10px', borderRadius: 8,
                 background: t.bgElevated,
               }}>
-                30 heroes
+                {tr('league.heroes_count', '{n} heroes').replace('{n}', String(leaderboard.length))}
               </span>
             </div>
 
@@ -321,33 +326,32 @@ export default function LeaguePage() {
                 position: 'absolute', top: '50%', left: 24, right: 24,
                 height: 2, background: t.border, transform: 'translateY(-50%)',
               }} />
-              {LEAGUE_TIERS.map((tier, i) => (
-                <div key={tier.id} style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                  position: 'relative', zIndex: 1,
-                }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: '50%',
-                    background: i === 0 ? `${tier.color}25` : t.bgElevated,
-                    border: `2px solid ${i === 0 ? tier.color : t.border}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: i === 0 ? `0 0 10px ${tier.color}40` : 'none',
-                    transition: 'border-color 0.3s ease, background 0.3s ease, box-shadow 0.3s ease',
+              {LEAGUE_TIERS.map((tier) => {
+                const isCurrent = tier.id === currentTier.id;
+                return (
+                  <div key={tier.id} style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                    position: 'relative', zIndex: 1,
                   }}>
-                    <span style={{
-                      fontSize: 14, color: i === 0 ? tier.color : t.textMuted,
+                    <div style={{
+                      width: 36, height: 36, borderRadius: '50%',
+                      background: isCurrent ? `${tier.color}25` : t.bgElevated,
+                      border: `2px solid ${isCurrent ? tier.color : t.border}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      boxShadow: isCurrent ? `0 0 10px ${tier.color}40` : 'none',
+                      transition: 'border-color 0.3s ease, background 0.3s ease, box-shadow 0.3s ease',
                     }}>
-                      {tier.icon}
+                      <NeonIcon type={tier.icon} size={14} color={isCurrent ? tier.color : t.textMuted} />
+                    </div>
+                    <span style={{
+                      fontFamily: t.mono, fontSize: 9, fontWeight: 700,
+                      color: isCurrent ? tier.color : t.textMuted,
+                    }}>
+                      {tr(tier.labelKey, tier.label)}
                     </span>
                   </div>
-                  <span style={{
-                    fontFamily: t.mono, fontSize: 9, fontWeight: 700,
-                    color: i === 0 ? tier.color : t.textMuted,
-                  }}>
-                    {tier.label}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Promotion/demotion rules */}
@@ -363,7 +367,7 @@ export default function LeaguePage() {
                   boxShadow: `0 0 6px ${t.cyan}60`,
                 }} />
                 <span style={{ fontFamily: t.body, fontSize: 11, color: t.textSecondary }}>
-                  Top 10 → promote
+                  {tr('league.promote', 'Top 10 → promote')}
                 </span>
               </div>
               <div style={{ width: 1, background: t.border }} />
@@ -374,7 +378,7 @@ export default function LeaguePage() {
                   boxShadow: `0 0 6px ${t.rose}60`,
                 }} />
                 <span style={{ fontFamily: t.body, fontSize: 11, color: t.textSecondary }}>
-                  Bottom 5 → demote
+                  {tr('league.demote', 'Bottom 5 → demote')}
                 </span>
               </div>
             </div>
@@ -394,13 +398,13 @@ export default function LeaguePage() {
                 fontFamily: t.display, fontSize: 18, fontWeight: 800, color: t.text,
                 marginBottom: 8,
               }}>
-                Join the Arena?
+                {tr('league.join_title', 'Join the Arena?')}
               </div>
               <p style={{
                 fontFamily: t.body, fontSize: 13, color: t.textSecondary,
                 marginBottom: 20, lineHeight: 1.5,
               }}>
-                Compete with 30 heroes in weekly XP challenges. Earn your way from Bronze to Diamond!
+                {tr('league.join_desc', 'Compete with 30 heroes in weekly XP challenges. Earn your way from Bronze to Diamond!')}
               </p>
               <button
                 onClick={() => setJoined(true)}
@@ -419,13 +423,13 @@ export default function LeaguePage() {
                 }}
               >
                 <NeonIcon type="trophy" size={16} color="text" />
-                Join Weekly League
+                {tr('league.join_btn', 'Join Weekly League')}
               </button>
               <p style={{
                 fontFamily: t.body, fontSize: 11, color: t.textMuted,
                 marginTop: 12,
               }}>
-                Opt-in only • Resets every Monday • Leave anytime
+                {tr('league.join_note', 'Opt-in only • Resets every Monday • Leave anytime')}
               </p>
             </div>
           ) : (
@@ -446,54 +450,18 @@ export default function LeaguePage() {
                   color: t.textSecondary, textTransform: 'uppercase',
                   letterSpacing: '0.06em',
                 }}>
-                  Weekly Standings
+                  {tr('league.standings', 'Weekly Standings')}
                 </span>
                 <span style={{
                   fontFamily: t.mono, fontSize: 10, fontWeight: 700,
                   color: t.textMuted,
                 }}>
-                  6d 12h left
-                </span>
-              </div>
-
-              {/* Your position highlight */}
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 12,
-                padding: '12px 20px',
-                background: `${t.violet}08`,
-                borderBottom: `1px solid ${t.violet}20`,
-              }}>
-                <span style={{
-                  fontFamily: t.mono, fontSize: 14, fontWeight: 800, color: t.textMuted,
-                  width: 28, textAlign: 'center',
-                }}>
-                  —
-                </span>
-                <div style={{
-                  width: 28, height: 28, borderRadius: '50%',
-                  background: `${charMeta?.color || t.violet}15`,
-                  border: `1.5px solid ${charMeta?.color || t.violet}40`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0,
-                }}>
-                  {characterId && getCharArt(characterId) ? (
-                    <PixelCanvas data={getCharArt(characterId)!} size={2} />
-                  ) : (
-                    <NeonIcon type="shield" size={12} color="violet" />
-                  )}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontFamily: t.body, fontSize: 13, fontWeight: 700, color: t.violet }}>
-                    You ({charMeta?.name || 'Hero'})
-                  </span>
-                </div>
-                <span style={{ fontFamily: t.mono, fontSize: 13, fontWeight: 800, color: t.violet }}>
-                  {xpTotal} XP
+                  {tr('league.time_left', '{d}d {h}h left').replace('{d}', '6').replace('{h}', '12')}
                 </span>
               </div>
 
               {/* Members list */}
-              {MOCK_MEMBERS.map((member, i) => {
+              {leaderboard.map((member, i) => {
                 const isPromoZone = member.rank <= 10;
                 const isDemoteZone = member.rank > 25;
                 const isTop3 = member.rank <= 3;
@@ -505,12 +473,12 @@ export default function LeaguePage() {
                   : undefined;
                 return (
                   <div
-                    key={member.rank}
+                    key={`${member.rank}-${member.name}`}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 12,
                       padding: '10px 20px',
-                      borderBottom: i < MOCK_MEMBERS.length - 1 ? `1px solid ${t.border}` : 'none',
-                      background: isTop3 && !prefersReducedMotion ? `${podiumColor}06` : 'transparent', // UX-R162: no visual stress on demotion zone
+                      borderBottom: i < leaderboard.length - 1 ? `1px solid ${t.border}` : 'none',
+                      background: member.isYou ? `${t.violet}08` : (isTop3 && !prefersReducedMotion ? `${podiumColor}06` : 'transparent'),
                       animation: `fadeUp 0.3s ease-out ${i * 0.03}s both`,
                       boxShadow: isTop3 && !prefersReducedMotion ? `inset 0 0 20px ${podiumColor}08` : 'none',
                     }}
@@ -539,10 +507,10 @@ export default function LeaguePage() {
                     </div>
                     {/* Name */}
                     <span style={{
-                      fontFamily: t.body, fontSize: 13, fontWeight: isTop3 ? 700 : 500,
-                      color: isTop3 ? podiumColor : t.text, flex: 1,
+                      fontFamily: t.body, fontSize: 13, fontWeight: member.isYou ? 700 : (isTop3 ? 700 : 500),
+                      color: member.isYou ? t.violet : (isTop3 ? podiumColor : t.text), flex: 1,
                     }}>
-                      {member.name}
+                      {member.isYou ? tr('league.you', 'You ({name})').replace('{name}', member.name) : member.name}
                     </span>
                     {/* Zone indicator */}
                     {isPromoZone && (
@@ -577,7 +545,7 @@ export default function LeaguePage() {
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               }}>
                 <span style={{ fontFamily: t.body, fontSize: 11, color: t.textMuted }}>
-                  Showing top 15 of 30
+                  {tr('league.showing', 'Showing top {n} of {total}').replace('{n}', String(leaderboard.length)).replace('{total}', String(leaderboard.length))}
                 </span>
                 <button
                   onClick={() => setJoined(false)}
@@ -587,7 +555,7 @@ export default function LeaguePage() {
                     color: t.textMuted, transition: 'color 0.2s ease',
                   }}
                 >
-                  Leave league
+                  {tr('league.leave', 'Leave league')}
                 </button>
               </div>
             </div>
@@ -608,7 +576,7 @@ export default function LeaguePage() {
             const now = new Date();
             const hoursLeft = Math.max(0, Math.floor((endDate.getTime() - now.getTime()) / 3600000));
             const daysLeft = Math.floor(hoursLeft / 24);
-            const timeLabel = daysLeft > 0 ? `${daysLeft}d ${hoursLeft % 24}h remaining` : `${hoursLeft}h remaining`;
+            const timeLabel = daysLeft > 0 ? tr('league.time_remaining', '{d}d {h}h remaining').replace('{d}', String(daysLeft)).replace('{h}', String(hoursLeft % 24)) : tr('league.hours_remaining', '{h}h remaining').replace('{h}', String(hoursLeft));
             const timerColor = hoursLeft < 24 ? t.rose : (hoursLeft < 72 ? t.gold : t.textMuted);
             const completedCount = weekly.challenges.filter(c => c.completed).length;
 
@@ -626,10 +594,10 @@ export default function LeaguePage() {
                       <div style={{
                         fontFamily: t.display, fontSize: 16, fontWeight: 800, color: t.text,
                       }}>
-                        Weekly Quests
+                        {tr('league.weekly_title', 'Weekly Quests')}
                       </div>
                       <div style={{ fontFamily: t.body, fontSize: 12, color: t.textMuted }}>
-                        Resets Monday • {completedCount}/{weekly.challenges.length} completed
+                        {tr('league.resets_monday', 'Resets Monday • {n}/{total} completed').replace('{n}', String(completedCount)).replace('{total}', String(weekly.challenges.length))}
                       </div>
                     </div>
                   </div>
@@ -645,12 +613,12 @@ export default function LeaguePage() {
 
                 {/* Challenge cards — expanded detail */}
                 {weekly.challenges.map((c, idx) => {
-                  const diff = DIFFICULTY_MAP[c.difficulty] ?? DIFFICULTY_MAP.easy;
+                  const diff: DifficultyToken = DIFFICULTY_MAP[c.difficulty] ?? DEFAULT_DIFF;
                   const icon = CHALLENGE_ICONS[c.type] ?? 'target';
-                  const desc = getChallengeDescription(c.type, c.targetValue);
-                  const hint = CHALLENGE_HINTS[c.type] ?? '';
+                  const desc = getChallengeDescriptionI18n(c.type, c.targetValue, tr);
+                  const hint = getChallengeHintI18n(c.type, tr);
                   const pct = Math.min(100, c.progress * 100);
-                  const status = getChallengeStatus(c.completed, c.currentValue);
+                  const status = getChallengeStatus(c.completed, c.currentValue, tr);
                   const nearComplete = c.progress >= 0.8 && !c.completed;
 
                   return (
@@ -698,7 +666,7 @@ export default function LeaguePage() {
                           )}
                         </div>
                         <span
-                          aria-label={`Difficulty: ${c.difficulty}`}
+                          aria-label={tr('weekly.aria_difficulty', 'Difficulty: {d}').replace('{d}', c.difficulty)}
                           style={{
                             fontFamily: t.mono, fontSize: 10, fontWeight: 800,
                             color: diff.color,
@@ -790,16 +758,16 @@ export default function LeaguePage() {
                         color: weekly.allCompleted ? t.gold : t.text,
                       }}>
                         {weekly.allCompleted
-                          ? (weekly.bonusClaimed ? 'Weekly Champion! Bonus claimed' : 'Weekly Champion!')
-                          : 'Weekly Champion Bonus'}
+                          ? (weekly.bonusClaimed ? tr('league.champion_claimed', 'Weekly Champion! Bonus claimed') : tr('league.champion_title', 'Weekly Champion!'))
+                          : tr('league.champion_bonus', 'Weekly Champion Bonus')}
                       </div>
                       <div style={{
                         fontFamily: t.body, fontSize: 12,
                         color: weekly.allCompleted ? t.gold : t.textSecondary,
                       }}>
                         {weekly.allCompleted
-                          ? '+150 XP + 🪙 50 awarded'
-                          : `Complete all ${weekly.challenges.length} challenges for a bonus reward`}
+                          ? tr('league.champion_awarded', '+150 XP + 🪙 50 awarded')
+                          : tr('league.champion_hint', 'Complete all {n} challenges for a bonus reward').replace('{n}', String(weekly.challenges.length))}
                       </div>
                     </div>
                     {weekly.allCompleted && (
@@ -828,7 +796,7 @@ export default function LeaguePage() {
                         fontFamily: t.mono, fontSize: 11, fontWeight: 700,
                         color: t.textMuted,
                       }}>
-                        {completedCount}/{weekly.challenges.length} challenges
+                        {tr('league.challenges_count', '{n}/{total} challenges').replace('{n}', String(completedCount)).replace('{total}', String(weekly.challenges.length))}
                       </span>
                     </div>
                   )}
@@ -850,7 +818,7 @@ export default function LeaguePage() {
                           +150 XP
                         </div>
                         <div style={{ fontFamily: t.body, fontSize: 9, color: t.textMuted }}>
-                          Champion Bonus
+                          {tr('league.champion_xp', 'Champion Bonus')}
                         </div>
                       </div>
                     </div>
@@ -865,7 +833,7 @@ export default function LeaguePage() {
                           +50
                         </div>
                         <div style={{ fontFamily: t.body, fontSize: 9, color: t.textMuted }}>
-                          Coins
+                          {tr('league.coins_label', 'Coins')}
                         </div>
                       </div>
                     </div>
@@ -878,7 +846,7 @@ export default function LeaguePage() {
                   fontFamily: t.body, fontSize: 11, color: t.textMuted,
                   textAlign: 'center' as const,
                 }}>
-                  This week: 1st attempt
+                  {tr('league.first_attempt', 'This week: 1st attempt')}
                 </div>
               </>
             );
@@ -913,14 +881,14 @@ export default function LeaguePage() {
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: t.display, fontSize: 15, fontWeight: 700, color: t.text }}>
-                {charMeta?.name || 'Hero'} (You)
+                {tr('league.you', 'You ({name})').replace('{name}', displayName || charMeta?.name || tr('character.hero_fallback', 'Hero'))}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontFamily: t.mono, fontSize: 11, fontWeight: 700, color: t.violet }}>
-                  Lv.{level}
+                  {tr('sidebar.level_badge', 'Lv.{n}').replace('{n}', String(level))}
                 </span>
                 <span style={{ fontFamily: t.mono, fontSize: 11, color: t.textMuted }}>
-                  {xpTotal} XP
+                  {weeklyXp} XP {tr('league.this_week', 'this week')}
                 </span>
               </div>
             </div>
@@ -931,13 +899,13 @@ export default function LeaguePage() {
             }}>
               <NeonIcon type="fire" size={14} color="gold" />
               <span style={{ fontFamily: t.mono, fontSize: 11, fontWeight: 800, color: t.gold }}>
-                0
+                {currentStreak}
               </span>
             </div>
           </div>
 
           {/* Friends list */}
-          {MOCK_FRIENDS.length > 0 ? (
+          {friends.length > 0 ? (
             <div style={{
               borderRadius: 16,
               background: t.bgCard, border: `1px solid ${t.border}`,
@@ -952,22 +920,22 @@ export default function LeaguePage() {
                   color: t.textSecondary, textTransform: 'uppercase',
                   letterSpacing: '0.06em',
                 }}>
-                  Friends ({MOCK_FRIENDS.length})
+                  {tr('league.friends_header', 'Friends ({n})').replace('{n}', String(friends.length))}
                 </span>
               </div>
-              {MOCK_FRIENDS.map((friend, i) => {
+              {friends.map((friend, i) => {
                 const art = getCharArt(friend.charId);
                 const fc = CHARACTERS.find(c => c.id === friend.charId);
                 const isFriendHovered = hoveredFriend === friend.name;
                 return (
                   <div
-                    key={friend.name}
+                    key={friend.publicId || friend.name}
                     onMouseEnter={() => setHoveredFriend(friend.name)}
                     onMouseLeave={() => setHoveredFriend(null)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 14,
                       padding: '14px 20px',
-                      borderBottom: i < MOCK_FRIENDS.length - 1 ? `1px solid ${t.border}` : 'none',
+                      borderBottom: i < friends.length - 1 ? `1px solid ${t.border}` : 'none',
                       animation: `fadeUp 0.3s ease-out ${i * 0.06}s both`,
                       background: isFriendHovered ? '#121218' : 'transparent',
                       transition: 'background 0.2s ease',
@@ -990,7 +958,7 @@ export default function LeaguePage() {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontFamily: t.mono, fontSize: 10, fontWeight: 700, color: t.violet }}>
-                          Lv.{friend.level}
+                          {tr('sidebar.level_badge', 'Lv.{n}').replace('{n}', String(friend.level))}
                         </span>
                         <span style={{
                           display: 'inline-flex', alignItems: 'center', gap: 3,
@@ -1006,7 +974,7 @@ export default function LeaguePage() {
                         {friend.xp} XP
                       </div>
                       <div style={{ fontFamily: t.body, fontSize: 9, color: t.textMuted }}>
-                        this week
+                        {tr('league.this_week', 'this week')}
                       </div>
                     </div>
                   </div>
@@ -1021,35 +989,101 @@ export default function LeaguePage() {
             background: t.bgCard, border: `1px dashed ${t.border}`,
             textAlign: 'center',
           }}>
-            <NeonIcon type="users" size={28} color="muted" />
-            <p style={{
-              fontFamily: t.body, fontSize: 13, color: t.textMuted,
-              marginTop: 8, marginBottom: 12,
-            }}>
-              Invite friends to compare progress privately
-            </p>
-            <button
-              onMouseDown={() => setPressedInvite(true)}
-              onMouseUp={() => setPressedInvite(false)}
-              onMouseLeave={() => setPressedInvite(false)}
-              style={{
-                padding: '10px 24px', borderRadius: 12,
-                background: `${t.violet}12`, border: `1px solid ${t.violet}25`,
-                cursor: 'pointer',
-                fontFamily: t.display, fontSize: 13, fontWeight: 700,
-                color: t.violet, transition: 'border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease',
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                transform: pressedInvite ? 'scale(0.98)' : 'none',
-              }}>
-              <NeonIcon type="users" size={14} color="violet" />
-              Invite a Friend
-            </button>
-            <p style={{
-              fontFamily: t.body, fontSize: 10, color: t.textMuted,
-              marginTop: 8,
-            }}>
-              Friends-only • No public profiles • Your progress, your circle
-            </p>
+            {showAddFriend ? (
+              <>
+                <div style={{
+                  fontFamily: t.display, fontSize: 15, fontWeight: 700, color: t.text,
+                  marginBottom: 12,
+                }}>
+                  {tr('league.add_friend_title', 'Add Friend by Public ID')}
+                </div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 8 }}>
+                  <input
+                    type="text"
+                    value={friendPublicId}
+                    onChange={(e) => { setFriendPublicId(e.target.value); setFriendError(''); }}
+                    placeholder={tr('league.public_id_placeholder', 'Enter public ID...')}
+                    style={{
+                      padding: '10px 14px', borderRadius: 10,
+                      background: t.bgElevated, border: `1px solid ${t.border}`,
+                      color: t.text, fontFamily: t.mono, fontSize: 13,
+                      outline: 'none', width: 200,
+                    }}
+                  />
+                  <button
+                    onClick={async () => {
+                      if (!friendPublicId.trim()) return;
+                      try {
+                        await sendFriendRequest.mutateAsync({ publicId: friendPublicId.trim() });
+                        setFriendPublicId('');
+                        setShowAddFriend(false);
+                        setFriendError('');
+                        trpcUtils.social.getFriends.invalidate();
+                      } catch (err: any) {
+                        setFriendError(err?.message ?? 'Failed to send request');
+                      }
+                    }}
+                    disabled={sendFriendRequest.isPending}
+                    style={{
+                      padding: '10px 20px', borderRadius: 10,
+                      background: t.gradient, border: 'none',
+                      cursor: sendFriendRequest.isPending ? 'not-allowed' : 'pointer',
+                      fontFamily: t.display, fontSize: 13, fontWeight: 700,
+                      color: '#FFF', opacity: sendFriendRequest.isPending ? 0.6 : 1,
+                    }}
+                  >
+                    {sendFriendRequest.isPending ? '...' : tr('league.send_request', 'Send')}
+                  </button>
+                </div>
+                {friendError && (
+                  <p style={{ fontFamily: t.body, fontSize: 11, color: t.rose, marginBottom: 8 }}>
+                    {friendError}
+                  </p>
+                )}
+                <button
+                  onClick={() => { setShowAddFriend(false); setFriendError(''); }}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontFamily: t.body, fontSize: 11, color: t.textMuted,
+                  }}
+                >
+                  {tr('league.cancel', 'Cancel')}
+                </button>
+              </>
+            ) : (
+              <>
+                <NeonIcon type="users" size={28} color="muted" />
+                <p style={{
+                  fontFamily: t.body, fontSize: 13, color: t.textMuted,
+                  marginTop: 8, marginBottom: 12,
+                }}>
+                  {tr('league.invite_desc', 'Invite friends to compare progress privately')}
+                </p>
+                <button
+                  onClick={() => setShowAddFriend(true)}
+                  onMouseDown={() => setPressedInvite(true)}
+                  onMouseUp={() => setPressedInvite(false)}
+                  onMouseLeave={() => setPressedInvite(false)}
+                  style={{
+                    padding: '10px 24px', borderRadius: 12,
+                    background: `${t.violet}12`, border: `1px solid ${t.violet}25`,
+                    cursor: 'pointer',
+                    fontFamily: t.display, fontSize: 13, fontWeight: 700,
+                    color: t.violet, transition: 'border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease',
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    transform: pressedInvite ? 'scale(0.98)' : 'none',
+                  }}>
+                  <NeonIcon type="users" size={14} color="violet" />
+                  {tr('league.invite_btn', 'Invite a Friend')}
+                </button>
+                <p style={{
+                  fontFamily: t.body, fontSize: 10, color: t.textMuted,
+                  marginTop: 8,
+                }}>
+                  {tr('league.invite_note', 'Friends-only • No public profiles • Your progress, your circle')}
+                </p>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -1061,250 +1095,283 @@ export default function LeaguePage() {
         <div style={{
           animation: tabExiting ? 'fadeUp 0.2s ease-in reverse forwards' : 'fadeUp 0.3s ease-out',
         }}>
-          {/* Boss card */}
-          <div style={{
-            padding: 24, borderRadius: 16,
-            background: t.bgCard,
-            border: `1px solid ${rarity.epic.color}30`,
-            boxShadow: rarity.epic.glow,
-            marginBottom: 16,
-            position: 'relative', overflow: 'hidden',
-          }}>
-            {/* Rarity accent */}
-            <div style={{
-              position: 'absolute', top: 0, left: 0, right: 0, height: 3,
-              background: `linear-gradient(90deg, ${rarity.epic.color}, ${t.rose})`,
-            }} />
+          {activePartyQuest ? (() => {
+            const bossRarityConfig = BOSS_RARITY_CONFIG[activePartyQuest.rarity] ?? BOSS_RARITY_CONFIG.common!;
+            const bossHpPercent = (activePartyQuest.hp / activePartyQuest.maxHp) * 100;
+            const isLowHp = bossHpPercent < 20;
+            const totalDmg = activePartyQuest.members.reduce((s, m) => s + m.dmg, 0);
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
-              <div style={{
-                width: 56, height: 56, borderRadius: 16,
-                background: `${t.rose}12`, border: `1px solid ${t.rose}25`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 28,
-              }}>
-                🐉
-              </div>
-              <div style={{ flex: 1 }}>
+            return (
+              <>
+                {/* Boss card */}
                 <div style={{
-                  fontFamily: t.display, fontSize: 20, fontWeight: 800, color: t.text,
-                  marginBottom: 4,
+                  padding: 24, borderRadius: 16,
+                  background: t.bgCard,
+                  border: `1px solid ${bossRarityConfig.color}30`,
+                  marginBottom: 16,
+                  position: 'relative', overflow: 'hidden',
                 }}>
-                  {PARTY_BOSS.name}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 3,
-                    fontFamily: t.mono, fontSize: 10, fontWeight: 700,
-                    padding: '2px 8px', borderRadius: 8,
-                    color: rarity.epic.color,
-                    background: rarity.epic.bg,
-                    textTransform: 'uppercase',
-                  }}>
-                    {rarity.epic.icon} Epic Boss
-                  </span>
-                  <span style={{ fontFamily: t.body, fontSize: 11, color: t.textMuted }}>
-                    Weekly Challenge
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Boss HP bar — anticipation glow when HP < 20% §N §6 Ambient */}
-            {(() => {
-              const bossHpPercent = (PARTY_BOSS.hp / PARTY_BOSS.maxHp) * 100;
-              const isLowHp = bossHpPercent < 20;
-              return (
-                <div style={{ marginBottom: 16 }}>
+                  {/* Rarity accent */}
                   <div style={{
-                    display: 'flex', justifyContent: 'space-between', marginBottom: 6,
+                    position: 'absolute', top: 0, left: 0, right: 0, height: 3,
+                    background: `linear-gradient(90deg, ${bossRarityConfig.color}, ${t.rose})`,
+                  }} />
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+                    <div style={{
+                      width: 56, height: 56, borderRadius: 16,
+                      background: `${t.rose}12`, border: `1px solid ${t.rose}25`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 28,
+                    }}>
+                      🐉
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        fontFamily: t.display, fontSize: 20, fontWeight: 800, color: t.text,
+                        marginBottom: 4,
+                      }}>
+                        {activePartyQuest.name}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 3,
+                          fontFamily: t.mono, fontSize: 10, fontWeight: 700,
+                          padding: '2px 8px', borderRadius: 8,
+                          color: bossRarityConfig.color,
+                          background: bossRarityConfig.bg,
+                          textTransform: 'uppercase',
+                        }}>
+                          {bossRarityConfig.icon} {tr(`league.${activePartyQuest.rarity}_boss`, `${activePartyQuest.rarity} Boss`)}
+                        </span>
+                        <span style={{ fontFamily: t.body, fontSize: 11, color: t.textMuted }}>
+                          {tr('league.weekly_challenge', 'Weekly Challenge')}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Boss HP bar */}
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{
+                      display: 'flex', justifyContent: 'space-between', marginBottom: 6,
+                    }}>
+                      <span style={{
+                        fontFamily: t.mono, fontSize: 11, fontWeight: 700, color: t.rose,
+                        display: 'flex', alignItems: 'center', gap: 4,
+                      }}>
+                        <NeonIcon type="lightning" size={12} color="rose" />
+                        {tr('league.boss_hp', 'Boss HP')}
+                      </span>
+                      <span style={{ fontFamily: t.mono, fontSize: 11, fontWeight: 700, color: t.textMuted }}>
+                        {activePartyQuest.hp} / {activePartyQuest.maxHp}
+                      </span>
+                    </div>
+                    <div style={{
+                      height: 10, borderRadius: 5, background: t.border, overflow: 'hidden',
+                      boxShadow: isLowHp && !prefersReducedMotion ? `0 0 12px ${t.rose}40` : 'none',
+                      animation: isLowHp && !prefersReducedMotion ? 'glowPulse 2s ease-in-out infinite' : 'none',
+                    }}>
+                      <div style={{
+                        width: '100%',
+                        height: '100%', borderRadius: 5,
+                        background: `linear-gradient(90deg, ${t.rose}, ${t.rose}CC)`,
+                        transform: `scaleX(${activePartyQuest.hp / activePartyQuest.maxHp})`,
+                        transformOrigin: 'left',
+                        transition: 'transform 0.6s ease-out',
+                        boxShadow: `0 0 8px ${t.rose}40`,
+                      }} />
+                    </div>
+                  </div>
+
+                  {/* Rewards */}
+                  <div style={{
+                    display: 'flex', gap: 12,
+                    padding: '10px 14px', borderRadius: 12,
+                    background: t.bgElevated, border: `1px solid ${t.border}`,
+                    marginBottom: 16,
+                  }}>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <NeonIcon type="xp" size={16} color="gold" />
+                      <div>
+                        <div style={{ fontFamily: t.mono, fontSize: 14, fontWeight: 800, color: t.gold }}>
+                          +{activePartyQuest.reward.xp} XP
+                        </div>
+                        <div style={{ fontFamily: t.body, fontSize: 9, color: t.textMuted }}>
+                          {tr('league.victory_bounty', 'Victory Bounty')}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ width: 1, background: t.border }} />
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <NeonIcon type="gem" size={16} color="cyan" />
+                      <div>
+                        <div style={{ fontFamily: t.mono, fontSize: 14, fontWeight: 800, color: t.cyan }}>
+                          +{activePartyQuest.reward.crystals}
+                        </div>
+                        <div style={{ fontFamily: t.body, fontSize: 9, color: t.textMuted }}>
+                          {tr('league.energy_crystals', 'Energy Crystals')}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* How it works */}
+                  <div style={{
+                    fontFamily: t.body, fontSize: 12, color: t.textSecondary,
+                    lineHeight: 1.5, padding: '10px 14px', borderRadius: 12,
+                    background: `${t.violet}06`, border: `1px solid ${t.violet}12`,
+                  }}>
+                    💡 <strong style={{ color: t.text }}>{tr('league.how_it_works', 'How it works:')}</strong> {tr('league.how_it_works_desc', 'Complete daily quests to deal damage. Each quest = damage points. Your party fights together — when the boss reaches 0 HP, everyone gets rewards!')}
+                  </div>
+                </div>
+
+                {/* Party members */}
+                <div style={{
+                  borderRadius: 16,
+                  background: t.bgCard, border: `1px solid ${t.border}`,
+                  overflow: 'hidden', marginBottom: 16,
+                }}>
+                  <div style={{
+                    padding: '14px 20px',
+                    borderBottom: `1px solid ${t.border}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   }}>
                     <span style={{
-                      fontFamily: t.mono, fontSize: 11, fontWeight: 700, color: t.rose,
-                      display: 'flex', alignItems: 'center', gap: 4,
+                      fontFamily: t.display, fontSize: 13, fontWeight: 700,
+                      color: t.textSecondary, textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
                     }}>
-                      <NeonIcon type="lightning" size={12} color="rose" />
-                      Boss HP
+                      {tr('league.party_members', 'Party Members ({n})').replace('{n}', String(activePartyQuest.members.length))}
                     </span>
-                    <span style={{ fontFamily: t.mono, fontSize: 11, fontWeight: 700, color: t.textMuted }}>
-                      {PARTY_BOSS.hp} / {PARTY_BOSS.maxHp}
+                    <span style={{
+                      fontFamily: t.mono, fontSize: 10, fontWeight: 700,
+                      color: t.cyan,
+                    }}>
+                      {tr('league.total_dmg', 'Total DMG: {n}').replace('{n}', String(totalDmg))}
                     </span>
                   </div>
-                  <div style={{
-                    height: 10, borderRadius: 5, background: t.border, overflow: 'hidden',
-                    boxShadow: isLowHp && !prefersReducedMotion ? `0 0 12px ${t.rose}40` : 'none',
-                    animation: isLowHp && !prefersReducedMotion ? 'glowPulse 2s ease-in-out infinite' : 'none',
+
+                  {activePartyQuest.members.map((member, i) => {
+                    const art = getCharArt(member.charId);
+                    const mc = CHARACTERS.find(c => c.id === member.charId);
+                    return (
+                      <div
+                        key={`${member.name}-${i}`}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 14,
+                          padding: '12px 20px',
+                          background: member.isYou ? `${t.violet}06` : 'transparent',
+                          borderBottom: i < activePartyQuest.members.length - 1 ? `1px solid ${t.border}` : 'none',
+                          animation: `fadeUp 0.3s ease-out ${i * 0.06}s both`,
+                        }}
+                      >
+                        <div style={{
+                          width: 32, height: 32, borderRadius: '50%',
+                          background: `${mc?.color || t.violet}15`,
+                          border: `1.5px solid ${mc?.color || t.violet}${member.isYou ? '40' : '30'}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          {art ? <PixelCanvas data={art} size={2} /> : <NeonIcon type="shield" size={12} color={member.isYou ? 'violet' : 'muted'} />}
+                        </div>
+                        <span style={{
+                          fontFamily: t.body, fontSize: 13,
+                          fontWeight: member.isYou ? 700 : 500,
+                          color: member.isYou ? t.violet : t.text,
+                          flex: 1,
+                        }}>
+                          {member.isYou ? tr('league.you', 'You ({name})').replace('{name}', member.name) : member.name}
+                        </span>
+                        <span style={{
+                          fontFamily: t.mono, fontSize: 13,
+                          fontWeight: member.isYou ? 800 : 700,
+                          color: member.isYou ? t.violet : t.cyan,
+                        }}>
+                          {tr('league.dmg', '{n} DMG').replace('{n}', String(member.dmg))}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* CTA */}
+                <div style={{
+                  padding: 20, borderRadius: 16,
+                  background: t.bgCard, border: `1px solid ${t.border}`,
+                  textAlign: 'center',
+                }}>
+                  <p style={{
+                    fontFamily: t.body, fontSize: 13, color: t.textSecondary,
+                    marginBottom: 12,
                   }}>
-                    <div style={{
-                      width: '100%',
-                      height: '100%', borderRadius: 5,
-                      background: `linear-gradient(90deg, ${t.rose}, ${t.rose}CC)`,
-                      transform: `scaleX(${PARTY_BOSS.hp / PARTY_BOSS.maxHp})`,
-                      transformOrigin: 'left',
-                      transition: 'transform 0.6s ease-out',
-                      boxShadow: `0 0 8px ${t.rose}40`,
-                    }} />
-                  </div>
+                    {tr('league.deal_damage', 'Complete quests to deal damage to the boss!')}
+                  </p>
+                  <button style={{
+                    padding: '12px 32px', borderRadius: 14,
+                    border: 'none', background: t.gradient,
+                    cursor: 'pointer',
+                    fontFamily: t.display, fontSize: 14, fontWeight: 800,
+                    color: '#FFF', borderBottom: '4px solid #6A50CC',
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                  }}>
+                    <NeonIcon type="compass" size={16} color="text" />
+                    {tr('league.go_home', 'Go to Command Center')}
+                  </button>
                 </div>
-              );
-            })()}
-
-            {/* Rewards */}
+              </>
+            );
+          })() : (
+            /* No active party quest — Join CTA */
             <div style={{
-              display: 'flex', gap: 12,
-              padding: '10px 14px', borderRadius: 12,
-              background: t.bgElevated, border: `1px solid ${t.border}`,
-              marginBottom: 16,
+              padding: 32, borderRadius: 16,
+              background: t.bgCard, border: `1px solid ${t.border}`,
+              textAlign: 'center',
             }}>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <NeonIcon type="xp" size={16} color="gold" />
-                <div>
-                  <div style={{ fontFamily: t.mono, fontSize: 14, fontWeight: 800, color: t.gold }}>
-                    +{PARTY_BOSS.reward.xp} XP
-                  </div>
-                  <div style={{ fontFamily: t.body, fontSize: 9, color: t.textMuted }}>
-                    Victory Bounty
-                  </div>
-                </div>
-              </div>
-              <div style={{ width: 1, background: t.border }} />
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <NeonIcon type="gem" size={16} color="cyan" />
-                <div>
-                  <div style={{ fontFamily: t.mono, fontSize: 14, fontWeight: 800, color: t.cyan }}>
-                    +{PARTY_BOSS.reward.crystals}
-                  </div>
-                  <div style={{ fontFamily: t.body, fontSize: 9, color: t.textMuted }}>
-                    Energy Crystals
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* How it works */}
-            <div style={{
-              fontFamily: t.body, fontSize: 12, color: t.textSecondary,
-              lineHeight: 1.5, padding: '10px 14px', borderRadius: 12,
-              background: `${t.violet}06`, border: `1px solid ${t.violet}12`,
-            }}>
-              💡 <strong style={{ color: t.text }}>How it works:</strong> Complete daily quests to deal damage. Each quest = damage points. Your party fights together — when the boss reaches 0 HP, everyone gets rewards!
-            </div>
-          </div>
-
-          {/* Party members */}
-          <div style={{
-            borderRadius: 16,
-            background: t.bgCard, border: `1px solid ${t.border}`,
-            overflow: 'hidden', marginBottom: 16,
-          }}>
-            <div style={{
-              padding: '14px 20px',
-              borderBottom: `1px solid ${t.border}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            }}>
-              <span style={{
-                fontFamily: t.display, fontSize: 13, fontWeight: 700,
-                color: t.textSecondary, textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-              }}>
-                Party Members ({PARTY_BOSS.members.length + 1})
-              </span>
-              <span style={{
-                fontFamily: t.mono, fontSize: 10, fontWeight: 700,
-                color: t.cyan,
-              }}>
-                Total DMG: {PARTY_BOSS.members.reduce((s, m) => s + m.dmg, 0)}
-              </span>
-            </div>
-
-            {/* You */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 14,
-              padding: '12px 20px',
-              background: `${t.violet}06`,
-              borderBottom: `1px solid ${t.border}`,
-            }}>
-              <div style={{
-                width: 32, height: 32, borderRadius: '50%',
-                background: `${charMeta?.color || t.violet}15`,
-                border: `1.5px solid ${charMeta?.color || t.violet}40`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                {characterId && getCharArt(characterId) ? (
-                  <PixelCanvas data={getCharArt(characterId)!} size={2} />
-                ) : (
-                  <NeonIcon type="shield" size={12} color="violet" />
-                )}
-              </div>
-              <div style={{ flex: 1 }}>
-                <span style={{ fontFamily: t.body, fontSize: 13, fontWeight: 700, color: t.violet }}>
-                  {charMeta?.name || 'Hero'} (You)
-                </span>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+                <NeonIcon type="lightning" size={40} color="rose" />
               </div>
               <div style={{
-                fontFamily: t.mono, fontSize: 13, fontWeight: 800, color: t.violet,
+                fontFamily: t.display, fontSize: 18, fontWeight: 800, color: t.text,
+                marginBottom: 8,
               }}>
-                0 DMG
+                {tr('league.join_party_title', 'Join a Party Quest!')}
               </div>
+              <p style={{
+                fontFamily: t.body, fontSize: 13, color: t.textSecondary,
+                marginBottom: 20, lineHeight: 1.5,
+              }}>
+                {tr('league.join_party_desc', 'Team up with other heroes to defeat a powerful boss. Complete quests to deal damage!')}
+              </p>
+              <button
+                onClick={async () => {
+                  try {
+                    await joinPartyQuest.mutateAsync();
+                    trpcUtils.social.activePartyQuest.invalidate();
+                  } catch { /* ignore */ }
+                }}
+                disabled={joinPartyQuest.isPending}
+                style={{
+                  padding: '14px 40px', borderRadius: 14,
+                  border: 'none', background: t.gradient,
+                  cursor: joinPartyQuest.isPending ? 'not-allowed' : 'pointer',
+                  fontFamily: t.display, fontSize: 15, fontWeight: 800,
+                  color: '#FFF',
+                  borderBottom: '4px solid #6A50CC',
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  opacity: joinPartyQuest.isPending ? 0.6 : 1,
+                }}
+              >
+                <NeonIcon type="lightning" size={16} color="text" />
+                {joinPartyQuest.isPending ? tr('league.joining', 'Joining...') : tr('league.join_party_btn', 'Join Party Quest')}
+              </button>
+              <p style={{
+                fontFamily: t.body, fontSize: 11, color: t.textMuted,
+                marginTop: 12,
+              }}>
+                {tr('league.how_it_works_desc', 'Complete daily quests to deal damage. Each quest = damage points. Your party fights together — when the boss reaches 0 HP, everyone gets rewards!')}
+              </p>
             </div>
-
-            {/* Other members */}
-            {PARTY_BOSS.members.map((member, i) => {
-              const art = getCharArt(member.charId);
-              const mc = CHARACTERS.find(c => c.id === member.charId);
-              return (
-                <div
-                  key={member.name}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 14,
-                    padding: '12px 20px',
-                    borderBottom: i < PARTY_BOSS.members.length - 1 ? `1px solid ${t.border}` : 'none',
-                    animation: `fadeUp 0.3s ease-out ${i * 0.06}s both`,
-                  }}
-                >
-                  <div style={{
-                    width: 32, height: 32, borderRadius: '50%',
-                    background: `${mc?.color || t.violet}15`,
-                    border: `1.5px solid ${mc?.color || t.violet}30`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    {art ? <PixelCanvas data={art} size={2} /> : <NeonIcon type="shield" size={12} color="muted" />}
-                  </div>
-                  <span style={{ fontFamily: t.body, fontSize: 13, fontWeight: 500, color: t.text, flex: 1 }}>
-                    {member.name}
-                  </span>
-                  <span style={{ fontFamily: t.mono, fontSize: 13, fontWeight: 700, color: t.cyan }}>
-                    {member.dmg} DMG
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* CTA */}
-          <div style={{
-            padding: 20, borderRadius: 16,
-            background: t.bgCard, border: `1px solid ${t.border}`,
-            textAlign: 'center',
-          }}>
-            <p style={{
-              fontFamily: t.body, fontSize: 13, color: t.textSecondary,
-              marginBottom: 12,
-            }}>
-              Complete quests to deal damage to the boss!
-            </p>
-            <button style={{
-              padding: '12px 32px', borderRadius: 14,
-              border: 'none', background: t.gradient,
-              cursor: 'pointer',
-              fontFamily: t.display, fontSize: 14, fontWeight: 800,
-              color: '#FFF', borderBottom: '4px solid #6A50CC',
-              display: 'inline-flex', alignItems: 'center', gap: 8,
-            }}>
-              <NeonIcon type="compass" size={16} color="text" />
-              Go to Command Center
-            </button>
-          </div>
+          )}
         </div>
       )}
     </div>

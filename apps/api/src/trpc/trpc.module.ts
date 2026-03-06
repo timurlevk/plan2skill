@@ -18,6 +18,9 @@ import { NarrativeModule } from '../narrative/narrative.module';
 import { AdminAiModule } from '../admin/admin-ai.module';
 import { AssessmentModule } from '../assessment/assessment.module';
 import { SkillEloModule } from '../skill-elo/skill-elo.module';
+import { I18nModule } from '../i18n/i18n.module';
+import { OnboardingModule } from '../onboarding/onboarding.module';
+import { SocialModule } from '../social/social.module';
 
 @Module({
   imports: [
@@ -26,7 +29,8 @@ import { SkillEloModule } from '../skill-elo/skill-elo.module';
     SpacedRepetitionModule, AchievementModule,
     EquipmentModule, LootModule, ForgeModule, ShopModule,
     NarrativeModule,
-    AdminAiModule, AssessmentModule, SkillEloModule,
+    AdminAiModule, AssessmentModule, SkillEloModule, I18nModule, OnboardingModule,
+    SocialModule,
   ],
   providers: [TrpcService, TrpcRouter],
 })

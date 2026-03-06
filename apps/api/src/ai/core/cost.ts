@@ -4,9 +4,16 @@ interface ModelCostRate {
 }
 
 export const MODEL_COSTS: Record<string, ModelCostRate> = {
+  // Anthropic
   'claude-opus-4-6': { inputPer1M: 15.0, outputPer1M: 75.0 },
   'claude-sonnet-4-6': { inputPer1M: 3.0, outputPer1M: 15.0 },
   'claude-haiku-4-5-20251001': { inputPer1M: 0.8, outputPer1M: 4.0 },
+  // OpenAI
+  'gpt-4o': { inputPer1M: 2.5, outputPer1M: 10.0 },
+  'gpt-4o-mini': { inputPer1M: 0.15, outputPer1M: 0.6 },
+  // Google
+  'gemini-2.0-flash': { inputPer1M: 0.1, outputPer1M: 0.4 },
+  'gemini-2.0-flash-lite': { inputPer1M: 0.075, outputPer1M: 0.3 },
 };
 
 export function estimateCost(

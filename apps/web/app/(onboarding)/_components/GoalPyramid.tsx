@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { t } from './tokens';
 import { NeonIcon } from './NeonIcon';
 
@@ -16,13 +16,23 @@ interface GoalPyramidProps {
 }
 
 export function GoalPyramid({ dream, milestones, color = t.violet }: GoalPyramidProps) {
+  // prefers-reduced-motion
+  const [reducedMotion, setReducedMotion] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReducedMotion(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
   return (
     <div style={{
       background: t.bgCard,
       borderRadius: 16,
       border: `1px solid ${t.border}`,
       padding: '16px 14px',
-      animation: 'fadeUp 0.5s ease-out',
+      animation: reducedMotion ? 'none' : 'fadeUp 0.4s ease-out',
     }}>
       {/* Dream — Top of pyramid */}
       <div style={{
@@ -90,7 +100,7 @@ export function GoalPyramid({ dream, milestones, color = t.violet }: GoalPyramid
               padding: '8px 10px',
               background: t.bgElevated,
               borderTop: i > 0 ? `1px solid ${t.border}` : 'none',
-              animation: `fadeUp 0.4s ease-out ${0.3 + i * 0.08}s both`,
+              animation: reducedMotion ? 'none' : `fadeUp 0.4s ease-out ${0.3 + i * 0.08}s both`,
             }}>
               {/* Step number */}
               <div style={{

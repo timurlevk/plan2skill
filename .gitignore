@@ -22,6 +22,9 @@ dist/
 *.swp
 *.swo
 
+# Claude Code
+CLAUDE.local.md
+
 # OS
 .DS_Store
 Thumbs.db

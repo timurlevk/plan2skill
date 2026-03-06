@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { Milestone } from '@plan2skill/types';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
 import { t } from '../../../(onboarding)/_components/tokens';
@@ -19,6 +19,27 @@ interface TimelineNodeProps {
 }
 
 export function TimelineNode({ milestone, index, totalCount, isSelected, onClick }: TimelineNodeProps) {
+  // SSR-safe reduced-motion hook (BLOCKER — Крок 9)
+  const [reducedMotion, setReducedMotion] = useState(false);
+  useEffect(() => {
+    setReducedMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }, []);
+
+  // Button press feedback
+  const [pressed, setPressed] = useState(false);
+
+  // Completed state flash — briefly flash border cyan when node becomes completed
+  const [completedFlash, setCompletedFlash] = useState(false);
+  const prevStatusRef = useRef(milestone.status);
+  useEffect(() => {
+    if (prevStatusRef.current !== 'completed' && milestone.status === 'completed' && !reducedMotion) {
+      setCompletedFlash(true);
+      const timer = setTimeout(() => setCompletedFlash(false), 300);
+      return () => clearTimeout(timer);
+    }
+    prevStatusRef.current = milestone.status;
+  }, [milestone.status, reducedMotion]);
+
   const isCompleted = milestone.status === 'completed';
   const isActive = milestone.status === 'active';
   const isLocked = milestone.status === 'locked';
@@ -26,7 +47,7 @@ export function TimelineNode({ milestone, index, totalCount, isSelected, onClick
 
   const nodeSize = isBoss ? 36 : 28;
 
-  const bgColor = isCompleted ? t.cyan : isActive ? t.violet : '#252530';
+  const bgColor = isCompleted ? t.cyan : isActive ? t.violet : t.border;
   const borderColor = isCompleted ? t.cyan : isActive ? t.violet : t.border;
   const glowShadow = isCompleted
     ? `0 0 10px ${t.cyan}40`
@@ -53,18 +74,24 @@ export function TimelineNode({ milestone, index, totalCount, isSelected, onClick
           borderRadius: '50%',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: bgColor,
-          border: `2px solid ${borderColor}`,
-          boxShadow: isSelected
-            ? `0 0 16px ${t.violet}60, ${glowShadow}`
-            : glowShadow,
+          border: completedFlash ? `2px solid ${t.cyan}` : `2px solid ${borderColor}`,
+          boxShadow: completedFlash
+            ? `0 0 16px ${t.cyan}80`
+            : isSelected
+              ? `0 0 16px ${t.violet}60, ${glowShadow}`
+              : glowShadow,
           cursor: isLocked ? 'default' : 'pointer',
-          transition: 'all 0.2s ease',
-          animation: isActive ? 'pulse 2s ease-in-out infinite' : isBoss && !isLocked ? 'glowPulse 3s ease-in-out infinite' : 'none',
+          transition: 'box-shadow 0.2s ease, transform 0.2s ease, border-color 0.15s ease',
+          animation: isActive ? (reducedMotion ? 'none' : 'pulse 2s ease-in-out infinite') : isBoss && !isLocked ? (reducedMotion ? 'none' : 'glowPulse 8s ease-in-out infinite') : 'none',
+          transform: pressed ? 'scale(0.98) translateY(1px)' : 'scale(1)',
           position: 'relative',
           padding: 0,
         }}
         tabIndex={isLocked ? -1 : 0}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+        onMouseDown={() => { if (!isLocked) setPressed(true); }}
+        onMouseUp={() => setPressed(false)}
+        onMouseLeave={() => setPressed(false)}
       >
         {isBoss ? (
           <NeonIcon type="crown" size={16} color={isLocked ? 'muted' : isCompleted ? '#FFF' : t.gold} />

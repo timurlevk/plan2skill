@@ -8,7 +8,10 @@ import { LlmTracer } from '../core/llm-tracer';
 import { CacheService } from '../core/cache.service';
 import { ContextEnrichmentService } from '../core/context-enrichment.service';
 import { ContentSafetyService } from '../core/content-safety.service';
+import { AiRateLimitService } from '../core/rate-limit.service';
+import { TemplateService } from '../core/template.service';
 import { AiAssessmentSchema, type AiAssessment } from '../schemas/assessment.schema';
+import { buildLocaleInstruction } from '../core/locale-utils';
 import { createHash } from 'crypto';
 
 export interface AssessmentGeneratorInput {
@@ -36,8 +39,10 @@ export class AssessmentGenerator extends BaseGenerator<
     cacheService: CacheService,
     contextService: ContextEnrichmentService,
     safetyService: ContentSafetyService,
+    rateLimitService: AiRateLimitService,
+    templateService: TemplateService,
   ) {
-    super(llmClient, tracer, cacheService, contextService, safetyService);
+    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService);
   }
 
   protected getCacheKey(input: AssessmentGeneratorInput): string {
@@ -49,6 +54,8 @@ export class AssessmentGenerator extends BaseGenerator<
   }
 
   protected buildSystemPrompt(context: GeneratorContext): string {
+    const { learnerProfile } = context;
+
     let prompt = `You are Plan2Skill's assessment engine. You generate skill assessment questions to calibrate learner proficiency.
 
 Your output must be valid JSON matching the schema exactly. No markdown fences, no explanation — pure JSON only.
@@ -88,17 +95,72 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
 - Questions should be practical and scenario-based, not trivia
 - Explanations should teach, not just confirm the correct answer`;
 
+    // L1: User context
     prompt += `\n\n**User Context:**`;
-    prompt += `\n- Level: ${context.userProfile.level}`;
+    prompt += `\n- Level: ${learnerProfile.level}`;
 
-    if (context.learningContext?.skillElos.length) {
-      const eloStr = context.learningContext.skillElos
+    if (learnerProfile.skillElos.length) {
+      const eloStr = learnerProfile.skillElos
         .slice(0, 5)
         .map((e) => `${e.skillDomain}(${e.elo})`)
         .join(', ');
       prompt += `\n- Existing proficiency: ${eloStr}`;
     }
 
+    // L2: Roadmap milestone context for topic targeting
+    if (context.roadmapContext) {
+      const activeMilestone = context.roadmapContext.milestones.find(
+        (m) => m.status === 'active' || m.status === 'in_progress',
+      );
+      if (activeMilestone) {
+        prompt += `\n- Active milestone: "${activeMilestone.title}"`;
+        if (activeMilestone.skillDomains.length > 0) {
+          prompt += `\n- Milestone topics: ${activeMilestone.skillDomains.join(', ')}`;
+        }
+      }
+    }
+
+    // L4: Learner insights — target known misconceptions
+    if (context.ledgerContext?.insights.length) {
+      const misconceptions = context.ledgerContext.insights
+        .filter((i) => i.insightType === 'misconception' || i.insightType === 'error_pattern')
+        .slice(0, 3);
+      if (misconceptions.length > 0) {
+        prompt += `\n\n**Known Misconceptions to Test:**`;
+        for (const m of misconceptions) {
+          prompt += `\n- ${m.title}: ${m.description}`;
+        }
+        prompt += `\nInclude questions that probe these known weak areas.`;
+      }
+    }
+
+    prompt += `
+
+## Example Output (abbreviated)
+{
+  "questions": [
+    {
+      "question": "You have an array of user objects. Which method returns a NEW array containing only users older than 18?",
+      "options": [
+        "users.filter(u => u.age > 18)",
+        "users.find(u => u.age > 18)",
+        "users.map(u => u.age > 18)",
+        "users.forEach(u => u.age > 18)"
+      ],
+      "correctIndex": 0,
+      "explanation": "Array.filter() returns a new array with all elements that pass the test. find() returns only the first match, map() transforms elements, and forEach() returns undefined.",
+      "bloomLevel": "apply",
+      "skillDomain": "JavaScript Arrays",
+      "difficultyElo": 1150,
+      "distractorTypes": ["similar_concept", "similar_concept", "common_misconception"]
+    }
+  ],
+  "targetBloomLevel": "apply",
+  "skillDomain": "JavaScript Arrays"
+}
+(Generate the requested number of questions in your actual output.)`;
+
+    prompt += buildLocaleInstruction(learnerProfile.locale);
     return prompt;
   }
 

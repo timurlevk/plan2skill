@@ -34,6 +34,7 @@ export interface AttributeConfig {
   fullName: string;
   icon: string;
   color: string;
+  description?: string;
 }
 
 // ─── Equipment Slot Config ───────────────────────────────────────

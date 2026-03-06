@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { getLevelInfo } from '@plan2skill/store';
+import { getLevelInfo, useI18nStore } from '@plan2skill/store';
 import { t } from './tokens';
 
 // ═══════════════════════════════════════════
@@ -16,17 +16,28 @@ interface XPBarProps {
 }
 
 export function XPBar({ xp, level }: XPBarProps) {
+  const tr = useI18nStore((s) => s.t);
   const info = getLevelInfo(xp);
-  const fillPct = Math.min(info.progress * 100, 100);
+  const fillFraction = Math.min(info.progress, 1);
   const [animatedFill, setAnimatedFill] = useState(0);
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [prevLevel, setPrevLevel] = useState(level);
 
+  // prefers-reduced-motion
+  const [reducedMotion, setReducedMotion] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReducedMotion(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
   // Animate fill bar
   useEffect(() => {
-    const timer = setTimeout(() => setAnimatedFill(fillPct), 50);
+    const timer = setTimeout(() => setAnimatedFill(fillFraction), 50);
     return () => clearTimeout(timer);
-  }, [fillPct]);
+  }, [fillFraction]);
 
   // Level-up celebration
   useEffect(() => {
@@ -54,7 +65,7 @@ export function XPBar({ xp, level }: XPBarProps) {
         color: t.gold,
         whiteSpace: 'nowrap',
       }}>
-        {xp} XP
+        {tr('sidebar.xp_short', '{n} XP').replace('{n}', String(xp))}
       </span>
 
       {/* XP bar */}
@@ -67,11 +78,13 @@ export function XPBar({ xp, level }: XPBarProps) {
         position: 'relative',
       }}>
         <div style={{
-          width: `${animatedFill}%`,
+          width: '100%',
           height: '100%',
           borderRadius: 3,
           background: 'linear-gradient(90deg, #9D7AFF, #4ECDC4)',
-          transition: 'width 0.6s ease-out',
+          transform: `scaleX(${animatedFill})`,
+          transformOrigin: 'left',
+          transition: reducedMotion ? 'none' : 'transform 0.6s ease-out',
           boxShadow: '0 0 8px rgba(157,122,255,0.3)',
         }} />
       </div>
@@ -90,9 +103,9 @@ export function XPBar({ xp, level }: XPBarProps) {
         fontSize: 10,
         fontWeight: 800,
         color: t.violet,
-        animation: showLevelUp ? 'bounceIn 0.6s ease-out' : 'none',
+        animation: showLevelUp ? (reducedMotion ? 'none' : 'bounceIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)') : 'none',
       }}>
-        L{level}
+        {tr('xpbar.level_badge', 'L{n}').replace('{n}', String(level))}
       </div>
     </div>
   );

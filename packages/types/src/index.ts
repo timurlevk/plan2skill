@@ -6,3 +6,6 @@ export * from './roadmap';
 export * from './progression';
 export * from './gamification';
 export * from './enums';
+export * from './narrative';
+export * from './onboarding';
+export * from './quest-content';

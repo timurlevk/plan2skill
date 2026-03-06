@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
   ArchetypeId, CharacterId, OnboardingIntent, DiscoveryPath,
+  AssessmentLevel, AssessmentQuestionType,
 } from '@plan2skill/types';
 import type { PerformanceGoal, SkillAssessmentV2 } from '@plan2skill/types';
 
@@ -45,7 +46,6 @@ interface OnboardingV2State {
 
   // Step 1: Intent
   intent: OnboardingIntent | null;
-  intentSelectedAt: number | null;
 
   // Step 2: Discovery
   discoveryPath: DiscoveryPath | null;
@@ -56,6 +56,8 @@ interface OnboardingV2State {
   selectedDomain: string | null;
   selectedInterests: string[];
   customInterests: string[];
+  guidedAssessmentLevel: AssessmentLevel | null;
+  guidedCustomGoals: string[];
   // 2C: Career
   careerCurrent: string;
   careerPains: string[];
@@ -64,14 +66,16 @@ interface OnboardingV2State {
   // Step 3: Assessment
   assessments: SkillAssessmentV2[];
 
+  // AI assessment (pre-generated during Legend for guided flow)
+  aiAssessmentQuestions: AssessmentQuestionType[] | null;
+  aiAssessmentStatus: 'idle' | 'loading' | 'ready' | 'error';
+
   // Step 4: Character
   characterId: CharacterId | null;
   inferredArchetypeId: ArchetypeId | null;
   overrideArchetypeId: ArchetypeId | null;
 
-  // Step 5: First Quest
-  firstQuestStarted: boolean;
-  firstQuestTasks: boolean[];
+  // Step 5: Completion
   onboardingCompletedAt: number | null;
 
   // XP System
@@ -97,6 +101,10 @@ interface OnboardingV2State {
   setSelectedDomain: (domain: string) => void;
   toggleInterest: (interest: string) => void;
   addCustomInterest: (interest: string) => void;
+  setGuidedAssessmentLevel: (level: AssessmentLevel) => void;
+  addGuidedCustomGoal: (goal: string) => void;
+  removeGuidedCustomGoal: (index: number) => void;
+  clearGuidedCustomGoals: () => void;
 
   // Step 2C
   setCareerCurrent: (role: string) => void;
@@ -106,14 +114,16 @@ interface OnboardingV2State {
   // Step 3
   setAssessment: (assessment: SkillAssessmentV2) => void;
 
+  // AI assessment
+  setAiAssessmentQuestions: (questions: AssessmentQuestionType[]) => void;
+  setAiAssessmentStatus: (status: 'idle' | 'loading' | 'ready' | 'error') => void;
+
   // Step 4
   setCharacter: (characterId: CharacterId) => void;
   setInferredArchetype: (archetypeId: ArchetypeId) => void;
   setOverrideArchetype: (archetypeId: ArchetypeId | null) => void;
 
   // Step 5
-  setFirstQuestStarted: () => void;
-  toggleFirstQuestTask: (index: number) => void;
   completeOnboarding: () => void;
 
   // XP
@@ -126,22 +136,23 @@ interface OnboardingV2State {
 const initialState = {
   locale: 'en' as SupportedLocale,
   intent: null as OnboardingIntent | null,
-  intentSelectedAt: null as number | null,
   discoveryPath: null as DiscoveryPath | null,
   dreamGoal: '',
   performanceGoals: [] as PerformanceGoal[],
   selectedDomain: null as string | null,
   selectedInterests: [] as string[],
   customInterests: [] as string[],
+  guidedAssessmentLevel: null as AssessmentLevel | null,
+  guidedCustomGoals: [] as string[],
   careerCurrent: '',
   careerPains: [] as string[],
   careerTarget: null as string | null,
   assessments: [] as SkillAssessmentV2[],
+  aiAssessmentQuestions: null as AssessmentQuestionType[] | null,
+  aiAssessmentStatus: 'idle' as 'idle' | 'loading' | 'ready' | 'error',
   characterId: null as CharacterId | null,
   inferredArchetypeId: null as ArchetypeId | null,
   overrideArchetypeId: null as ArchetypeId | null,
-  firstQuestStarted: false,
-  firstQuestTasks: [false, false, false] as boolean[],
   onboardingCompletedAt: null as number | null,
   xpTotal: 0,
   level: 1,
@@ -164,7 +175,6 @@ export const useOnboardingV2Store = create<OnboardingV2State>()(
       // Step 1: Intent
       setIntent: (intent) => set({
         intent,
-        intentSelectedAt: Date.now(),
         discoveryPath: intent === 'know' ? 'direct'
           : intent === 'explore_guided' ? 'guided'
           : intent === 'career' ? 'career'
@@ -191,21 +201,31 @@ export const useOnboardingV2Store = create<OnboardingV2State>()(
         selectedDomain: domain,
         selectedInterests: [],
         customInterests: [],
+        guidedAssessmentLevel: null,
+        guidedCustomGoals: [],
       }),
       toggleInterest: (interest) => set((s) => {
         const has = s.selectedInterests.includes(interest);
         if (has) {
-          return { selectedInterests: s.selectedInterests.filter((i) => i !== interest) };
+          return { selectedInterests: [] };
         }
-        if (s.selectedInterests.length >= 5) return s;
-        return { selectedInterests: [...s.selectedInterests, interest] };
+        return { selectedInterests: [interest] };
       }),
       addCustomInterest: (interest) => set((s) => ({
         customInterests: [...s.customInterests, interest],
-        selectedInterests: s.selectedInterests.length < 5
-          ? [...s.selectedInterests, interest]
-          : s.selectedInterests,
+        selectedInterests: [interest],
       })),
+      setGuidedAssessmentLevel: (level) => set({ guidedAssessmentLevel: level }),
+      addGuidedCustomGoal: (goal) => set((s) => {
+        if (s.guidedCustomGoals.length >= 5) return s;
+        const trimmed = goal.trim().slice(0, 200);
+        if (!trimmed) return s;
+        return { guidedCustomGoals: [...s.guidedCustomGoals, trimmed] };
+      }),
+      removeGuidedCustomGoal: (index) => set((s) => ({
+        guidedCustomGoals: s.guidedCustomGoals.filter((_, i) => i !== index),
+      })),
+      clearGuidedCustomGoals: () => set({ guidedCustomGoals: [] }),
 
       // Step 2C: Career Path
       setCareerCurrent: (role) => set({ careerCurrent: role }),
@@ -221,22 +241,22 @@ export const useOnboardingV2Store = create<OnboardingV2State>()(
 
       // Step 3: Assessment
       setAssessment: (assessment) => set((s) => {
-        const existing = s.assessments.filter((a) => a.domain !== assessment.domain);
+        const existing = s.assessments.filter(
+          (a) => !(a.domain === assessment.domain && a.method === assessment.method),
+        );
         return { assessments: [...existing, assessment] };
       }),
+
+      // AI assessment
+      setAiAssessmentQuestions: (questions) => set({ aiAssessmentQuestions: questions }),
+      setAiAssessmentStatus: (status) => set({ aiAssessmentStatus: status }),
 
       // Step 4: Character
       setCharacter: (characterId) => set({ characterId }),
       setInferredArchetype: (archetypeId) => set({ inferredArchetypeId: archetypeId }),
       setOverrideArchetype: (archetypeId) => set({ overrideArchetypeId: archetypeId }),
 
-      // Step 5: First Quest
-      setFirstQuestStarted: () => set({ firstQuestStarted: true }),
-      toggleFirstQuestTask: (index) => set((s) => {
-        const tasks = [...s.firstQuestTasks];
-        tasks[index] = !tasks[index];
-        return { firstQuestTasks: tasks };
-      }),
+      // Step 5: Completion
       completeOnboarding: () => set({ onboardingCompletedAt: Date.now() }),
 
       // XP — level = floor(xpTotal / 100) + 1

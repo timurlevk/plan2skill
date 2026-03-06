@@ -23,7 +23,7 @@ export const INTENTS: IntentConfig[] = [
     description: 'I have a specific skill or topic in mind',
     icon: 'target',
     color: '#9D7AFF', // violet
-    nextRoute: '/goal/direct',
+    nextRoute: '/legend', // → legend → /goal/direct
   },
   {
     id: 'explore_guided',
@@ -31,7 +31,7 @@ export const INTENTS: IntentConfig[] = [
     description: 'I want to grow but not sure where to start',
     icon: 'compass',
     color: '#4ECDC4', // cyan
-    nextRoute: '/goal/guided',
+    nextRoute: '/goal/guided', // → guided phases 1-4 → legend → assessment → proposal
   },
   {
     id: 'career',
@@ -39,7 +39,7 @@ export const INTENTS: IntentConfig[] = [
     description: 'I want to switch careers or grow in my role',
     icon: 'briefcase',
     color: '#FFD166', // gold
-    nextRoute: '/goal/career',
+    nextRoute: '/legend', // → legend → /goal/career
   },
   {
     id: 'exploring',

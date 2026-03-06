@@ -1,11 +1,14 @@
 'use client';
 
-import React, { useMemo } from 'react';
-import { useOnboardingStore, useProgressionStore, useCharacterStore, getLevelInfo } from '@plan2skill/store';
+import React, { useMemo, useState, useEffect } from 'react';
+import { useOnboardingStore, useProgressionStore, useCharacterStore, getLevelInfo, useI18nStore } from '@plan2skill/store';
 import { NeonIcon } from '../../(onboarding)/_components/NeonIcon';
 import { t, rarity } from '../../(onboarding)/_components/tokens';
 import { CHARACTERS, charArtStrings, charPalettes } from '../../(onboarding)/_components/characters';
-import { parseArt, AnimatedPixelCanvas } from '../../(onboarding)/_components/PixelEngine';
+import {
+  parseArt,
+  AnimatedCanvasRenderer,
+} from '../../(onboarding)/_components/PixelEngine';
 import { XPBar } from '../../(onboarding)/_components/XPBar';
 import { ARCHETYPES } from '../../(onboarding)/_data/archetypes';
 import { MasteryRing } from '../home/_components/MasteryRing';
@@ -20,12 +23,18 @@ import type { AchievementRarity } from '../home/_data/achievements';
 // ═══════════════════════════════════════════
 
 const ATTRIBUTES = [
-  { key: 'MAS', name: 'Mastery',     icon: 'shield'  as const, color: '#9D7AFF' },
-  { key: 'INS', name: 'Insight',     icon: 'sparkle' as const, color: '#3B82F6' },
-  { key: 'INF', name: 'Influence',   icon: 'users'   as const, color: '#FF6B8A' },
-  { key: 'RES', name: 'Resilience',  icon: 'trophy'  as const, color: '#6EE7B7' },
-  { key: 'VER', name: 'Versatility', icon: 'compass' as const, color: '#4ECDC4' },
-  { key: 'DIS', name: 'Discovery',   icon: 'star'    as const, color: '#FFD166' },
+  { key: 'STR', name: 'Strength',     icon: 'shield'  as const, color: '#9D7AFF',
+    description: 'Your technical might. Grows from Hard Skills milestones and equipment.' },
+  { key: 'INT', name: 'Intelligence', icon: 'sparkle' as const, color: '#3B82F6',
+    description: 'Strategic thinking. Grows from Strategy milestones and equipment.' },
+  { key: 'CHA', name: 'Charisma',     icon: 'users'   as const, color: t.rose,
+    description: 'Communication and leadership. Grows from Communication milestones.' },
+  { key: 'CON', name: 'Constitution', icon: 'trophy'  as const, color: '#6EE7B7',
+    description: 'Consistency and endurance. Grows from sustained practice.' },
+  { key: 'DEX', name: 'Dexterity',    icon: 'compass' as const, color: '#4ECDC4',
+    description: 'Adaptability and breadth. Grows from cross-domain exploration.' },
+  { key: 'WIS', name: 'Wisdom',       icon: 'star'    as const, color: '#FFD166',
+    description: 'Curiosity and exploration. Grows from Hobbies milestones.' },
 ];
 
 const EQUIPMENT_SLOTS = [
@@ -38,16 +47,21 @@ const EQUIPMENT_SLOTS = [
   { slot: 'companion', name: 'Companion', skill: 'Hobbies',         icon: 'sparkle'  as const },
 ];
 
-// ─── Rarity config lookup ─────────────────────────────────────
-const RARITY_MAP: Record<string, { color: string; icon: string; label: string }> = {
-  common:    { color: '#71717A', icon: '●',  label: 'Common' },
-  uncommon:  { color: '#6EE7B7', icon: '◆',  label: 'Uncommon' },
-  rare:      { color: '#3B82F6', icon: '⬡',  label: 'Rare' },
-  epic:      { color: '#9D7AFF', icon: '◈',  label: 'Epic' },
-  legendary: { color: '#FFD166', icon: '★',  label: 'Legendary' },
-};
+// Rarity config now comes from canonical `rarity` import (tokens.ts)
 
 export default function HeroCardPage() {
+  const tr = useI18nStore((s) => s.t);
+
+  // Reduced-motion check — §N MICRO_ANIMATION_GUIDELINES §10 (BLOCKER)
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setPrefersReducedMotion(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
   const { characterId, archetypeId, receivedEquipment } = useOnboardingStore();
   const {
     totalXp, level, coins,
@@ -55,37 +69,42 @@ export default function HeroCardPage() {
     energyCrystals, maxEnergyCrystals,
     unlockedAchievements,
   } = useProgressionStore();
-  const { computedAttributes, inventory } = useCharacterStore();
+  const { computedAttributes, inventory, equipment } = useCharacterStore();
   const mastery = useSpacedRepetition();
+
+  // Phase 5H: Attribute tooltip (hover/click popover)
+  const [tooltipAttr, setTooltipAttr] = useState<string | null>(null);
+
+  // Equipment slot hover/press micro-interactions — §N Tier Micro (100–400ms)
+  const [hoveredSlot, setHoveredSlot] = useState<string | null>(null);
+  const [pressedSlot, setPressedSlot] = useState<string | null>(null);
 
   const charMeta = CHARACTERS.find(c => c.id === characterId);
   const archetype = archetypeId ? ARCHETYPES[archetypeId] : null;
 
   const charData = useMemo(() => {
-    if (!characterId || !charArtStrings[characterId] || !charPalettes[characterId]) return null;
+    if (!characterId) return null;
+    if (!charArtStrings[characterId] || !charPalettes[characterId]) return null;
     return {
       id: characterId,
       artString: charArtStrings[characterId]!,
       palette: charPalettes[characterId]!,
-      art: parseArt(charArtStrings[characterId]!, charPalettes[characterId]!),
     };
   }, [characterId]);
 
   const levelInfo = getLevelInfo(totalXp);
-  const crystalDots = Array.from({ length: maxEnergyCrystals }, (_, i) =>
-    i < energyCrystals ? '●' : '○'
-  ).join('');
+  // Energy crystals rendered as NeonIcon diamonds (replaces ●○ text)
 
   return (
-    <div style={{ animation: 'fadeUp 0.5s ease-out' }}>
+    <div style={{ animation: prefersReducedMotion ? 'none' : 'fadeUp 0.4s ease-out' }}>
       {/* ─── Page Title ─── */}
       <h1 style={{
         display: 'flex', alignItems: 'center', gap: 10,
         fontFamily: t.display, fontSize: 26, fontWeight: 900,
         color: t.text, marginBottom: 24,
       }}>
-        <NeonIcon type="shield" size={24} color="rose" />
-        Hero Card
+        <NeonIcon type="crown" size={24} color="violet" />
+        {tr('herocard.title')}
       </h1>
 
       {/* ─── Character Hero Section ─── */}
@@ -97,13 +116,14 @@ export default function HeroCardPage() {
         position: 'relative',
         overflow: 'hidden',
       }}>
-        {/* Subtle glow behind character */}
+        {/* Subtle glow behind character — static radial-gradient, no glowPulse (box-shadow creates visible ellipses) */}
         {charMeta && (
-          <div style={{
-            position: 'absolute', top: '10%', left: '50%', transform: 'translateX(-50%)',
-            width: 200, height: 200, borderRadius: '50%',
+          <div aria-hidden="true" style={{
+            position: 'absolute', top: '5%', left: '50%', transform: 'translateX(-50%)',
+            width: 240, height: 240, borderRadius: '50%',
             background: `radial-gradient(circle, ${charMeta.color}15 0%, transparent 70%)`,
             pointerEvents: 'none',
+            filter: 'blur(20px)',
           }} />
         )}
 
@@ -111,16 +131,15 @@ export default function HeroCardPage() {
         {charData && (
           <div style={{
             display: 'flex', justifyContent: 'center', marginBottom: 16,
-            animation: 'float 3s ease-in-out infinite',
+            animation: prefersReducedMotion ? 'none' : 'float 3s ease-in-out infinite',
             position: 'relative', zIndex: 1,
           }}>
             <div style={{
               padding: 12, borderRadius: '50%',
               background: `${charMeta?.color || t.violet}10`,
               border: `2px solid ${charMeta?.color || t.violet}30`,
-              animation: 'glowPulse 3s ease-in-out infinite',
             }}>
-              <AnimatedPixelCanvas character={charData} size={6} glowColor={charMeta?.color} />
+              <AnimatedCanvasRenderer character={charData} size={6} glowColor={charMeta?.color} />
             </div>
           </div>
         )}
@@ -187,10 +206,10 @@ export default function HeroCardPage() {
             {currentStreak}
           </div>
           <div style={{ fontFamily: t.body, fontSize: 11, color: t.textSecondary }}>
-            day streak
+            {tr('herocard.streak').replace('{n}', String(currentStreak))}
           </div>
           <div style={{ fontFamily: t.mono, fontSize: 9, color: t.textMuted, marginTop: 4 }}>
-            Best: {longestStreak} days
+            {tr('herocard.best_streak').replace('{n}', String(longestStreak))}
           </div>
         </div>
 
@@ -202,16 +221,18 @@ export default function HeroCardPage() {
         }}>
           <NeonIcon type="gem" size={24} color="cyan" style={{ marginBottom: 8 }} />
           <div style={{
-            fontFamily: t.mono, fontSize: 18, fontWeight: 800, color: t.cyan,
-            marginBottom: 2, letterSpacing: 4,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            gap: 4, marginBottom: 2,
           }}>
-            {crystalDots}
+            {Array.from({ length: maxEnergyCrystals }, (_, i) => (
+              <NeonIcon key={i} type={i < energyCrystals ? 'crystalFull' : 'crystalEmpty'} size={18} color="cyan" />
+            ))}
           </div>
           <div style={{ fontFamily: t.body, fontSize: 11, color: t.textSecondary }}>
-            energy
+            {tr('herocard.energy')}
           </div>
           <div style={{ fontFamily: t.mono, fontSize: 9, color: t.textMuted, marginTop: 4 }}>
-            {energyCrystals}/{maxEnergyCrystals} crystals
+            {tr('herocard.crystals').replace('{n}', String(energyCrystals)).replace('{max}', String(maxEnergyCrystals))}
           </div>
         </div>
 
@@ -226,7 +247,7 @@ export default function HeroCardPage() {
             {totalXp}
           </div>
           <div style={{ fontFamily: t.body, fontSize: 11, color: t.textSecondary }}>
-            total XP
+            {tr('herocard.total_xp')}
           </div>
           <div style={{ fontFamily: t.mono, fontSize: 9, color: t.textMuted, marginTop: 4 }}>
             Level {levelInfo.level}
@@ -246,48 +267,107 @@ export default function HeroCardPage() {
           color: t.textSecondary, textTransform: 'uppercase',
           letterSpacing: '0.08em', marginBottom: 16,
         }}>
-          <NeonIcon type="chart" size={14} color="violet" />
-          Hero Attributes
+          <NeonIcon type="hexWeb" size={14} color="violet" />
+          {tr('herocard.attributes')}
         </h3>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {ATTRIBUTES.map((attr, i) => {
             const totalVal = computedAttributes.total[attr.key as keyof typeof computedAttributes.total] ?? 10;
+            const baseVal = computedAttributes.base[attr.key as keyof typeof computedAttributes.base] ?? 10;
             const bonusVal = computedAttributes.bonus[attr.key as keyof typeof computedAttributes.bonus] ?? 0;
             const barPercent = Math.min(100, (totalVal / 100) * 100);
+            const isTooltipOpen = tooltipAttr === attr.key;
 
             return (
-              <div key={attr.key} style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                animation: `fadeUp 0.3s ease-out ${0.3 + i * 0.05}s both`,
-              }}>
-                <NeonIcon type={attr.icon} size={16} color={attr.color} />
-                <span style={{
-                  fontFamily: t.mono, fontSize: 11, fontWeight: 800,
-                  color: attr.color, width: 30, flexShrink: 0,
-                }}>
-                  {attr.key}
-                </span>
-                <div style={{
-                  flex: 1, height: 6, borderRadius: 3,
-                  background: '#252530', overflow: 'hidden',
-                }}>
-                  <div style={{
-                    width: `${barPercent}%`, height: '100%', borderRadius: 3,
-                    background: attr.color,
-                    transition: 'width 0.8s ease-out',
-                    boxShadow: `0 0 6px ${attr.color}40`,
-                  }} />
+              <div key={attr.key} style={{ position: 'relative' }}>
+                <div
+                  onClick={() => setTooltipAttr(isTooltipOpen ? null : attr.key)}
+                  onMouseEnter={() => setTooltipAttr(attr.key)}
+                  onMouseLeave={() => setTooltipAttr(null)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+                    animation: `fadeUp 0.3s ease-out ${0.3 + i * 0.05}s both`,
+                  }}
+                >
+                  <NeonIcon type={attr.icon} size={16} color={attr.color} />
+                  <span style={{
+                    fontFamily: t.mono, fontSize: 11, fontWeight: 800,
+                    color: attr.color, width: 30, flexShrink: 0,
+                  }}>
+                    {attr.key}
+                  </span>
+                  <div
+                    role="progressbar"
+                    aria-valuenow={totalVal}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label={`${attr.name}: ${totalVal}. ${attr.description}`}
+                    style={{
+                      flex: 1, height: 6, borderRadius: 3,
+                      background: t.border, overflow: 'hidden',
+                    }}
+                  >
+                    <div style={{
+                      width: '100%', height: '100%', borderRadius: 3,
+                      background: attr.color,
+                      transform: `scaleX(${barPercent / 100})`,
+                      transformOrigin: 'left',
+                      transition: 'transform 0.8s ease-out',
+                      boxShadow: `0 0 6px ${attr.color}40`,
+                    }} />
+                  </div>
+                  <span style={{
+                    fontFamily: t.mono, fontSize: 10, fontWeight: 700,
+                    color: bonusVal > 0 ? attr.color : t.textMuted,
+                    width: 42, textAlign: 'right', flexShrink: 0,
+                  }}>
+                    {totalVal}{bonusVal > 0 && (
+                      <span style={{ fontSize: 8, color: t.mint }}> +{bonusVal}</span>
+                    )}
+                  </span>
                 </div>
-                <span style={{
-                  fontFamily: t.mono, fontSize: 10, fontWeight: 700,
-                  color: bonusVal > 0 ? attr.color : t.textMuted,
-                  width: 42, textAlign: 'right', flexShrink: 0,
-                }}>
-                  {totalVal}{bonusVal > 0 && (
-                    <span style={{ fontSize: 8, color: t.mint }}> +{bonusVal}</span>
-                  )}
-                </span>
+
+                {/* Phase 5H: Attribute Tooltip — Micro tier (fadeUp 0.15s) */}
+                {isTooltipOpen && (
+                  <div
+                    role="tooltip"
+                    aria-label={`${attr.name} details`}
+                    style={{
+                      position: 'absolute', top: '100%', left: 30, right: 0,
+                      marginTop: 4, padding: '10px 14px', borderRadius: 12,
+                      background: t.bgElevated, border: `1px solid ${attr.color}30`,
+                      boxShadow: `0 8px 24px rgba(0,0,0,0.4), 0 0 12px ${attr.color}15`,
+                      zIndex: 10,
+                      animation: prefersReducedMotion ? 'none' : 'fadeUp 0.15s ease-out',
+                    }}
+                  >
+                    <div style={{
+                      fontFamily: t.display, fontSize: 12, fontWeight: 800,
+                      color: attr.color, marginBottom: 4,
+                    }}>
+                      {attr.name}
+                    </div>
+                    <div style={{
+                      fontFamily: t.body, fontSize: 11, color: t.textSecondary,
+                      lineHeight: 1.4, marginBottom: 8,
+                    }}>
+                      {attr.description}
+                    </div>
+                    <div style={{
+                      display: 'flex', gap: 12,
+                      fontFamily: t.mono, fontSize: 10, color: t.textMuted,
+                    }}>
+                      <span>Base: {baseVal}</span>
+                      <span style={{ color: bonusVal > 0 ? t.mint : t.textMuted }}>
+                        Equipment: {bonusVal > 0 ? `+${bonusVal}` : '—'}
+                      </span>
+                      <span style={{ color: attr.color, fontWeight: 700 }}>
+                        Total: {totalVal}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -306,32 +386,53 @@ export default function HeroCardPage() {
           color: t.textSecondary, textTransform: 'uppercase',
           letterSpacing: '0.08em', marginBottom: 16,
         }}>
-          <NeonIcon type="gift" size={14} color="gold" />
-          Equipment Loadout
+          <NeonIcon type="backpack" size={14} color="gold" />
+          {tr('herocard.equipment')}
         </h3>
 
         <div className="grid grid-cols-2 md:grid-cols-4" style={{ gap: 8 }}>
           {EQUIPMENT_SLOTS.map((slot) => {
-            // Phase 5F: check real equipped items from inventory
-            const equippedItem = inventory.find(
-              (item) => item.slot === slot.slot && item.quantity > 0
+            // Phase W4: check real equipped items (equipment = actually equipped, not just owned)
+            const equippedItem = equipment.find(
+              (item) => item.slot === slot.slot
             );
+            // Look up display name from inventory (has catalog data)
+            const inventoryItem = equippedItem
+              ? inventory.find((inv) => inv.itemId === equippedItem.itemId)
+              : undefined;
             // Fallback to onboarding receivedEquipment for backward compat
             const isEquipped = !!equippedItem || receivedEquipment.includes(slot.slot);
             const itemRarity = equippedItem
-              ? (RARITY_MAP[equippedItem.rarity] ?? RARITY_MAP.common!)
-              : (isEquipped ? { color: '#3B82F6', icon: '⬡', label: 'Rare' } : RARITY_MAP.common!);
+              ? (rarity[equippedItem.rarity as keyof typeof rarity] ?? rarity.common)
+              : (isEquipped ? rarity.rare : rarity.common);
+
+            // Epic/Legendary rarity keys for shimmer check
+            const rarityKey = equippedItem?.rarity ?? (isEquipped ? 'rare' : 'common');
+            const hasShimmer = isEquipped && (rarityKey === 'epic' || rarityKey === 'legendary') && !prefersReducedMotion;
+
+            const isHovered = hoveredSlot === slot.slot;
+            const isPressed = pressedSlot === slot.slot;
 
             return (
               <div
                 key={slot.slot}
+                onMouseEnter={() => setHoveredSlot(slot.slot)}
+                onMouseLeave={() => { setHoveredSlot(null); setPressedSlot(null); }}
+                onMouseDown={() => setPressedSlot(slot.slot)}
+                onMouseUp={() => setPressedSlot(null)}
                 style={{
                   padding: 14, borderRadius: 14, textAlign: 'center',
                   background: isEquipped ? `${itemRarity.color}08` : t.bgElevated,
                   border: `1px solid ${isEquipped ? `${itemRarity.color}30` : t.border}`,
                   opacity: isEquipped ? 1 : 0.5,
-                  animation: isEquipped ? 'glowPulse 3s ease-in-out infinite' : 'none',
-                  transition: 'all 0.3s ease',
+                  boxShadow: isPressed
+                    ? (isEquipped ? `0 2px 4px ${itemRarity.color}15` : 'none')
+                    : isHovered
+                      ? `0 8px 16px rgba(0,0,0,0.3)`
+                      : (isEquipped ? `0 0 8px ${itemRarity.color}20` : 'none'),
+                  transform: isPressed ? 'scale(0.98)' : isHovered ? 'translateY(-2px)' : 'none',
+                  transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.3s ease, opacity 0.3s ease',
+                  animation: hasShimmer ? 'glowPulse 8s ease-in-out infinite' : 'none',
                 }}
               >
                 <div style={{
@@ -350,7 +451,7 @@ export default function HeroCardPage() {
                   fontFamily: t.display, fontSize: 12, fontWeight: 700,
                   color: isEquipped ? t.text : t.textMuted, marginBottom: 2,
                 }}>
-                  {equippedItem?.name ?? slot.name}
+                  {inventoryItem?.name ?? slot.name}
                 </div>
                 {isEquipped ? (
                   <span style={{
@@ -362,7 +463,7 @@ export default function HeroCardPage() {
                   </span>
                 ) : (
                   <div style={{ fontFamily: t.body, fontSize: 9, color: t.textMuted }}>
-                    Complete quests to unlock
+                    {tr('herocard.locked')}
                   </div>
                 )}
               </div>
@@ -385,12 +486,12 @@ export default function HeroCardPage() {
             letterSpacing: '0.08em', marginBottom: 16,
           }}>
             <NeonIcon type="book" size={14} color="cyan" />
-            Skill Mastery
+            {tr('herocard.skill_mastery')}
             <span style={{
               marginLeft: 'auto', fontFamily: t.mono, fontSize: 10,
               fontWeight: 700, color: t.cyan,
             }}>
-              {mastery.masteredCount}/{mastery.totalSkills} mastered
+              {tr('herocard.mastered_count').replace('{n}', String(mastery.masteredCount)).replace('{total}', String(mastery.totalSkills))}
             </span>
           </h3>
           <div style={{
@@ -431,12 +532,12 @@ export default function HeroCardPage() {
           letterSpacing: '0.08em', marginBottom: 16,
         }}>
           <NeonIcon type="trophy" size={14} color="gold" />
-          Achievement Board
+          {tr('herocard.achievements')}
           <span style={{
             marginLeft: 'auto', fontFamily: t.mono, fontSize: 10,
             fontWeight: 700, color: t.gold,
           }}>
-            {unlockedAchievements.length}/{ACHIEVEMENTS.length}
+            {tr('herocard.achievement_count').replace('{n}', String(unlockedAchievements.length)).replace('{total}', String(ACHIEVEMENTS.length))}
           </span>
         </h3>
         <div style={{
@@ -472,7 +573,7 @@ export default function HeroCardPage() {
             color: t.textSecondary, textTransform: 'uppercase',
             letterSpacing: '0.08em', marginBottom: 16,
           }}>
-            Your Archetype
+            {tr('herocard.archetype')}
           </h3>
 
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 16 }}>
@@ -518,11 +619,20 @@ export default function HeroCardPage() {
                     {stat.value}%
                   </span>
                 </div>
-                <div style={{ height: 4, borderRadius: 2, background: '#252530', overflow: 'hidden' }}>
+                <div
+                  role="progressbar"
+                  aria-valuenow={stat.value}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label={`${stat.label}: ${stat.value}%`}
+                  style={{ height: 4, borderRadius: 2, background: t.border, overflow: 'hidden' }}
+                >
                   <div style={{
-                    width: `${stat.value}%`, height: '100%', borderRadius: 2,
+                    width: '100%', height: '100%', borderRadius: 2,
                     background: `linear-gradient(90deg, ${archetype.color}, ${t.cyan})`,
-                    transition: 'width 0.8s ease-out',
+                    transform: `scaleX(${stat.value / 100})`,
+                    transformOrigin: 'left',
+                    transition: 'transform 0.8s ease-out',
                   }} />
                 </div>
               </div>

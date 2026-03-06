@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useRoadmapStore } from '@plan2skill/store';
-import { useOnboardingStore, useProgressionStore } from '@plan2skill/store';
+import { useOnboardingStore, useProgressionStore, useI18nStore } from '@plan2skill/store';
+import { trpc } from '@plan2skill/api-client';
 import type { Roadmap, Milestone, Task, Rarity, MilestoneStatus, TaskStatus, TaskType, RoadmapStatus } from '@plan2skill/types';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
 import { t } from '../../../(onboarding)/_components/tokens';
@@ -89,8 +90,44 @@ function buildMockRoadmap(goalLabel: string, goalId: string, totalWeeks: number,
 }
 
 export default function TimelineDrillDownPage() {
+  const router = useRouter();
+  const tr = useI18nStore((s) => s.t);
+
+  // SSR-safe reduced-motion hook (BLOCKER — Крок 9)
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  useEffect(() => {
+    setPrefersReducedMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }, []);
+
   const params = useParams();
   const roadmapId = params.id as string;
+
+  // Server data fetch — only for real UUIDs (not mock-roadmap-* IDs)
+  const isRealId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(roadmapId);
+  const { data: serverRoadmap } = trpc.roadmap.get.useQuery(
+    { id: roadmapId },
+    { enabled: isRealId, staleTime: 1000 * 60 * 5, retry: 1 },
+  );
+
+  // Phase 5H: pause/resume mutations
+  const storePause = useRoadmapStore((s) => s.pauseRoadmap);
+  const storeResume = useRoadmapStore((s) => s.resumeRoadmap);
+  const pauseMutation = trpc.roadmap.pause.useMutation();
+  const resumeMutation = trpc.roadmap.resume.useMutation();
+
+  const handlePause = useCallback(() => {
+    storePause(roadmapId);
+    pauseMutation.mutate({ roadmapId }, {
+      onError: () => storeResume(roadmapId),
+    });
+  }, [roadmapId, storePause, storeResume, pauseMutation]);
+
+  const handleResume = useCallback(() => {
+    storeResume(roadmapId);
+    resumeMutation.mutate({ roadmapId }, {
+      onError: () => storePause(roadmapId),
+    });
+  }, [roadmapId, storePause, storeResume, resumeMutation]);
 
   // Data from store (hydrated by useServerHydration)
   const storeRoadmap = useRoadmapStore((s) =>
@@ -100,6 +137,8 @@ export default function TimelineDrillDownPage() {
   // Fallback: build mock roadmap from onboarding store when server data absent
   const { selectedGoals, dailyMinutes, aiEstimateWeeks } = useOnboardingStore();
   const roadmap = useMemo<Roadmap | null>(() => {
+    // Priority: server data → store data → mock fallback
+    if (serverRoadmap) return serverRoadmap as Roadmap;
     if (storeRoadmap) return storeRoadmap;
     // Try to find matching goal from mock roadmap ID pattern: mock-roadmap-{goalId}
     if (roadmapId.startsWith('mock-roadmap-') && selectedGoals.length > 0) {
@@ -111,7 +150,7 @@ export default function TimelineDrillDownPage() {
       }
     }
     return null;
-  }, [storeRoadmap, roadmapId, selectedGoals, dailyMinutes, aiEstimateWeeks]);
+  }, [serverRoadmap, storeRoadmap, roadmapId, selectedGoals, dailyMinutes, aiEstimateWeeks]);
   const unlockedAchievements = useProgressionStore((s) => s.unlockedAchievements);
 
   // Character data for active-node avatar
@@ -175,20 +214,20 @@ export default function TimelineDrillDownPage() {
     return (
       <div style={{
         padding: 40, textAlign: 'center',
-        animation: 'fadeUp 0.5s ease-out',
+        animation: prefersReducedMotion ? 'none' : 'fadeUp 0.4s ease-out',
       }}>
         <NeonIcon type="compass" size={40} color="muted" />
         <p style={{
           fontFamily: t.display, fontSize: 16, fontWeight: 700,
           color: t.textMuted, marginTop: 12,
         }}>
-          Quest line not found
+          {tr('questmap.not_found', 'Quest line not found')}
         </p>
         <Link href="/roadmap" style={{
           fontFamily: t.body, fontSize: 13, color: t.violet,
           textDecoration: 'none',
         }}>
-          Return to Quest Map
+          {tr('questmap.return', 'Return to Quest Map')}
         </Link>
       </div>
     );
@@ -198,7 +237,7 @@ export default function TimelineDrillDownPage() {
   const isCompleted = roadmap.status === 'completed';
 
   return (
-    <div style={{ animation: 'fadeUp 0.5s ease-out' }}>
+    <div style={{ animation: prefersReducedMotion ? 'none' : 'fadeUp 0.4s ease-out' }}>
       {/* ─── Back link ─── */}
       <Link
         href="/roadmap"
@@ -212,7 +251,7 @@ export default function TimelineDrillDownPage() {
         onMouseLeave={(e) => { e.currentTarget.style.color = t.textSecondary; }}
       >
         <span style={{ fontSize: 14, color: t.textMuted }}>←</span>
-        Quest Map
+        {tr('questmap.title', 'Quest Map')}
       </Link>
 
       {/* ─── Title ─── */}
@@ -224,10 +263,86 @@ export default function TimelineDrillDownPage() {
       </h1>
       <p style={{
         fontFamily: t.body, fontSize: 13, color: t.textSecondary,
-        marginBottom: 20,
+        marginBottom: 12,
       }}>
         {roadmap.description || roadmap.goal}
       </p>
+
+      {/* ─── Phase 5H: Action Bar ─── */}
+      {(roadmap.status === 'active' || roadmap.status === 'paused') && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16,
+          flexWrap: 'wrap',
+        }}>
+          {roadmap.status === 'active' && (
+            <>
+              <button
+                onClick={() => router.push(`/roadmap/${roadmapId}/adjust`)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '7px 14px', borderRadius: 10,
+                  background: `${t.violet}10`, border: `1px solid ${t.violet}25`,
+                  cursor: 'pointer', transition: 'background 0.15s ease, border-color 0.15s ease',
+                  fontFamily: t.display, fontSize: 12, fontWeight: 700, color: t.violet,
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = `${t.violet}18`; e.currentTarget.style.borderColor = `${t.violet}40`; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = `${t.violet}10`; e.currentTarget.style.borderColor = `${t.violet}25`; }}
+              >
+                <NeonIcon type="sparkle" size={12} color={t.violet} />
+                {tr('questmap.adjust', 'Adjust Quest Line')}
+              </button>
+              <button
+                onClick={handlePause}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '7px 14px', borderRadius: 10,
+                  background: 'transparent', border: `1px solid ${t.border}`,
+                  cursor: 'pointer', transition: 'background 0.15s ease, border-color 0.15s ease',
+                  fontFamily: t.display, fontSize: 12, fontWeight: 700, color: t.textSecondary,
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#FBBF2410'; e.currentTarget.style.borderColor = '#FBBF2440'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = t.border; }}
+              >
+                <NeonIcon type="shield" size={12} color="#FBBF24" />
+                {tr('questmap.pause', 'Pause')}
+              </button>
+            </>
+          )}
+          {roadmap.status === 'paused' && (
+            <button
+              onClick={handleResume}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '7px 14px', borderRadius: 10,
+                background: `${t.cyan}10`, border: `1px solid ${t.cyan}25`,
+                cursor: 'pointer', transition: 'background 0.15s ease, border-color 0.15s ease',
+                fontFamily: t.display, fontSize: 12, fontWeight: 700, color: t.cyan,
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = `${t.cyan}18`; e.currentTarget.style.borderColor = `${t.cyan}40`; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = `${t.cyan}10`; e.currentTarget.style.borderColor = `${t.cyan}25`; }}
+            >
+              <NeonIcon type="lightning" size={12} color={t.cyan} />
+              {tr('questmap.resume', 'Resume Quest Line')}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Paused banner */}
+      {roadmap.status === 'paused' && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 16px', borderRadius: 12, marginBottom: 16,
+          background: '#FBBF2408', border: `1px solid #FBBF2420`,
+        }}>
+          <NeonIcon type="shield" size={16} color="#FBBF24" />
+          <span style={{
+            fontFamily: t.body, fontSize: 13, fontWeight: 600, color: '#FBBF24',
+          }}>
+            {tr('questmap.paused_msg', 'Quest line paused — resume when you are ready, hero')}
+          </span>
+        </div>
+      )}
 
       {/* ─── Overall Progress Bar ─── */}
       <div style={{
@@ -235,16 +350,19 @@ export default function TimelineDrillDownPage() {
       }}>
         <div style={{
           flex: 1, height: 6, borderRadius: 3,
-          background: '#252530', overflow: 'hidden',
+          background: t.border, overflow: 'hidden',
         }}>
           <div style={{
-            width: `${Math.round(roadmap.progress)}%`,
+            width: '100%',
+            transform: `scaleX(${Math.round(roadmap.progress) / 100})`,
+            transformOrigin: 'left',
             height: '100%', borderRadius: 3,
             background: isCompleted
               ? `linear-gradient(90deg, ${t.gold}, ${t.cyan})`
               : t.gradient,
-            transition: 'width 0.8s ease-out',
-            boxShadow: roadmap.progress > 85 ? `0 0 8px ${t.violet}60` : `0 0 4px ${t.violet}30`,
+            transition: 'transform 0.8s ease-out',
+            boxShadow: roadmap.progress >= 85 ? `0 0 8px ${t.cyan}60` : `0 0 4px ${t.violet}30`,
+            animation: roadmap.progress >= 85 ? (prefersReducedMotion ? 'none' : 'glowPulse 3s ease-in-out infinite') : 'none',
           }} />
         </div>
         <span style={{
@@ -293,7 +411,11 @@ export default function TimelineDrillDownPage() {
             <div
               key={ms.id}
               ref={(el) => { nodeRefs.current[i] = el; }}
-              style={{ position: 'relative' }}
+              style={{
+                position: 'relative',
+                animation: prefersReducedMotion ? 'none' : 'fadeUp 0.4s ease-out both',
+                animationDelay: prefersReducedMotion ? '0s' : `${i * 0.08}s`,
+              }}
             >
               {/* Character on active node */}
               {i === activeIndex && charData && (
@@ -302,7 +424,7 @@ export default function TimelineDrillDownPage() {
                   top: -52,
                   left: '50%',
                   transform: 'translateX(-50%)',
-                  animation: 'float 3s ease-in-out infinite',
+                  animation: prefersReducedMotion ? 'none' : 'float 3s ease-in-out infinite',
                   zIndex: 10,
                   pointerEvents: 'none',
                 }}>

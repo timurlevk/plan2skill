@@ -17,7 +17,8 @@ type ShopPurchaseEvent =
   | { type: 'SUCCESS' }
   | { type: 'INSUFFICIENT'; error: string }
   | { type: 'ERROR'; error: string }
-  | { type: 'RESET' };
+  | { type: 'RESET' }
+  | { type: 'SKIP' };
 
 export const shopPurchaseMachine = setup({
   types: {
@@ -91,6 +92,10 @@ export const shopPurchaseMachine = setup({
         },
       },
       on: {
+        SKIP: {
+          target: 'browsing',
+          actions: 'clearAll',
+        },
         RESET: {
           target: 'browsing',
           actions: 'clearAll',

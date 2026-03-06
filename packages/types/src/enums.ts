@@ -18,8 +18,11 @@ export type CharacterId =
 // ─── Evolution Tiers ─────────────────────────────────────────────
 export type EvolutionTier = 'novice' | 'apprentice' | 'practitioner' | 'master';
 
+// ─── Body Types ────────────────────────────────────────────────
+export type BodyType = 'slim' | 'athletic' | 'sturdy' | 'petite';
+
 // ─── Attributes ──────────────────────────────────────────────────
-export type AttributeKey = 'MAS' | 'INS' | 'INF' | 'RES' | 'VER' | 'DIS';
+export type AttributeKey = 'STR' | 'INT' | 'CHA' | 'CON' | 'DEX' | 'WIS';
 
 // ─── Equipment Slots ─────────────────────────────────────────────
 export type EquipmentSlot =

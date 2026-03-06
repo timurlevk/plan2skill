@@ -5,11 +5,8 @@ import {
   BloomLevelSchema,
   QuestTypeSchema,
   KnowledgeCheckSchema,
+  FlowCategorySchema,
 } from './shared.schema';
-
-// ─── Flow Category ──────────────────────────────────────────────
-
-export const FlowCategorySchema = z.enum(['stretch', 'mastery', 'review']);
 
 // ─── AI Quest ───────────────────────────────────────────────────
 

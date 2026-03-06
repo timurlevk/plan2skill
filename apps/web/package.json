@@ -14,6 +14,7 @@
     "@plan2skill/ui": "workspace:*",
     "@plan2skill/store": "workspace:*",
     "@plan2skill/api-client": "workspace:*",
+    "@plan2skill/pixelforge": "workspace:*",
     "next": "^15.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

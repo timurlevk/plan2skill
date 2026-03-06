@@ -113,6 +113,15 @@ function AnimatedPixelCanvas({ character, size = 5, glowColor }: {
   character: typeof gamifChars[0]; size?: number; glowColor?: string;
 }) {
   const [frameIndex, setFrameIndex] = useState(0);
+  const [reducedMotion, setReducedMotion] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReducedMotion(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   const frames = useMemo(() => {
     if (!character?.artString || !character?.palette) return [character?.art || []];
@@ -120,12 +129,13 @@ function AnimatedPixelCanvas({ character, size = 5, glowColor }: {
   }, [character?.id]);
 
   useEffect(() => {
+    if (reducedMotion) return;
     if (frames.length <= 1) return;
     const iv = setInterval(() => {
       setFrameIndex(prev => (prev + 1) % frames.length);
     }, idleAnim.msPerFrame);
     return () => clearInterval(iv);
-  }, [frames.length]);
+  }, [frames.length, reducedMotion]);
 
   return (
     <div style={{ filter: glowColor ? `drop-shadow(0 0 10px ${glowColor}44)` : 'none' }}>
@@ -139,6 +149,15 @@ function MirroredAnimatedPixelCanvas({ character, size = 5, glowColor }: {
   character: typeof gamifChars[0]; size?: number; glowColor?: string;
 }) {
   const [frameIndex, setFrameIndex] = useState(0);
+  const [reducedMotion, setReducedMotion] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReducedMotion(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   const frames = useMemo(() => {
     if (!character?.artString || !character?.palette) return [character?.art || []];
@@ -147,12 +166,13 @@ function MirroredAnimatedPixelCanvas({ character, size = 5, glowColor }: {
   }, [character?.id]);
 
   useEffect(() => {
+    if (reducedMotion) return;
     if (frames.length <= 1) return;
     const iv = setInterval(() => {
       setFrameIndex(prev => (prev + 1) % frames.length);
     }, idleAnim.msPerFrame);
     return () => clearInterval(iv);
-  }, [frames.length]);
+  }, [frames.length, reducedMotion]);
 
   return (
     <div style={{ filter: glowColor ? `drop-shadow(0 0 10px ${glowColor}44)` : 'none' }}>
@@ -195,14 +215,21 @@ function LoadingSpinner() {
 }
 
 // ─── Google Auth Button: invisible Google renderButton overlay on top of our styled button ───
-function GoogleAuthButton({ height, isLoading, gisReady, googleBtnRef }: {
+function GoogleAuthButton({ height, isLoading, gisReady, googleBtnRef, successFlash }: {
   height: string;
   isLoading: boolean;
   gisReady: boolean;
   googleBtnRef: React.RefObject<HTMLDivElement | null>;
+  successFlash?: boolean;
 }) {
+  const [pressed, setPressed] = useState(false);
   return (
-    <div style={{ position: 'relative', width: '100%', height }}>
+    <div
+      style={{ position: 'relative', width: '100%', height }}
+      onMouseDown={() => !isLoading && setPressed(true)}
+      onMouseUp={() => setPressed(false)}
+      onMouseLeave={() => setPressed(false)}
+    >
       {/* Our visible styled button underneath */}
       <div style={{
         display: 'flex',
@@ -212,14 +239,16 @@ function GoogleAuthButton({ height, isLoading, gisReady, googleBtnRef }: {
         width: '100%',
         height,
         background: t.bgElevated,
-        border: `1.5px solid ${t.border}`,
+        border: `1.5px solid ${successFlash ? t.cyan : t.border}`,
         borderRadius: '16px',
         fontFamily: t.body,
         fontSize: '15px',
         fontWeight: 500,
         color: isLoading ? t.textMuted : t.text,
         opacity: isLoading ? 0.6 : 1,
-        transition: 'all 0.15s ease',
+        transform: pressed ? 'scale(0.98) translateY(1px)' : 'scale(1)',
+        transition: 'all 0.15s ease-out',
+        boxShadow: successFlash ? `0 0 12px ${t.cyan}60` : 'none',
         pointerEvents: 'none',
       }}>
         {isLoading ? <LoadingSpinner /> : <GoogleIcon />}
@@ -247,11 +276,14 @@ function GoogleAuthButton({ height, isLoading, gisReady, googleBtnRef }: {
 
 function SocialButton({ icon, label, height, onClick, disabled }: { icon: React.ReactNode; label: string; height: string; onClick?: () => void; disabled?: boolean }) {
   const [hov, setHov] = useState(false);
+  const [pressed, setPressed] = useState(false);
   return (
     <button
       onClick={onClick}
       onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
+      onMouseLeave={() => { setHov(false); setPressed(false); }}
+      onMouseDown={() => !disabled && setPressed(true)}
+      onMouseUp={() => setPressed(false)}
       disabled={disabled}
       style={{
         display: 'flex',
@@ -269,7 +301,8 @@ function SocialButton({ icon, label, height, onClick, disabled }: { icon: React.
         fontWeight: 500,
         color: disabled ? t.textMuted : t.text,
         opacity: disabled ? 0.6 : 1,
-        transition: 'all 0.15s ease',
+        transform: pressed ? 'scale(0.98) translateY(1px)' : 'scale(1)',
+        transition: 'all 0.15s ease-out',
       }}
     >
       {icon} {label}
@@ -337,6 +370,7 @@ function BrandPanel() {
     >
       {/* Ambient glows */}
       <div
+        aria-hidden="true"
         style={{
           position: 'absolute',
           top: '10%',
@@ -351,6 +385,7 @@ function BrandPanel() {
         }}
       />
       <div
+        aria-hidden="true"
         style={{
           position: 'absolute',
           bottom: '15%',
@@ -361,7 +396,7 @@ function BrandPanel() {
           background: `radial-gradient(circle, ${t.cyan}10 0%, transparent 65%)`,
           filter: 'blur(60px)',
           pointerEvents: 'none',
-          animation: 'glowPulse 10s ease-in-out infinite 2s',
+          opacity: 0.65,
         }}
       />
 
@@ -372,7 +407,7 @@ function BrandPanel() {
           textAlign: 'center',
           width: '100%',
           maxWidth: '380px',
-          animation: 'fadeUp 0.6s ease',
+          animation: 'fadeUp 0.4s ease-out',
         }}
       >
         {/* ── Hero row: Mei (left) | Logo block | Kofi mirrored (right) ── */}
@@ -470,7 +505,7 @@ function BrandPanel() {
         </div>
 
         {/* ── Social proof ── */}
-        <div style={{ animation: 'fadeUp 0.5s ease 0.6s both' }}>
+        <div style={{ animation: 'fadeUp 0.4s ease-out 0.6s both' }}>
           <SocialProof avatarSize={32} bgColor={t.bgElevated} fontSize="13px" />
         </div>
       </div>
@@ -482,11 +517,13 @@ function BrandPanel() {
 // MOBILE — Centered Layout
 // Uses AnimatedPixelCanvas with Aria (v7) idle
 // ═══════════════════════════════════════════
-function MobileAuth({ onBypassAppleAuth, isLoading, gisReady, googleBtnRef }: {
+function MobileAuth({ onBypassAppleAuth, isLoading, gisReady, googleBtnRef, errorShake, successFlash }: {
   onBypassAppleAuth: () => void;
   isLoading: boolean;
   gisReady: boolean;
   googleBtnRef: React.RefObject<HTMLDivElement | null>;
+  errorShake?: boolean;
+  successFlash?: boolean;
 }) {
   return (
     <div
@@ -507,6 +544,7 @@ function MobileAuth({ onBypassAppleAuth, isLoading, gisReady, googleBtnRef }: {
     >
       {/* Ambient glows */}
       <div
+        aria-hidden="true"
         style={{
           position: 'fixed',
           top: '-15%',
@@ -522,6 +560,7 @@ function MobileAuth({ onBypassAppleAuth, isLoading, gisReady, googleBtnRef }: {
         }}
       />
       <div
+        aria-hidden="true"
         style={{
           position: 'fixed',
           bottom: '-10%',
@@ -532,12 +571,12 @@ function MobileAuth({ onBypassAppleAuth, isLoading, gisReady, googleBtnRef }: {
           background: `radial-gradient(circle, ${t.cyan}08 0%, transparent 65%)`,
           filter: 'blur(60px)',
           pointerEvents: 'none',
-          animation: 'glowPulse 10s ease-in-out infinite 2s',
+          opacity: 0.65,
         }}
       />
 
-      <div style={{ position: 'relative', zIndex: 1, width: '100%', animation: 'fadeUp 0.5s ease' }}>
-        {/* ── Animated Aria (v7) character ── */}
+      <div style={{ position: 'relative', zIndex: 1, width: '100%' }}>
+        {/* ── Animated Aria (v7) character — stagger: logo 0s ── */}
         <div style={{
           display: 'flex',
           justifyContent: 'center',
@@ -551,8 +590,8 @@ function MobileAuth({ onBypassAppleAuth, isLoading, gisReady, googleBtnRef }: {
           />
         </div>
 
-        {/* Logo + Header */}
-        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+        {/* Logo + Header — stagger: form 0.1s */}
+        <div style={{ textAlign: 'center', marginBottom: '40px', animation: 'fadeUp 0.4s ease-out 0.1s both' }}>
           <div
             style={{
               width: '56px',
@@ -612,7 +651,7 @@ function MobileAuth({ onBypassAppleAuth, isLoading, gisReady, googleBtnRef }: {
           </p>
         </div>
 
-        {/* Auth card */}
+        {/* Auth card — stagger: social buttons 0.2s + error shake */}
         <div
           style={{
             background: `${t.bgCard}90`,
@@ -620,16 +659,19 @@ function MobileAuth({ onBypassAppleAuth, isLoading, gisReady, googleBtnRef }: {
             border: `1px solid ${t.border}`,
             borderRadius: '24px',
             padding: '24px 20px',
+            animation: errorShake
+              ? 'shake 0.3s ease-out, fadeUp 0.4s ease-out 0.2s both'
+              : 'fadeUp 0.4s ease-out 0.2s both',
           }}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <GoogleAuthButton height="56px" isLoading={isLoading} gisReady={gisReady} googleBtnRef={googleBtnRef} />
+            <GoogleAuthButton height="56px" isLoading={isLoading} gisReady={gisReady} googleBtnRef={googleBtnRef} successFlash={successFlash} />
             {/* TODO: Replace bypass with real Apple auth */}
             <SocialButton icon={<AppleIcon />} label="Continue with Apple" height="56px" onClick={onBypassAppleAuth} disabled={isLoading} />
           </div>
         </div>
 
-        {/* Terms */}
+        {/* Terms — stagger: footer 0.3s */}
         <p
           style={{
             textAlign: 'center',
@@ -638,6 +680,7 @@ function MobileAuth({ onBypassAppleAuth, isLoading, gisReady, googleBtnRef }: {
             fontSize: '12px',
             color: t.textMuted,
             lineHeight: 1.6,
+            animation: 'fadeUp 0.4s ease-out 0.3s both',
           }}
         >
           By continuing, you agree to our{' '}
@@ -651,7 +694,7 @@ function MobileAuth({ onBypassAppleAuth, isLoading, gisReady, googleBtnRef }: {
           justifyContent: 'center',
           gap: '16px',
           marginTop: '16px',
-          animation: 'fadeUp 0.5s ease 0.2s both',
+          animation: 'fadeUp 0.4s ease-out 0.35s both',
         }}>
           {[
             { label: 'LVL 1', color: t.violet },
@@ -671,8 +714,8 @@ function MobileAuth({ onBypassAppleAuth, isLoading, gisReady, googleBtnRef }: {
           ))}
         </div>
 
-        {/* Social proof */}
-        <div style={{ textAlign: 'center', marginTop: '32px', animation: 'fadeUp 0.5s ease 0.3s both' }}>
+        {/* Social proof — stagger: 0.45s */}
+        <div style={{ textAlign: 'center', marginTop: '32px', animation: 'fadeUp 0.4s ease-out 0.45s both' }}>
           <SocialProof avatarSize={28} bgColor={t.bg} fontSize="12px" />
         </div>
       </div>
@@ -705,7 +748,7 @@ function ErrorToast({ message, onClose }: { message: string; onClose: () => void
       fontSize: '14px',
       color: t.rose,
       boxShadow: `0 8px 32px ${t.rose}20`,
-      animation: 'fadeUp 0.3s ease',
+      animation: 'fadeUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
     }}>
       <span style={{ fontSize: '16px' }}>&#9888;</span>
       {message}
@@ -736,10 +779,21 @@ export default function LoginPage() {
   const { forgeComplete } = useOnboardingStore();
   const { onboardingCompletedAt } = useOnboardingV2Store();
   const [error, setError] = useState<string | null>(null);
+  const [errorShake, setErrorShake] = useState(false);
+  const [successFlash, setSuccessFlash] = useState(false);
   const [gisReady, setGisReady] = useState(false);
   const gisInitialized = useRef(false);
   const desktopGoogleBtnRef = useRef<HTMLDivElement>(null);
   const mobileGoogleBtnRef = useRef<HTMLDivElement>(null);
+
+  // Trigger shake animation on auth error
+  useEffect(() => {
+    if (error) {
+      setErrorShake(true);
+      const timer = setTimeout(() => setErrorShake(false), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '';
@@ -761,6 +815,9 @@ export default function LoginPage() {
       const data: { accessToken: string; refreshToken: string; userId: string; displayName: string } = await res.json();
       setTokens(data.accessToken, data.refreshToken);
       setUser(data.userId, data.displayName);
+      // Auth success flash — briefly glow cyan before navigation
+      setSuccessFlash(true);
+      await new Promise(resolve => setTimeout(resolve, 300));
       // Returning users skip onboarding, new users go through it
       const onboardingDone = forgeComplete || !!onboardingCompletedAt;
       router.push(onboardingDone ? '/home' : '/intent');
@@ -831,10 +888,6 @@ export default function LoginPage() {
           0%, 100% { opacity: 0.5; }
           50% { opacity: 0.8; }
         }
-        @keyframes breathe {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-3px); }
-        }
         @keyframes bounceIn {
           0% { opacity: 0; transform: scale(0.3); }
           50% { transform: scale(1.08); }
@@ -843,6 +896,21 @@ export default function LoginPage() {
         }
         @keyframes spin {
           to { transform: rotate(360deg); }
+        }
+        @keyframes shake {
+          0%   { transform: translateX(0); }
+          20%  { transform: translateX(4px); }
+          40%  { transform: translateX(-4px); }
+          60%  { transform: translateX(4px); }
+          80%  { transform: translateX(-2px); }
+          100% { transform: translateX(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+          }
         }
       `}</style>
 
@@ -872,8 +940,9 @@ export default function LoginPage() {
               overflowY: 'auto',
             }}
           >
-            <div style={{ width: '100%', maxWidth: '400px', animation: 'fadeUp 0.4s ease' }}>
-              <div style={{ marginBottom: '28px', textAlign: 'center' }}>
+            <div style={{ width: '100%', maxWidth: '400px' }}>
+              {/* Page entrance stagger: heading 0s */}
+              <div style={{ marginBottom: '28px', textAlign: 'center', animation: 'fadeUp 0.4s ease-out' }}>
                 <h2
                   style={{
                     fontFamily: t.display,
@@ -891,6 +960,7 @@ export default function LoginPage() {
                 </p>
               </div>
 
+              {/* Page entrance stagger: form 0.1s + error shake */}
               <div
                 style={{
                   background: `${t.bgCard}cc`,
@@ -898,16 +968,19 @@ export default function LoginPage() {
                   border: `1px solid ${t.border}`,
                   borderRadius: '24px',
                   padding: '28px 24px',
+                  animation: errorShake
+                    ? 'shake 0.3s ease-out, fadeUp 0.4s ease-out 0.1s both'
+                    : 'fadeUp 0.4s ease-out 0.1s both',
                 }}
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <GoogleAuthButton height="52px" isLoading={isLoading} gisReady={gisReady} googleBtnRef={desktopGoogleBtnRef} />
+                  <GoogleAuthButton height="52px" isLoading={isLoading} gisReady={gisReady} googleBtnRef={desktopGoogleBtnRef} successFlash={successFlash} />
                   {/* TODO: Replace bypass with real Apple auth */}
                   <SocialButton icon={<AppleIcon />} label="Continue with Apple" height="52px" onClick={bypassAppleAuth} disabled={isLoading} />
                 </div>
               </div>
 
-              {/* Terms */}
+              {/* Page entrance stagger: terms 0.2s */}
               <p
                 style={{
                   textAlign: 'center',
@@ -916,6 +989,7 @@ export default function LoginPage() {
                   fontSize: '12px',
                   color: t.textMuted,
                   lineHeight: 1.6,
+                  animation: 'fadeUp 0.4s ease-out 0.2s both',
                 }}
               >
                 By continuing, you agree to our{' '}
@@ -933,6 +1007,8 @@ export default function LoginPage() {
             isLoading={isLoading}
             gisReady={gisReady}
             googleBtnRef={mobileGoogleBtnRef}
+            errorShake={errorShake}
+            successFlash={successFlash}
           />
         </div>
       </div>

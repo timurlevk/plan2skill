@@ -3,7 +3,8 @@ import {
   TaskTypeSchema,
   RaritySchema,
   BloomLevelSchema,
-  KnowledgeCheckSchema,
+  QuestTypeSchema,
+  FlowCategorySchema,
 } from './shared.schema';
 
 // ─── AI Task ────────────────────────────────────────────────────
@@ -12,13 +13,15 @@ export const AiTaskSchema = z.object({
   title: z.string().min(5).max(200),
   description: z.string().min(10).max(500),
   taskType: TaskTypeSchema,
+  questType: QuestTypeSchema.optional(),
+  flowCategory: FlowCategorySchema.optional(),
   estimatedMinutes: z.number().int().min(5).max(120),
   xpReward: z.number().int().min(10).max(500),
   coinReward: z.number().int().min(1).max(50),
   rarity: RaritySchema,
   skillDomain: z.string().min(1).max(50),
-  bloomLevel: BloomLevelSchema.optional(),
-  knowledgeCheck: KnowledgeCheckSchema.optional(),
+  bloomLevel: BloomLevelSchema,
+  difficultyTier: z.number().int().min(1).max(5).optional(),
 });
 
 export type AiTask = z.infer<typeof AiTaskSchema>;

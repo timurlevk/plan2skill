@@ -30,9 +30,10 @@ export interface AssessmentQuestion {
 
 export function getNextQuestion(
   domain: string,
-  answered: { questionId: string; correct: boolean }[]
+  answered: { questionId: string; correct: boolean }[],
+  pool: AssessmentQuestion[] = QUESTIONS,
 ): AssessmentQuestion | null {
-  const domainQuestions = QUESTIONS.filter((q) => q.domain === domain);
+  const domainQuestions = pool.filter((q) => q.domain === domain);
   if (domainQuestions.length === 0) return null;
 
   const answeredIds = new Set(answered.map((a) => a.questionId));
@@ -62,20 +63,21 @@ export function getNextQuestion(
 }
 
 export function shouldStopAssessment(
-  answered: { questionId: string; correct: boolean }[]
+  answered: { questionId: string; correct: boolean }[],
+  pool: AssessmentQuestion[] = QUESTIONS,
 ): boolean {
   if (answered.length < 2) return false;
   if (answered.length >= 5) return true;
 
   // Early stop: 2 correct at high difficulty = advanced
   const highCorrect = answered.filter(
-    (a) => a.correct && QUESTIONS.find((q) => q.id === a.questionId)?.difficulty === 3
+    (a) => a.correct && pool.find((q) => q.id === a.questionId)?.difficulty === 3
   ).length;
   if (highCorrect >= 1 && answered.length >= 3) return true;
 
   // Early stop: 2 wrong at easy = beginner
   const easyWrong = answered.filter(
-    (a) => !a.correct && QUESTIONS.find((q) => q.id === a.questionId)?.difficulty === 1
+    (a) => !a.correct && pool.find((q) => q.id === a.questionId)?.difficulty === 1
   ).length;
   if (easyWrong >= 2) return true;
 
@@ -83,12 +85,13 @@ export function shouldStopAssessment(
 }
 
 export function computeLevel(
-  answered: { questionId: string; correct: boolean }[]
+  answered: { questionId: string; correct: boolean }[],
+  pool: AssessmentQuestion[] = QUESTIONS,
 ): 'beginner' | 'familiar' | 'intermediate' | 'advanced' {
   if (answered.length === 0) return 'beginner';
 
   const score = answered.reduce((acc, a) => {
-    const q = QUESTIONS.find((q) => q.id === a.questionId);
+    const q = pool.find((q) => q.id === a.questionId);
     if (!q || !a.correct) return acc;
     return acc + q.difficulty;
   }, 0);

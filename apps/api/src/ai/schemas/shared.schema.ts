@@ -30,12 +30,18 @@ export const BloomLevelSchema = z.enum([
 
 export const QuestTypeSchema = z.enum([
   'knowledge',
-  'physical',
+  'practice',
   'creative',
+  'boss',
+  'physical',
   'habit',
   'social',
   'reflection',
 ]);
+
+// ─── Flow Category ──────────────────────────────────────────────
+
+export const FlowCategorySchema = z.enum(['stretch', 'mastery', 'review']);
 
 // ─── Knowledge Check ────────────────────────────────────────────
 

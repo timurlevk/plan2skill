@@ -7,10 +7,10 @@ import { t } from './tokens';
 
 // ═══════════════════════════════════════════
 // STEP BAR v2 — Dynamic dot progress for onboarding v2
-// Intent-based: 4 steps (full flow) or 2 steps (exploring)
+// Intent-based: 3 steps (full flow) or 2 steps (exploring)
 // ═══════════════════════════════════════════
 
-const FULL_LABELS = ['Intent', 'Goal', 'Assessment', 'Hero'];
+const FULL_LABELS = ['Intent', 'Goal', 'Hero'];
 const EXPLORING_LABELS = ['Intent', 'Ready!'];
 
 interface StepBarV2Props {

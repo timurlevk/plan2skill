@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plan2Skill — Sidebar Content Audit</title>
+<style>
+  :root {
+    --bg: #0C0C10;
+    --card: #18181F;
+    --elevated: #1E1E28;
+    --border: #252530;
+    --text: #FFFFFF;
+    --muted: #71717A;
+    --violet: #9D7AFF;
+    --cyan: #4ECDC4;
+    --gold: #FFD166;
+    --rose: #FF6B8A;
+    --mint: #6EE7B7;
+    --blue: #3B82F6;
+    --orange: #F59E0B;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  h1 { font-size: 22px; font-weight: 800; margin-bottom: 8px; }
+  h1 span { background: linear-gradient(135deg, var(--violet), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .meta { color: var(--muted); font-size: 11px; margin-bottom: 16px; }
+  .stats {
+    display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px;
+  }
+  .stat-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 16px; min-width: 120px;
+  }
+  .stat-card .val { font-size: 22px; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+  .stat-card .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+  .filters {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center;
+  }
+  .filters label { color: var(--muted); font-size: 11px; }
+  .filters select, .filters input {
+    background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); padding: 5px 8px; font-size: 11px; font-family: inherit;
+  }
+  .filters select:focus, .filters input:focus { outline: none; border-color: var(--violet); }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 11px;
+  }
+  thead th {
+    background: var(--elevated); color: var(--cyan);
+    padding: 6px 8px; text-align: left; font-weight: 700;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
+    position: sticky; top: 0; z-index: 5;
+    border-bottom: 2px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid var(--border); }
+  tbody tr:hover { background: rgba(157,122,255,0.04); }
+  tbody td { padding: 5px 8px; vertical-align: top; max-width: 300px; }
+  td.text-col { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #ddd; word-break: break-word; }
+  td.key-col { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--gold); word-break: break-all; }
+  .badge {
+    display: inline-block; padding: 2px 6px; border-radius: 4px;
+    font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+  }
+  .b-static  { background: rgba(113,113,122,0.15); color: #a1a1aa; }
+  .b-dynamic { background: rgba(78,205,196,0.12); color: var(--cyan); }
+  .b-ai      { background: rgba(157,122,255,0.15); color: var(--violet); }
+  .b-db      { background: rgba(110,231,183,0.12); color: var(--mint); }
+  .b-store   { background: rgba(255,209,102,0.12); color: var(--gold); }
+  .b-yes     { background: rgba(110,231,183,0.12); color: var(--mint); }
+  .b-no      { background: rgba(113,113,122,0.15); color: #71717A; }
+  .b-partial { background: rgba(245,158,11,0.12); color: var(--orange); }
+  .b-warn    { background: rgba(255,107,138,0.12); color: var(--rose); }
+  .b-brand   { background: rgba(157,122,255,0.08); color: #8B6AE8; border: 1px solid rgba(157,122,255,0.15); }
+  /* Layer badges */
+  .b-layer-intl    { background: rgba(59,130,246,0.15); color: #60A5FA; border: 1px solid rgba(59,130,246,0.25); }
+  .b-layer-ref     { background: rgba(110,231,183,0.12); color: var(--mint); border: 1px solid rgba(110,231,183,0.2); }
+  .b-layer-ai      { background: rgba(157,122,255,0.15); color: var(--violet); border: 1px solid rgba(157,122,255,0.25); }
+  .b-layer-none    { background: rgba(113,113,122,0.08); color: #555; border: 1px solid rgba(113,113,122,0.15); }
+  .b-layer-compute { background: rgba(245,158,11,0.12); color: var(--gold); border: 1px solid rgba(245,158,11,0.2); }
+  .b-layer-store   { background: rgba(255,209,102,0.12); color: var(--gold); border: 1px solid rgba(255,209,102,0.2); }
+  /* Recommendation tags */
+  .rec-tag {
+    display: inline-block; padding: 1px 5px; border-radius: 3px;
+    font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+    margin-right: 3px; margin-bottom: 2px; white-space: nowrap;
+  }
+  .rec-i18n     { background: rgba(59,130,246,0.15); color: #60A5FA; }
+  .rec-ai       { background: rgba(157,122,255,0.15); color: #B49AFF; }
+  .rec-migrate  { background: rgba(255,107,138,0.15); color: #FF8FAA; }
+  .rec-ok       { background: rgba(110,231,183,0.1); color: #6EE7B7; }
+  .rec-rewrite  { background: rgba(245,158,11,0.15); color: #FBBF24; }
+  .rec-wire     { background: rgba(78,205,196,0.15); color: #4ECDC4; }
+  .rec-skip     { background: rgba(113,113,122,0.12); color: #999; }
+  .rec-cell { font-size: 10px; line-height: 1.5; max-width: 260px; }
+  .action-cell { font-size: 10px; line-height: 1.4; max-width: 280px; color: #ccc; }
+  .action-cell code { background: rgba(157,122,255,0.1); color: var(--violet); padding: 1px 4px; border-radius: 3px; font-size: 9px; font-family: 'JetBrains Mono', monospace; }
+  /* Section separators */
+  tr.section-row td {
+    background: var(--elevated);
+    padding: 8px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--cyan);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 2px solid var(--border);
+  }
+  .legend {
+    display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; padding: 10px 14px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  }
+  .legend-title { color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; margin-right: 4px; align-self: center; }
+  .legend-sep { width: 1px; background: var(--border); margin: 0 6px; }
+  .zone-label {
+    display: inline-block; padding: 1px 6px; border-radius: 4px;
+    font-size: 8px; font-weight: 800; letter-spacing: 0.04em;
+    text-transform: uppercase; margin-right: 4px;
+  }
+  .zone-left { background: rgba(157,122,255,0.12); color: var(--violet); border: 1px solid rgba(157,122,255,0.2); }
+  .zone-right { background: rgba(78,205,196,0.12); color: var(--cyan); border: 1px solid rgba(78,205,196,0.2); }
+  .zone-mobile { background: rgba(255,209,102,0.12); color: var(--gold); border: 1px solid rgba(255,209,102,0.2); }
+  .file-ref {
+    font-family: 'JetBrains Mono', monospace; font-size: 8px;
+    color: #555; display: block; margin-top: 2px;
+  }
+  .line-ref {
+    font-family: 'JetBrains Mono', monospace; font-size: 8px;
+    color: #444; white-space: nowrap;
+  }
+  @media print {
+    body { background: #fff; color: #000; font-size: 9px; }
+    .filters, .stats, .legend { display: none; }
+    thead th { background: #eee; color: #333; }
+    tbody td { border: 1px solid #ddd; }
+  }
+</style>
+</head>
+<body>
+
+<h1><span>Plan2Skill</span> — Sidebar Content Audit</h1>
+<p class="meta">Generated 2026-03-05 | Detailed element-by-element audit of Left Sidebar, Right Sidebar &amp; Mobile Nav | Files: layout.tsx, RightSidebar.tsx, XPBar.tsx, WeeklyChallenges.tsx, AttributeWidget.tsx, MasteryRing.tsx</p>
+
+<div class="stats">
+  <div class="stat-card"><div class="val" style="color:var(--violet)">72</div><div class="lbl">Total elements</div></div>
+  <div class="stat-card"><div class="val" style="color:var(--mint)">31</div><div class="lbl">i18n done (tr)</div></div>
+  <div class="stat-card"><div class="val" style="color:var(--rose)">22</div><div class="lbl">Hardcoded</div></div>
+  <div class="stat-card"><div class="val" style="color:var(--gold)">11</div><div class="lbl">Store / computed</div></div>
+  <div class="stat-card"><div class="val" style="color:var(--muted)">8</div><div class="lbl">Brand / universal</div></div>
+</div>
+
+<div class="legend">
+  <span class="legend-title">Zone:</span>
+  <span class="zone-label zone-left">Left</span>
+  <span class="zone-label zone-right">Right</span>
+  <span class="zone-label zone-mobile">Mobile</span>
+  <div class="legend-sep"></div>
+  <span class="legend-title">Layer:</span>
+  <span class="badge b-layer-intl">i18n (tr)</span>
+  <span class="badge b-layer-store">store</span>
+  <span class="badge b-layer-compute">computed</span>
+  <span class="badge b-layer-ref">refContent</span>
+  <span class="badge b-layer-none">hardcoded</span>
+  <div class="legend-sep"></div>
+  <span class="legend-title">Status:</span>
+  <span class="badge b-yes">Done</span>
+  <span class="badge b-partial">Partial</span>
+  <span class="badge b-no">Missing</span>
+  <span class="badge b-brand">Brand</span>
+  <div class="legend-sep"></div>
+  <span class="legend-title">Rec:</span>
+  <span class="rec-tag rec-ok">OK</span>
+  <span class="rec-tag rec-i18n">i18n</span>
+  <span class="rec-tag rec-wire">wire-up</span>
+  <span class="rec-tag rec-skip">skip</span>
+</div>
+
+<div class="filters">
+  <label>Filter:</label>
+  <select id="filterZone" onchange="applyFilters()">
+    <option value="">All Zones</option>
+    <option value="Left">Left Sidebar</option>
+    <option value="Right">Right Sidebar</option>
+    <option value="Mobile">Mobile Nav</option>
+  </select>
+  <select id="filterSection" onchange="applyFilters()">
+    <option value="">All Sections</option>
+    <option value="Brand + Hero Identity">Brand + Hero Identity</option>
+    <option value="Navigation">Navigation</option>
+    <option value="User Menu">User Menu</option>
+    <option value="Mobile Header">Mobile Header</option>
+    <option value="Mobile Bottom Nav">Mobile Bottom Nav</option>
+    <option value="Weekly Quests">Weekly Quests</option>
+    <option value="Skill Mastery">Skill Mastery</option>
+    <option value="Equipment Preview">Equipment Preview</option>
+    <option value="Hero Attributes">Hero Attributes</option>
+    <option value="Community">Community</option>
+    <option value="Empty State">Empty State</option>
+  </select>
+  <select id="filterStatus" onchange="applyFilters()">
+    <option value="">All Statuses</option>
+    <option value="Done">Done (tr)</option>
+    <option value="Missing">Missing i18n</option>
+    <option value="Partial">Partial</option>
+    <option value="Brand">Brand / Skip</option>
+    <option value="Store">Store data</option>
+  </select>
+  <select id="filterRec" onchange="applyFilters()">
+    <option value="">All Recs</option>
+    <option value="i18n">Needs i18n</option>
+    <option value="wire-up">Wire-up</option>
+    <option value="OK">OK</option>
+    <option value="skip">Skip</option>
+  </select>
+  <input type="text" id="filterText" placeholder="Search text / key..." oninput="applyFilters()" style="width:180px;">
+</div>
+
+<table id="auditTable">
+<thead>
+<tr>
+  <th style="width:28px">#</th>
+  <th>Zone</th>
+  <th>Text / Content</th>
+  <th>Section</th>
+  <th>Element</th>
+  <th>Layer</th>
+  <th>tr() Key</th>
+  <th>i18n</th>
+  <th>Line</th>
+  <th>Recommendation</th>
+  <th>Action Required</th>
+</tr>
+</thead>
+<tbody id="auditBody"></tbody>
+</table>
+
+<script>
+const DATA = [
+// ══════════════════════════════════════════════════════════════
+// LEFT SIDEBAR — ZONE 1: BRAND + HERO IDENTITY
+// File: apps/web/app/(dashboard)/layout.tsx
+// ══════════════════════════════════════════════════════════════
+
+{zone:"Left",sec:"Brand + Hero Identity",t:"P2",el:"Logo icon text",layer:"—",key:"—",status:"Brand",line:"501",file:"layout.tsx",
+ rec:[{tag:"skip",c:"Brand mark — universal, no i18n needed"}],
+ action:"No action. Brand identity."},
+
+{zone:"Left",sec:"Brand + Hero Identity",t:"Plan2Skill",el:"Logo text <span>",layer:"—",key:"—",status:"Brand",line:"504",file:"layout.tsx",
+ rec:[{tag:"skip",c:"Product name — never translated"}],
+ action:"No action. Brand identity."},
+
+{zone:"Left",sec:"Brand + Hero Identity",t:"Go to Command Center",el:"aria-label on logo Link",layer:"hardcoded",key:"nav.aria_home",status:"Missing",line:"493",file:"layout.tsx",
+ rec:[{tag:"i18n",c:"Accessibility label — screen readers need localized text"}],
+ action:"Add <code>nav.aria_home</code> to seed (en/uk/pl). Replace with <code>tr('nav.aria_home', 'Go to Command Center')</code>."},
+
+{zone:"Left",sec:"Brand + Hero Identity",t:"Hero status",el:"aria-label on region div",layer:"hardcoded",key:"sidebar.aria_hero_status",status:"Missing",line:"516",file:"layout.tsx",
+ rec:[{tag:"i18n",c:"Region landmark label for screen readers"}],
+ action:"Add <code>sidebar.aria_hero_status</code> to seed. Replace with <code>tr('sidebar.aria_hero_status', 'Hero status')</code>."},
+
+{zone:"Left",sec:"Brand + Hero Identity",t:"{charMeta?.name}",el:"Hero name <span>",layer:"store",key:"—",status:"Store",line:"537",file:"layout.tsx",
+ rec:[{tag:"ok",c:"Dynamic from character store — user-created content"}],
+ action:"No action. User-generated name from onboarding."},
+
+{zone:"Left",sec:"Brand + Hero Identity",t:"Hero (fallback)",el:"Hero name fallback",layer:"i18n (tr)",key:"character.hero_fallback",status:"Done",line:"537",file:"layout.tsx",
+ rec:[{tag:"ok",c:"Already uses tr('character.hero_fallback', 'Hero')"}],
+ action:"No action. ✓"},
+
+{zone:"Left",sec:"Brand + Hero Identity",t:"Lv.{level}",el:"Level badge <span>",layer:"hardcoded",key:"sidebar.level_badge",status:"Missing",line:"544",file:"layout.tsx",
+ rec:[{tag:"i18n",c:"Format 'Lv.' prefix varies by locale (Рів., Poz.)"}],
+ action:"Add <code>sidebar.level_badge</code> = 'Lv.{n}' to seed (en: 'Lv.{n}', uk: 'Рів.{n}', pl: 'Poz.{n}'). Replace with <code>tr('sidebar.level_badge', 'Lv.{n}').replace('{n}', String(level))</code>."},
+
+{zone:"Left",sec:"Brand + Hero Identity",t:"{archetype.icon} {archetype.name}",el:"Archetype badge",layer:"refContent",key:"archetype:* → name",status:"Partial",line:"554-558",file:"layout.tsx",
+ rec:[{tag:"wire-up",c:"Archetype names come from static ARCHETYPES object — add refTranslation for 4 archetype names"}],
+ action:"Phase 2: Add refTranslation for archetype names (en/uk/pl). For now OK — English archetype names are recognizable gaming terms."},
+
+{zone:"Left",sec:"Brand + Hero Identity",t:"{currentXp} / {xpForNextLevel} XP",el:"XP counter <span>",layer:"hardcoded",key:"sidebar.xp_progress",status:"Missing",line:"569",file:"layout.tsx",
+ rec:[{tag:"i18n",c:"Format string with 'XP' unit and '/' separator"}],
+ action:"Add <code>sidebar.xp_progress</code> = '{current} / {max} XP' to seed. Replace with <code>tr('sidebar.xp_progress', '{current} / {max} XP').replace('{current}', ...).replace('{max}', ...)</code>."},
+
+{zone:"Left",sec:"Brand + Hero Identity",t:"Lv.{level + 1}",el:"Next level label <span>",layer:"hardcoded",key:"sidebar.next_level",status:"Missing",line:"574",file:"layout.tsx",
+ rec:[{tag:"i18n",c:"Same 'Lv.' prefix issue — reuse sidebar.level_badge key"}],
+ action:"Reuse <code>sidebar.level_badge</code> key with level+1 value."},
+
+{zone:"Left",sec:"Brand + Hero Identity",t:"Level {level}: {currentXp} of {xpForNextLevel} XP",el:"aria-label on progressbar",layer:"hardcoded",key:"sidebar.aria_xp_bar",status:"Missing",line:"581",file:"layout.tsx",
+ rec:[{tag:"i18n",c:"Screen reader text — must be localized for a11y compliance"}],
+ action:"Add <code>sidebar.aria_xp_bar</code> = 'Level {level}: {current} of {max} XP' to seed. Replace aria-label."},
+
+{zone:"Left",sec:"Brand + Hero Identity",t:"{currentStreak}",el:"Streak counter value",layer:"store",key:"—",status:"Store",line:"622",file:"layout.tsx",
+ rec:[{tag:"ok",c:"Pure number from progression store"}],
+ action:"No action. Numeric value."},
+
+{zone:"Left",sec:"Brand + Hero Identity",t:"streak",el:"Streak label <span>",layer:"i18n (tr)",key:"dashboard.streak_label",status:"Done",line:"625",file:"layout.tsx",
+ rec:[{tag:"ok",c:"Already uses tr('dashboard.streak_label', 'streak')"}],
+ action:"No action. ✓"},
+
+{zone:"Left",sec:"Brand + Hero Identity",t:"{currentStreak} day streak",el:"aria-label on streak div",layer:"hardcoded",key:"stats.aria_streak",status:"Missing",line:"607",file:"layout.tsx",
+ rec:[{tag:"i18n",c:"Screen reader text with dynamic value"}],
+ action:"Replace with <code>tr('stats.aria_streak', '{n} day streak').replace('{n}', String(currentStreak))</code>. Key exists in seed."},
+
+{zone:"Left",sec:"Brand + Hero Identity",t:"{energyCrystals}/{maxEnergyCrystals}",el:"Energy counter value",layer:"store",key:"—",status:"Store",line:"643",file:"layout.tsx",
+ rec:[{tag:"ok",c:"Numeric ratio from store — '/' separator is universal"}],
+ action:"No action. Numeric display."},
+
+{zone:"Left",sec:"Brand + Hero Identity",t:"energy",el:"Energy label <span>",layer:"i18n (tr)",key:"dashboard.energy_label",status:"Done",line:"646",file:"layout.tsx",
+ rec:[{tag:"ok",c:"Already uses tr('dashboard.energy_label', 'energy')"}],
+ action:"No action. ✓"},
+
+{zone:"Left",sec:"Brand + Hero Identity",t:"{energyCrystals} of {maxEnergyCrystals} energy crystals",el:"aria-label on energy div",layer:"hardcoded",key:"sidebar.aria_energy",status:"Missing",line:"631",file:"layout.tsx",
+ rec:[{tag:"i18n",c:"Screen reader text — 'of' and 'energy crystals' need localization"}],
+ action:"Add <code>sidebar.aria_energy</code> = '{n} of {max} energy crystals' to seed. Replace aria-label."},
+
+{zone:"Left",sec:"Brand + Hero Identity",t:"{coins}",el:"Coins counter value",layer:"store",key:"—",status:"Store",line:"667",file:"layout.tsx",
+ rec:[{tag:"ok",c:"Pure number from store"}],
+ action:"No action. Numeric value."},
+
+{zone:"Left",sec:"Brand + Hero Identity",t:"coins",el:"Coins label <span>",layer:"i18n (tr)",key:"dashboard.coins_label",status:"Done",line:"670",file:"layout.tsx",
+ rec:[{tag:"ok",c:"Already uses tr('dashboard.coins_label', 'coins')"}],
+ action:"No action. ✓"},
+
+{zone:"Left",sec:"Brand + Hero Identity",t:"{coins} coins",el:"aria-label on coins div",layer:"hardcoded",key:"sidebar.aria_coins",status:"Missing",line:"652",file:"layout.tsx",
+ rec:[{tag:"i18n",c:"Screen reader text"}],
+ action:"Add <code>sidebar.aria_coins</code> = '{n} coins' to seed. Replace aria-label."},
+
+// ══════════════════════════════════════════════════════════════
+// LEFT SIDEBAR — ZONE 2: NAVIGATION
+// ══════════════════════════════════════════════════════════════
+
+{zone:"Left",sec:"Navigation",t:"Command Center",el:"Nav link label",layer:"i18n (tr)",key:"nav.command_center",status:"Done",line:"713",file:"layout.tsx",
+ rec:[{tag:"ok",c:"tr(item.labelKey, item.label) pattern ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Left",sec:"Navigation",t:"Quest Map",el:"Nav link label",layer:"i18n (tr)",key:"nav.quest_map",status:"Done",line:"713",file:"layout.tsx",
+ rec:[{tag:"ok",c:"tr(item.labelKey, item.label) pattern ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Left",sec:"Navigation",t:"The Forge",el:"Nav link label",layer:"i18n (tr)",key:"nav.forge_label",status:"Done",line:"713",file:"layout.tsx",
+ rec:[{tag:"ok",c:"tr(item.labelKey, item.label) pattern ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Left",sec:"Navigation",t:"Merchant",el:"Nav link label",layer:"i18n (tr)",key:"nav.merchant",status:"Done",line:"713",file:"layout.tsx",
+ rec:[{tag:"ok",c:"tr(item.labelKey, item.label) pattern ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Left",sec:"Navigation",t:"Guild Arena",el:"Nav link label",layer:"i18n (tr)",key:"nav.guild_arena",status:"Done",line:"713",file:"layout.tsx",
+ rec:[{tag:"ok",c:"tr(item.labelKey, item.label) pattern ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Left",sec:"Navigation",t:"Hero Card",el:"Nav link label",layer:"i18n (tr)",key:"nav.hero_card",status:"Done",line:"713",file:"layout.tsx",
+ rec:[{tag:"ok",c:"tr(item.labelKey, item.label) pattern ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Left",sec:"Navigation",t:"New activity",el:"aria-label on badge dot",layer:"hardcoded",key:"nav.aria_new_activity",status:"Missing",line:"723",file:"layout.tsx",
+ rec:[{tag:"i18n",c:"Screen reader notification badge label"}],
+ action:"Add <code>nav.aria_new_activity</code> to seed. Replace aria-label."},
+
+// ══════════════════════════════════════════════════════════════
+// LEFT SIDEBAR — ZONE 3: USER MENU
+// ══════════════════════════════════════════════════════════════
+
+{zone:"Left",sec:"User Menu",t:"{charMeta?.name || 'Hero'}",el:"Menu trigger label",layer:"i18n (tr)",key:"character.hero_fallback",status:"Done",line:"125",file:"layout.tsx",
+ rec:[{tag:"ok",c:"Fallback wrapped in tr() ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Left",sec:"User Menu",t:"▲",el:"Dropdown arrow indicator",layer:"—",key:"—",status:"Brand",line:"133",file:"layout.tsx",
+ rec:[{tag:"skip",c:"Visual indicator — universal symbol"}],
+ action:"No action. Decorative."},
+
+{zone:"Left",sec:"User Menu",t:"{charMeta?.name || 'Hero'} (dropdown header)",el:"User name in dropdown",layer:"i18n (tr)",key:"character.hero_fallback",status:"Done",line:"158",file:"layout.tsx",
+ rec:[{tag:"ok",c:"tr() fallback ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Left",sec:"User Menu",t:"Lv.{level}",el:"Level in dropdown header",layer:"hardcoded",key:"sidebar.level_badge",status:"Missing",line:"162",file:"layout.tsx",
+ rec:[{tag:"i18n",c:"Same Lv. prefix issue — reuse sidebar.level_badge"}],
+ action:"Reuse <code>sidebar.level_badge</code> key. Same fix as Hero Identity card."},
+
+{zone:"Left",sec:"User Menu",t:"{xpTotal} XP",el:"XP in dropdown header",layer:"hardcoded",key:"sidebar.xp_short",status:"Missing",line:"165",file:"layout.tsx",
+ rec:[{tag:"i18n",c:"'XP' abbreviation — universal gaming term, but format varies"}],
+ action:"Add <code>sidebar.xp_short</code> = '{n} XP' to seed. Or consider keeping as-is — 'XP' is a universal gaming abbreviation."},
+
+{zone:"Left",sec:"User Menu",t:"{archetype.icon} {archetype.name}",el:"Archetype badge in dropdown",layer:"refContent",key:"archetype:* → name",status:"Partial",line:"176",file:"layout.tsx",
+ rec:[{tag:"wire-up",c:"Same issue as Hero Identity card archetype badge"}],
+ action:"Same as #8 above — Phase 2 refTranslation."},
+
+{zone:"Left",sec:"User Menu",t:"Hero Settings",el:"Menu item label",layer:"i18n (tr)",key:"nav.hero_settings",status:"Done",line:"252",file:"layout.tsx",
+ rec:[{tag:"ok",c:"tr(item.labelKey, item.label) ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Left",sec:"User Menu",t:"Quiet Mode",el:"Menu item label + toggle",layer:"i18n (tr)",key:"nav.quiet_mode",status:"Done",line:"214",file:"layout.tsx",
+ rec:[{tag:"ok",c:"tr('nav.quiet_mode', 'Quiet Mode') ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Left",sec:"User Menu",t:"Quiet mode is on/off — click to turn on/off",el:"aria-label on toggle switch",layer:"hardcoded",key:"nav.aria_quiet_on / nav.aria_quiet_off",status:"Missing",line:"199",file:"layout.tsx",
+ rec:[{tag:"i18n",c:"Dynamic aria-label — critical a11y string"}],
+ action:"Add 2 keys: <code>nav.aria_quiet_on</code> = 'Quiet mode is on — click to turn off', <code>nav.aria_quiet_off</code> = 'Quiet mode is off — click to turn on'. Replace ternary."},
+
+{zone:"Left",sec:"User Menu",t:"Restart Journey",el:"Menu item label",layer:"i18n (tr)",key:"nav.restart_journey",status:"Done",line:"252",file:"layout.tsx",
+ rec:[{tag:"ok",c:"tr(item.labelKey, item.label) ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Left",sec:"User Menu",t:"Leave Guild",el:"Menu item label",layer:"i18n (tr)",key:"nav.leave_guild",status:"Done",line:"252",file:"layout.tsx",
+ rec:[{tag:"ok",c:"tr(item.labelKey, item.label) ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Left",sec:"User Menu",t:"Restart your journey? All progress will be reset.",el:"window.confirm() message",layer:"i18n (tr)",key:"nav.restart_confirm",status:"Done",line:"94",file:"layout.tsx",
+ rec:[{tag:"ok",c:"tr('nav.restart_confirm', ...) ✓"}],
+ action:"No action. ✓"},
+
+// ══════════════════════════════════════════════════════════════
+// MOBILE HEADER
+// ══════════════════════════════════════════════════════════════
+
+{zone:"Mobile",sec:"Mobile Header",t:"{xp} XP",el:"XPBar level text",layer:"hardcoded",key:"xpbar.xp_label",status:"Missing",line:"67",file:"XPBar.tsx",
+ rec:[{tag:"i18n",c:"'XP' suffix — universal gaming term. Low priority."}],
+ action:"Optional: Add <code>xpbar.xp_label</code> = '{n} XP' to seed. XP is a universal gaming abbreviation — consider keeping as-is."},
+
+{zone:"Mobile",sec:"Mobile Header",t:"L{level}",el:"XPBar level badge",layer:"hardcoded",key:"xpbar.level_badge",status:"Missing",line:"107",file:"XPBar.tsx",
+ rec:[{tag:"i18n",c:"'L' prefix for Level — same issue as 'Lv.' in sidebar"}],
+ action:"Add <code>xpbar.level_badge</code> = 'L{n}' to seed (en: 'L{n}', uk: 'Р{n}', pl: 'P{n}'). Replace with tr()."},
+
+{zone:"Mobile",sec:"Mobile Header",t:"{currentStreak}",el:"Streak counter in mobile header",layer:"store",key:"—",status:"Store",line:"787",file:"layout.tsx",
+ rec:[{tag:"ok",c:"Pure numeric value"}],
+ action:"No action. Numeric."},
+
+// ══════════════════════════════════════════════════════════════
+// MOBILE BOTTOM NAV
+// ══════════════════════════════════════════════════════════════
+
+{zone:"Mobile",sec:"Mobile Bottom Nav",t:"Command Center / Quest Map / The Forge / Merchant / Guild Arena / Hero Card",el:"Mobile tab labels ×6",layer:"i18n (tr)",key:"nav.command_center / nav.quest_map / etc.",status:"Done",line:"864",file:"layout.tsx",
+ rec:[{tag:"ok",c:"Same tr(item.labelKey, item.label) pattern as desktop nav ✓"}],
+ action:"No action. ✓"},
+
+// ══════════════════════════════════════════════════════════════
+// RIGHT SIDEBAR — SECTION 1: WEEKLY QUESTS
+// File: apps/web/app/(dashboard)/home/_components/WeeklyChallenges.tsx
+// ══════════════════════════════════════════════════════════════
+
+{zone:"Right",sec:"Weekly Quests",t:"Weekly Quests (title)",el:"Header text",layer:"i18n (tr)",key:"weekly.title",status:"Done",line:"192/337",file:"WeeklyChallenges.tsx",
+ rec:[{tag:"ok",c:"tr('weekly.title', 'Weekly Quests') ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Right",sec:"Weekly Quests",t:"{daysLeft}d {hoursLeft}h / {hoursLeft}h",el:"Timer label (timeLabel var)",layer:"hardcoded",key:"weekly.time_days / weekly.time_hours",status:"Missing",line:"164",file:"WeeklyChallenges.tsx",
+ rec:[{tag:"i18n",c:"Time abbreviations 'd' (day) and 'h' (hour) differ by locale"}],
+ action:"Add <code>weekly.time_days</code> = '{d}d {h}h' and <code>weekly.time_hours</code> = '{h}h' to seed. Replace template literal with tr().replace() pattern."},
+
+{zone:"Right",sec:"Weekly Quests",t:"{timeLabel} ↻",el:"Timer display (compact + full)",layer:"hardcoded",key:"—",status:"Partial",line:"204,349",file:"WeeklyChallenges.tsx",
+ rec:[{tag:"i18n",c:"'↻' is universal but timeLabel needs localization (see above)"}],
+ action:"Fix timeLabel (see above). '↻' symbol is OK."},
+
+{zone:"Right",sec:"Weekly Quests",t:"✓ (prefix on completed challenge)",el:"Checkmark before desc",layer:"—",key:"—",status:"Brand",line:"247,408",file:"WeeklyChallenges.tsx",
+ rec:[{tag:"skip",c:"Universal checkmark symbol — no translation needed"}],
+ action:"No action. Unicode symbol."},
+
+{zone:"Right",sec:"Weekly Quests",t:"Challenge descriptions (9 types via getChallengeDescription)",el:"Challenge row text",layer:"i18n (tr)",key:"weekly.challenge_quests / weekly.challenge_streak / etc.",status:"Done",line:"37-80",file:"WeeklyChallenges.tsx",
+ rec:[{tag:"ok",c:"All 14 challenge description functions use tr() ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Right",sec:"Weekly Quests",t:"+{xpReward} XP",el:"XP reward badge (compact + full)",layer:"hardcoded",key:"weekly.xp_reward",status:"Missing",line:"282,478",file:"WeeklyChallenges.tsx",
+ rec:[{tag:"i18n",c:"'+' prefix and 'XP' unit label"}],
+ action:"Add <code>weekly.xp_reward</code> = '+{n} XP' to seed. Replace with tr()."},
+
+{zone:"Right",sec:"Weekly Quests",t:"{currentValue}/{targetValue} ({pct}%)",el:"Progress text (compact + full)",layer:"hardcoded",key:"weekly.progress_format",status:"Missing",line:"468",file:"WeeklyChallenges.tsx",
+ rec:[{tag:"i18n",c:"Fraction format and '%' — low priority, mostly universal"}],
+ action:"Optional: Add <code>weekly.progress_format</code> = '{current}/{target} ({pct}%)' to seed. Low priority — numeric formats are largely universal."},
+
+{zone:"Right",sec:"Weekly Quests",t:"{desc}: {currentValue} of {targetValue}",el:"aria-label on progress bar",layer:"hardcoded",key:"weekly.aria_progress",status:"Missing",line:"254,442",file:"WeeklyChallenges.tsx",
+ rec:[{tag:"i18n",c:"'of' needs localization — a11y critical"}],
+ action:"Add <code>weekly.aria_progress</code> = '{desc}: {current} of {target}' to seed. Replace aria-label with tr()."},
+
+{zone:"Right",sec:"Weekly Quests",t:"Difficulty: {difficulty}",el:"aria-label on difficulty badge (full mode)",layer:"hardcoded",key:"weekly.aria_difficulty",status:"Missing",line:"412",file:"WeeklyChallenges.tsx",
+ rec:[{tag:"i18n",c:"'Difficulty:' label for screen readers"}],
+ action:"Add <code>weekly.aria_difficulty</code> = 'Difficulty: {level}' to seed. Replace aria-label with tr()."},
+
+{zone:"Right",sec:"Weekly Quests",t:"🪙 {coinReward}",el:"Coin reward in full mode row",layer:"hardcoded",key:"weekly.coin_reward",status:"Missing",line:"482",file:"WeeklyChallenges.tsx",
+ rec:[{tag:"i18n",c:"Low priority — emoji + number. Could add aria-label for a11y."}],
+ action:"Optional: Add aria-label <code>weekly.aria_coins</code> = '{n} coins' for screen readers. Visual is OK as-is."},
+
+{zone:"Right",sec:"Weekly Quests",t:"+150 XP + 🪙 50",el:"Champion reward string (allCompleted=true)",layer:"hardcoded",key:"weekly.champion_reward",status:"Missing",line:"525",file:"WeeklyChallenges.tsx",
+ rec:[{tag:"i18n",c:"Fully hardcoded reward string"}],
+ action:"Add <code>weekly.champion_reward</code> = '+150 XP + 🪙 50' to seed. Replace hardcoded string."},
+
+{zone:"Right",sec:"Weekly Quests",t:"{completedCount}/3 completed → +150 XP + 🪙 50 bonus",el:"Progress toward champion banner",layer:"hardcoded",key:"weekly.champion_progress",status:"Missing",line:"526",file:"WeeklyChallenges.tsx",
+ rec:[{tag:"i18n",c:"Multiple English words: 'completed', 'bonus'"}],
+ action:"Add <code>weekly.champion_progress</code> = '{n}/3 completed → +150 XP + 🪙 50 bonus' to seed. Replace with tr().replace('{n}', ...)."},
+
+{zone:"Right",sec:"Weekly Quests",t:"Weekly Champion banner titles",el:"Champion celebration banners",layer:"i18n (tr)",key:"weekly.champion_title / weekly.champion_claimed",status:"Done",line:"varies",file:"WeeklyChallenges.tsx",
+ rec:[{tag:"ok",c:"tr() used for champion title and 'Claimed' badge ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Right",sec:"Weekly Quests",t:"Claimed",el:"Claimed badge text",layer:"i18n (tr)",key:"weekly.claimed",status:"Done",line:"varies",file:"WeeklyChallenges.tsx",
+ rec:[{tag:"ok",c:"tr('weekly.claimed', 'Claimed') ✓"}],
+ action:"No action. ✓"},
+
+// ══════════════════════════════════════════════════════════════
+// RIGHT SIDEBAR — SECTION 2: SKILL MASTERY
+// File: RightSidebar.tsx + MasteryRing.tsx
+// ══════════════════════════════════════════════════════════════
+
+{zone:"Right",sec:"Skill Mastery",t:"Skill Mastery",el:"Section header label",layer:"i18n (tr)",key:"sidebar.skill_mastery",status:"Done",line:"134",file:"RightSidebar.tsx",
+ rec:[{tag:"ok",c:"tr('sidebar.skill_mastery', 'Skill Mastery') ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Right",sec:"Skill Mastery",t:"{dueCount} due",el:"Due count badge",layer:"hardcoded",key:"sidebar.mastery_due",status:"Missing",line:"141",file:"RightSidebar.tsx",
+ rec:[{tag:"i18n",c:"'due' is English — needs localization"}],
+ action:"Add <code>sidebar.mastery_due</code> = '{n} due' to seed. Replace with <code>tr('sidebar.mastery_due', '{n} due').replace('{n}', ...)</code>."},
+
+{zone:"Right",sec:"Skill Mastery",t:"MasteryRing labels (New / Attempted / Familiar / Proficient / Mastered / Expert)",el:"Ring label text",layer:"i18n (tr)",key:"mastery.new / mastery.attempted / etc.",status:"Done",line:"184",file:"MasteryRing.tsx",
+ rec:[{tag:"ok",c:"tr(token.labelKey, token.label) pattern ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Right",sec:"Skill Mastery",t:"Skill: {domain}, Mastery: {label} ({level}/5)",el:"aria-label on MasteryRing",layer:"hardcoded",key:"mastery.aria_ring",status:"Missing",line:"76",file:"MasteryRing.tsx",
+ rec:[{tag:"i18n",c:"'Skill:', 'Mastery:' scaffold text — a11y critical"}],
+ action:"Add <code>mastery.aria_ring</code> = 'Skill: {domain}, Mastery: {label} ({level}/5)' to seed. Replace aria-label."},
+
+{zone:"Right",sec:"Skill Mastery",t:"Review overdue",el:"aria-label on overdue dot",layer:"hardcoded",key:"mastery.aria_overdue",status:"Missing",line:"152",file:"MasteryRing.tsx",
+ rec:[{tag:"i18n",c:"Screen reader label for overdue indicator"}],
+ action:"Add <code>mastery.aria_overdue</code> = 'Review overdue' to seed. Replace aria-label with tr()."},
+
+{zone:"Right",sec:"Skill Mastery",t:"+{n} more skills →",el:"See-all link",layer:"hardcoded",key:"sidebar.mastery_more",status:"Missing",line:"165",file:"RightSidebar.tsx",
+ rec:[{tag:"i18n",c:"'more skills →' is English"}],
+ action:"Add <code>sidebar.mastery_more</code> = '+{n} more skills →' to seed. Replace with tr().replace('{n}', ...)."},
+
+{zone:"Right",sec:"Skill Mastery",t:"Review {n} skill(s) →",el:"Review CTA button",layer:"hardcoded",key:"sidebar.mastery_review",status:"Missing",line:"179",file:"RightSidebar.tsx",
+ rec:[{tag:"i18n",c:"'Review ... skill(s) →' — English with plural logic"}],
+ action:"Add <code>sidebar.mastery_review</code> = 'Review {n} skills →' to seed. Note: plural forms differ — en uses 's' suffix, uk/pl have complex plural rules. For MVP use simple replacement."},
+
+// ══════════════════════════════════════════════════════════════
+// RIGHT SIDEBAR — SECTION 3: EQUIPMENT PREVIEW
+// File: RightSidebar.tsx
+// ══════════════════════════════════════════════════════════════
+
+{zone:"Right",sec:"Equipment Preview",t:"Equipment",el:"Section header label",layer:"i18n (tr)",key:"sidebar.equipment",status:"Done",line:"189",file:"RightSidebar.tsx",
+ rec:[{tag:"ok",c:"tr('sidebar.equipment', 'Equipment') ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Right",sec:"Equipment Preview",t:"Weapon / Shield / Armor / Helm / Boots / Ring / Companion",el:"SLOT_ICONS labels (7 slots)",layer:"hardcoded",key:"slot.weapon / slot.shield / etc.",status:"Missing",line:"73-81",file:"RightSidebar.tsx",
+ rec:[{tag:"i18n",c:"Slot labels in static const — seed keys exist from Batch 10 but SLOT_ICONS in RightSidebar still hardcoded"}],
+ action:"Add <code>labelKey</code> field to SLOT_ICONS: <code>labelKey: 'slot.weapon'</code>. Render with <code>tr(cfg.labelKey, cfg.label)</code>. Seed keys already exist."},
+
+{zone:"Right",sec:"Equipment Preview",t:"{label}: {itemName} ({rarity})",el:"aria-label on equipped slot",layer:"hardcoded",key:"sidebar.aria_slot_equipped",status:"Missing",line:"199,234",file:"RightSidebar.tsx",
+ rec:[{tag:"i18n",c:"Dynamic aria-label with slot label + item name + rarity"}],
+ action:"Add <code>sidebar.aria_slot_equipped</code> = '{slot}: {item} ({rarity})' and <code>sidebar.aria_slot_empty</code> = '{slot}: empty' to seed."},
+
+{zone:"Right",sec:"Equipment Preview",t:"{label}: empty",el:"aria-label on empty slot",layer:"hardcoded",key:"sidebar.aria_slot_empty",status:"Missing",line:"199,234",file:"RightSidebar.tsx",
+ rec:[{tag:"i18n",c:"'empty' needs localization"}],
+ action:"See above — combined key <code>sidebar.aria_slot_empty</code> = '{slot}: empty'."},
+
+{zone:"Right",sec:"Equipment Preview",t:"{key} +{val}",el:"Attribute bonus tags (STR +2, etc.)",layer:"computed",key:"—",status:"Partial",line:"274",file:"RightSidebar.tsx",
+ rec:[{tag:"skip",c:"STR/INT/CHA/CON/DEX/WIS are universal RPG abbreviations. '+' is universal math symbol."}],
+ action:"No action needed. Attribute abbreviations are intentionally kept as universal gaming constants."},
+
+{zone:"Right",sec:"Equipment Preview",t:"Manage inventory →",el:"Bottom link",layer:"i18n (tr)",key:"sidebar.manage_inventory",status:"Done",line:"286",file:"RightSidebar.tsx",
+ rec:[{tag:"ok",c:"tr('sidebar.manage_inventory', 'Manage inventory →') ✓"}],
+ action:"No action. ✓"},
+
+// ══════════════════════════════════════════════════════════════
+// RIGHT SIDEBAR — SECTION 3.5: HERO ATTRIBUTES
+// File: AttributeWidget.tsx
+// ══════════════════════════════════════════════════════════════
+
+{zone:"Right",sec:"Hero Attributes",t:"Hero Attributes (title)",el:"Section header",layer:"i18n (tr)",key:"attributes.title",status:"Done",line:"varies",file:"AttributeWidget.tsx",
+ rec:[{tag:"ok",c:"tr('attributes.title', 'Hero Attributes') ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Right",sec:"Hero Attributes",t:"Strength / Intelligence / Charisma / Constitution / Dexterity / Wisdom",el:"Attribute full names (tooltip)",layer:"i18n (tr)",key:"attributes.str / .int / .cha / .con / .dex / .wis",status:"Done",line:"varies",file:"AttributeWidget.tsx",
+ rec:[{tag:"ok",c:"tr(attr.fullNameKey, ...) pattern ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Right",sec:"Hero Attributes",t:"Attribute descriptions (6)",el:"Tooltip descriptions",layer:"i18n (tr)",key:"attributes.str_desc / etc.",status:"Done",line:"varies",file:"AttributeWidget.tsx",
+ rec:[{tag:"ok",c:"tr(attr.descKey, ...) ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Right",sec:"Hero Attributes",t:"Base: {n} / Equip: +{n} / Equip: —",el:"Tooltip stat breakdown",layer:"i18n (tr)",key:"attributes.base / .equip_bonus / .equip_none",status:"Done",line:"varies",file:"AttributeWidget.tsx",
+ rec:[{tag:"ok",c:"tr() for all three variants ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Right",sec:"Hero Attributes",t:"STR / INT / CHA / CON / DEX / WIS",el:"Abbreviation labels",layer:"—",key:"—",status:"Brand",line:"125",file:"AttributeWidget.tsx",
+ rec:[{tag:"skip",c:"Universal RPG attribute abbreviations — intentionally not translated"}],
+ action:"No action. D&D-style constants."},
+
+// ══════════════════════════════════════════════════════════════
+// RIGHT SIDEBAR — SECTION 4: COMMUNITY
+// File: RightSidebar.tsx
+// ══════════════════════════════════════════════════════════════
+
+{zone:"Right",sec:"Community",t:"Community",el:"Section header label",layer:"i18n (tr)",key:"sidebar.community",status:"Done",line:"298",file:"RightSidebar.tsx",
+ rec:[{tag:"ok",c:"tr('sidebar.community', 'Community') ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Right",sec:"Community",t:"🐉",el:"Party Quest emoji icon",layer:"—",key:"—",status:"Brand",line:"319",file:"RightSidebar.tsx",
+ rec:[{tag:"skip",c:"Emoji — universal"}],
+ action:"No action."},
+
+{zone:"Right",sec:"Community",t:"Party Quest",el:"Party Quest card title",layer:"i18n (tr)",key:"social.party_quest",status:"Done",line:"325",file:"RightSidebar.tsx",
+ rec:[{tag:"ok",c:"tr('social.party_quest', 'Party Quest') ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Right",sec:"Community",t:"4 heroes fighting · Join the hunt",el:"Party Quest subtitle",layer:"hardcoded",key:"social.party_desc",status:"Missing",line:"330",file:"RightSidebar.tsx",
+ rec:[{tag:"i18n",c:"Mock data but UI text needs i18n for when real data arrives"}],
+ action:"Add <code>social.party_desc</code> = '{n} heroes fighting · Join the hunt' to seed. For now: wrap in tr() with mock fallback."},
+
+{zone:"Right",sec:"Community",t:"Weekly League",el:"League card title",layer:"i18n (tr)",key:"social.weekly_league",status:"Done",line:"362",file:"RightSidebar.tsx",
+ rec:[{tag:"ok",c:"tr('social.weekly_league', 'Weekly League') ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Right",sec:"Community",t:"Opt-in · No pressure",el:"League card subtitle",layer:"hardcoded",key:"social.league_desc",status:"Missing",line:"367",file:"RightSidebar.tsx",
+ rec:[{tag:"i18n",c:"English phrase — needs localization"}],
+ action:"Add <code>social.league_desc</code> = 'Opt-in · No pressure' to seed (en/uk/pl). Replace with tr()."},
+
+{zone:"Right",sec:"Community",t:"Bronze",el:"League tier badge",layer:"hardcoded",key:"league.bronze",status:"Missing",line:"376",file:"RightSidebar.tsx",
+ rec:[{tag:"i18n",c:"League tier names should be localized. Will also need Silver/Gold/Diamond/Champion."}],
+ action:"Add <code>league.bronze</code> / <code>league.silver</code> / <code>league.gold</code> / <code>league.diamond</code> / <code>league.champion</code> to seed. Replace hardcoded 'Bronze' with <code>tr('league.bronze', 'Bronze')</code>. Note: LEAGUE_TIERS from tokens.ts also has hardcoded names."},
+
+// ══════════════════════════════════════════════════════════════
+// RIGHT SIDEBAR — EMPTY STATE
+// File: RightSidebar.tsx
+// ══════════════════════════════════════════════════════════════
+
+{zone:"Right",sec:"Empty State",t:"Your quest board awaits",el:"Empty state title",layer:"i18n (tr)",key:"sidebar.empty_title",status:"Done",line:"391",file:"RightSidebar.tsx",
+ rec:[{tag:"ok",c:"tr('sidebar.empty_title', 'Your quest board awaits') ✓"}],
+ action:"No action. ✓"},
+
+{zone:"Right",sec:"Empty State",t:"Complete quests to unlock weekly challenges, mastery rings, and equipment drops.",el:"Empty state description",layer:"hardcoded",key:"sidebar.empty_desc",status:"Missing",line:"396",file:"RightSidebar.tsx",
+ rec:[{tag:"i18n",c:"Full English sentence — must localize"}],
+ action:"Add <code>sidebar.empty_desc</code> = 'Complete quests to unlock weekly challenges, mastery rings, and equipment drops.' to seed (en/uk/pl). Replace with tr()."},
+
+{zone:"Right",sec:"Empty State",t:"Hero sidebar — stats, quests, mastery, equipment",el:"aria-label on complementary region",layer:"hardcoded",key:"sidebar.aria_label",status:"Missing",line:"104",file:"RightSidebar.tsx",
+ rec:[{tag:"i18n",c:"Landmark label for assistive technology"}],
+ action:"Add <code>sidebar.aria_label</code> to seed. Replace aria-label with tr()."},
+
+];
+
+// ══════════════════════════════════════════════════════════════
+// RENDER + FILTER
+// ══════════════════════════════════════════════════════════════
+
+function statusBadge(s) {
+  if (s === 'Done') return '<span class="badge b-yes">Done</span>';
+  if (s === 'Missing') return '<span class="badge b-no">Missing</span>';
+  if (s === 'Partial') return '<span class="badge b-partial">Partial</span>';
+  if (s === 'Brand') return '<span class="badge b-brand">Brand</span>';
+  if (s === 'Store') return '<span class="badge b-store">Store</span>';
+  return '<span class="badge b-no">' + s + '</span>';
+}
+
+function layerBadge(l) {
+  if (l === 'i18n (tr)') return '<span class="badge b-layer-intl">i18n (tr)</span>';
+  if (l === 'store') return '<span class="badge b-layer-store">store</span>';
+  if (l === 'computed') return '<span class="badge b-layer-compute">computed</span>';
+  if (l === 'refContent') return '<span class="badge b-layer-ref">refContent</span>';
+  if (l === 'hardcoded') return '<span class="badge b-layer-none">hardcoded</span>';
+  return '<span class="badge b-layer-none">' + l + '</span>';
+}
+
+function zoneBadge(z) {
+  if (z === 'Left') return '<span class="zone-label zone-left">Left</span>';
+  if (z === 'Right') return '<span class="zone-label zone-right">Right</span>';
+  if (z === 'Mobile') return '<span class="zone-label zone-mobile">Mobile</span>';
+  return z;
+}
+
+function renderRecs(recs) {
+  return recs.map(r => '<span class="rec-tag rec-' + r.tag + '">' + r.tag + '</span> ' + r.c).join('<br>');
+}
+
+function render(data) {
+  const body = document.getElementById('auditBody');
+  let html = '';
+  let lastSection = '';
+  data.forEach((d, i) => {
+    // Section separator
+    const sectionKey = d.zone + ' / ' + d.sec;
+    if (sectionKey !== lastSection) {
+      const fileRef = d.file ? ' <span style="color:#555;font-size:9px;font-weight:400;text-transform:none;letter-spacing:0">(' + d.file + ')</span>' : '';
+      html += '<tr class="section-row"><td colspan="11">' + zoneBadge(d.zone) + ' ' + d.sec + fileRef + '</td></tr>';
+      lastSection = sectionKey;
+    }
+
+    html += '<tr data-zone="' + d.zone + '" data-sec="' + d.sec + '" data-status="' + d.status + '" data-rec="' + (d.rec.map(r=>r.tag).join(',')) + '">';
+    html += '<td style="color:var(--muted);text-align:center">' + (i + 1) + '</td>';
+    html += '<td>' + zoneBadge(d.zone) + '</td>';
+    html += '<td class="text-col">' + d.t + '</td>';
+    html += '<td style="font-size:10px;color:#999">' + d.sec + '</td>';
+    html += '<td style="font-size:10px;color:#aaa">' + d.el + '</td>';
+    html += '<td>' + layerBadge(d.layer) + '</td>';
+    html += '<td class="key-col">' + (d.key || '—') + '</td>';
+    html += '<td>' + statusBadge(d.status) + '</td>';
+    html += '<td><span class="line-ref">:' + d.line + '</span></td>';
+    html += '<td class="rec-cell">' + renderRecs(d.rec) + '</td>';
+    html += '<td class="action-cell">' + d.action + '</td>';
+    html += '</tr>';
+  });
+  body.innerHTML = html;
+}
+
+function applyFilters() {
+  const zone = document.getElementById('filterZone').value;
+  const sec = document.getElementById('filterSection').value;
+  const status = document.getElementById('filterStatus').value;
+  const rec = document.getElementById('filterRec').value;
+  const text = document.getElementById('filterText').value.toLowerCase();
+
+  const filtered = DATA.filter(d => {
+    if (zone && d.zone !== zone) return false;
+    if (sec && d.sec !== sec) return false;
+    if (status) {
+      if (status === 'Done' && d.status !== 'Done') return false;
+      if (status === 'Missing' && d.status !== 'Missing') return false;
+      if (status === 'Partial' && d.status !== 'Partial') return false;
+      if (status === 'Brand' && d.status !== 'Brand') return false;
+      if (status === 'Store' && d.status !== 'Store') return false;
+    }
+    if (rec && !d.rec.some(r => r.tag === rec)) return false;
+    if (text) {
+      const haystack = (d.t + ' ' + d.key + ' ' + d.el + ' ' + d.action).toLowerCase();
+      if (!haystack.includes(text)) return false;
+    }
+    return true;
+  });
+  render(filtered);
+
+  // Update stat counters based on full DATA (not filtered)
+  // Stats are always for the full dataset
+}
+
+// Initial render
+render(DATA);
+</script>
+</body>
+</html>

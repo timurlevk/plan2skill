@@ -44,12 +44,27 @@ export function EquipmentReveal({ slot, name, rarity: rarityKey, onClaim }: Equi
   const rarityConfig = rarityTokens[rarityKey];
   const artData = parseArt(codeHammerArt, codeHammerPalette);
 
+  // prefers-reduced-motion
+  const [reducedMotion, setReducedMotion] = useState(false);
   useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReducedMotion(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  useEffect(() => {
+    // Skip animation sequence if reduced motion
+    if (reducedMotion) {
+      setPhase('revealed');
+      return;
+    }
     // Start reveal sequence
     const t1 = setTimeout(() => setPhase('flipping'), 300);
     const t2 = setTimeout(() => setPhase('revealed'), 1200);
     return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, []);
+  }, [reducedMotion]);
 
   if (phase === 'hidden') {
     return (
@@ -71,7 +86,7 @@ export function EquipmentReveal({ slot, name, rarity: rarityKey, onClaim }: Equi
           <span style={{
             fontSize: 32,
             color: t.textMuted,
-            animation: 'pulse 1.5s ease-in-out infinite',
+            animation: reducedMotion ? 'none' : 'pulse 1.5s ease-in-out infinite',
           }}>
             ?
           </span>
@@ -81,12 +96,19 @@ export function EquipmentReveal({ slot, name, rarity: rarityKey, onClaim }: Equi
   }
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      animation: phase === 'flipping' ? 'cardFlip 0.8s ease-out' : 'none',
-    }}>
+    <div
+      onClick={() => { if (phase === 'flipping') setPhase('revealed'); }}
+      role="button"
+      tabIndex={0}
+      aria-label="Tap to skip animation"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        animation: phase === 'flipping' ? (reducedMotion ? 'none' : 'cardFlip 0.8s ease-out') : 'none',
+        cursor: phase === 'flipping' ? 'pointer' : 'default',
+      }}
+    >
       {/* Equipment card */}
       <div style={{
         width: 160,
@@ -99,7 +121,7 @@ export function EquipmentReveal({ slot, name, rarity: rarityKey, onClaim }: Equi
         flexDirection: 'column',
         alignItems: 'center',
         marginBottom: 20,
-        animation: phase === 'revealed' ? 'glowPulse 2s ease-in-out infinite' : 'none',
+        animation: phase === 'revealed' ? (reducedMotion ? 'none' : 'glowPulse 8s ease-in-out infinite') : 'none',
       }}>
         {/* Rarity badge */}
         <div style={{
@@ -110,7 +132,7 @@ export function EquipmentReveal({ slot, name, rarity: rarityKey, onClaim }: Equi
           borderRadius: 8,
           background: `${rarityConfig.color}15`,
           marginBottom: 16,
-          animation: 'bounceIn 0.5s ease-out 0.3s both',
+          animation: reducedMotion ? 'none' : 'bounceIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both',
         }}>
           <span style={{
             fontSize: 12,
@@ -134,7 +156,7 @@ export function EquipmentReveal({ slot, name, rarity: rarityKey, onClaim }: Equi
         <div style={{
           marginBottom: 16,
           filter: `drop-shadow(0 0 12px ${rarityConfig.color}55)`,
-          animation: 'bounceIn 0.6s ease-out 0.5s both',
+          animation: reducedMotion ? 'none' : 'bounceIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.5s both',
         }}>
           <PixelCanvas data={artData} size={6} />
         </div>
@@ -147,7 +169,7 @@ export function EquipmentReveal({ slot, name, rarity: rarityKey, onClaim }: Equi
           color: t.text,
           textAlign: 'center',
           marginBottom: 4,
-          animation: 'fadeUp 0.4s ease-out 0.7s both',
+          animation: reducedMotion ? 'none' : 'fadeUp 0.4s ease-out 0.7s both',
         }}>
           {name}
         </span>
@@ -159,7 +181,7 @@ export function EquipmentReveal({ slot, name, rarity: rarityKey, onClaim }: Equi
           color: t.textMuted,
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
-          animation: 'fadeUp 0.4s ease-out 0.8s both',
+          animation: reducedMotion ? 'none' : 'fadeUp 0.4s ease-out 0.8s both',
         }}>
           {slot} slot
         </span>
@@ -181,7 +203,7 @@ export function EquipmentReveal({ slot, name, rarity: rarityKey, onClaim }: Equi
             fontSize: 15,
             fontWeight: 700,
             cursor: 'pointer',
-            animation: 'bounceIn 0.5s ease-out 1s both',
+            animation: reducedMotion ? 'none' : 'bounceIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 1s both',
             boxShadow: `0 0 20px ${t.violet}30`,
           }}
         >
@@ -195,7 +217,7 @@ export function EquipmentReveal({ slot, name, rarity: rarityKey, onClaim }: Equi
           fontSize: 16,
           fontWeight: 700,
           color: t.cyan,
-          animation: 'celebratePop 0.5s ease-out',
+          animation: reducedMotion ? 'none' : 'celebratePop 0.5s ease-out',
         }}>
           Equipped!
         </div>

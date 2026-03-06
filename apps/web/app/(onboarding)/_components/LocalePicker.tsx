@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useOnboardingV2Store, PICKER_LOCALES, LOCALE_ENDONYMS, detectLocale } from '@plan2skill/store';
+import { useOnboardingV2Store, useI18nStore, PICKER_LOCALES, LOCALE_ENDONYMS, detectLocale } from '@plan2skill/store';
 import type { SupportedLocale } from '@plan2skill/store';
+import { trpc } from '@plan2skill/api-client';
 import { t } from './tokens';
 
 // ═══════════════════════════════════════════
@@ -13,14 +14,17 @@ import { t } from './tokens';
 
 export function LocalePicker() {
   const { locale, setLocale } = useOnboardingV2Store();
+  const setI18nLocale = useI18nStore((s) => s.setLocale);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const utils = trpc.useUtils();
 
   // Auto-detect on first mount if still default
   useEffect(() => {
     const detected = detectLocale();
     if (detected !== 'en' && locale === 'en') {
       setLocale(detected);
+      setI18nLocale(detected);
     }
   }, []);
 
@@ -88,7 +92,11 @@ export function LocalePicker() {
               <button
                 key={loc}
                 onClick={() => {
-                  setLocale(loc as SupportedLocale);
+                  const newLocale = loc as SupportedLocale;
+                  setLocale(newLocale);
+                  setI18nLocale(newLocale);
+                  utils.i18n.messages.invalidate();
+                  utils.onboarding.invalidate();
                   setOpen(false);
                 }}
                 style={{

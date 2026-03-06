@@ -3,18 +3,17 @@ import { ContentSafetyError } from './errors';
 
 /** Regex patterns for prompt injection attempts */
 const INJECTION_PATTERNS = [
-  /system\s*:/i,
-  /ignore\s+previous\s+instructions/i,
-  /ignore\s+all\s+instructions/i,
-  /you\s+are\s+now/i,
-  /forget\s+everything/i,
-  /disregard\s+(your|all|the)/i,
-  /new\s+instruction/i,
-  /override\s+system/i,
-  /pretend\s+you/i,
-  /act\s+as\s+if/i,
-  /jailbreak/i,
-  /DAN\s+mode/i,
+  /^\s*system\s*:/gim,
+  /ignore\s+(previous|above|all)\s+instructions/gi,
+  /you\s+are\s+now/gi,
+  /forget\s+everything/gi,
+  /disregard\s+(your|all|the)/gi,
+  /new\s+instruction/gi,
+  /override\s+system/gi,
+  /pretend\s+you/gi,
+  /act\s+as\s+if/gi,
+  /jailbreak/gi,
+  /DAN\s+mode/gi,
 ];
 
 const INPUT_MAX_LENGTH = 2000;
@@ -46,10 +45,12 @@ export class ContentSafetyService {
       sanitized = sanitized.slice(0, INPUT_MAX_LENGTH);
     }
 
-    // Strip injection patterns
+    // Strip injection patterns (reset lastIndex before each test since patterns use /g flag)
     for (const pattern of INJECTION_PATTERNS) {
+      pattern.lastIndex = 0;
       if (pattern.test(sanitized)) {
         this.logger.warn(`Injection pattern detected and stripped: ${pattern.source}`);
+        pattern.lastIndex = 0;
         sanitized = sanitized.replace(pattern, '');
       }
     }

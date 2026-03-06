@@ -1,17 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
-
-const t = {
-  display: '"Plus Jakarta Sans", system-ui, sans-serif',
-  body: '"Inter", system-ui, sans-serif',
-  text: '#FFFFFF',
-  textSecondary: '#A1A1AA',
-  bgCard: '#18181F',
-  border: '#252530',
-  gradient: 'linear-gradient(135deg, #9D7AFF 0%, #4ECDC4 100%)',
-};
+import { t } from '../../../(onboarding)/_components/tokens';
+import { useI18nStore } from '@plan2skill/store';
 
 // UX-R080: Error screens use RPG language + character companion + CTA
 interface QuestErrorProps {
@@ -21,10 +13,19 @@ interface QuestErrorProps {
 }
 
 export function QuestError({
-  title = 'The path is blocked',
-  message = 'Something went wrong loading your quests.',
+  title,
+  message,
   onRetry,
 }: QuestErrorProps) {
+  const tr = useI18nStore((s) => s.t);
+  // Retry button press + hover state (Micro tier: 150ms)
+  const [pressed, setPressed] = useState(false);
+  const [hovered, setHovered] = useState(false);
+
+  // prefers-reduced-motion guard for ambient float
+  const prefersReducedMotion = typeof window !== 'undefined'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   return (
     <div
       role="alert"
@@ -35,9 +36,17 @@ export function QuestError({
         border: `1px solid ${t.border}`,
         textAlign: 'center',
         marginTop: 32,
+        // Error entrance animation (Micro tier: 400ms)
+        animation: 'fadeUp 0.4s ease-out',
       }}
     >
-      <NeonIcon type="shield" size={40} color="rose" />
+      {/* Shield icon — ambient float (guarded by reduced-motion) */}
+      <div style={{
+        display: 'inline-block',
+        animation: prefersReducedMotion ? 'none' : 'float 3s ease-in-out infinite',
+      }}>
+        <NeonIcon type="blocked" size={40} color="rose" />
+      </div>
       <p
         style={{
           fontFamily: t.display,
@@ -48,7 +57,7 @@ export function QuestError({
           marginBottom: 4,
         }}
       >
-        {title}
+        {title ?? tr('error.quest_title', 'The path is blocked')}
       </p>
       <p
         style={{
@@ -58,11 +67,15 @@ export function QuestError({
           marginBottom: 16,
         }}
       >
-        {message}
+        {message ?? tr('error.quest_subtitle', 'Something went wrong loading your quests.')}
       </p>
       {onRetry && (
         <button
           onClick={onRetry}
+          onMouseDown={() => setPressed(true)}
+          onMouseUp={() => setPressed(false)}
+          onMouseLeave={() => { setPressed(false); setHovered(false); }}
+          onMouseEnter={() => setHovered(true)}
           style={{
             padding: '10px 24px',
             borderRadius: 12,
@@ -71,12 +84,21 @@ export function QuestError({
             fontFamily: t.display,
             fontSize: 14,
             fontWeight: 700,
-            color: '#FFF',
+            color: t.text,
             cursor: 'pointer',
             minHeight: 44, // UX-R153: Touch target ≥ 44px
+            transition: 'transform 0.15s ease-out, box-shadow 0.15s ease-out',
+            transform: pressed
+              ? 'scale(0.98)'
+              : hovered
+                ? 'translateY(-1px)'
+                : 'translateY(0)',
+            boxShadow: hovered && !pressed
+              ? `0 4px 12px rgba(157,122,255,0.2)`
+              : 'none',
           }}
         >
-          Try again, hero
+          {tr('forge.retry', 'Try again, hero')}
         </button>
       )}
     </div>

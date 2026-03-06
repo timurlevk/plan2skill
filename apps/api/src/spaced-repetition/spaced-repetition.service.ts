@@ -217,6 +217,97 @@ export class SpacedRepetitionService {
     return { skills, overallMastery, totalSkills, masteredCount, dueCount };
   }
 
+  // ─── FSRS-style Review Interface ──────────────────────────────────
+
+  /**
+   * SM-2 core algorithm: calculateInterval
+   *
+   * quality: 0-5 scale (0-2 fail, 3-5 success)
+   * On success (q>=3): ef' = ef + (0.1 - (5-q) * (0.08 + (5-q) * 0.02)), interval = prev * ef
+   * On fail (q<2): reset to interval=1, repetitions=0
+   * Minimum ef = 1.3
+   */
+  calculateInterval(
+    quality: number,
+    repetitions: number,
+    easinessFactor: number,
+    intervalDays: number,
+  ): { interval: number; repetitions: number; ef: number } {
+    if (quality >= 3) {
+      // Success path
+      const newEf = Math.max(
+        1.3,
+        easinessFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02)),
+      );
+
+      let newInterval: number;
+      if (repetitions === 0) {
+        newInterval = 1;
+      } else if (repetitions === 1) {
+        newInterval = 6;
+      } else {
+        newInterval = Math.round(intervalDays * newEf);
+      }
+
+      return { interval: newInterval, repetitions: repetitions + 1, ef: newEf };
+    }
+
+    if (quality < 2) {
+      // Hard fail — reset
+      return { interval: 1, repetitions: 0, ef: Math.max(1.3, easinessFactor) };
+    }
+
+    // quality === 2 — borderline fail, keep ef but short interval
+    return { interval: 1, repetitions: 0, ef: Math.max(1.3, easinessFactor) };
+  }
+
+  /**
+   * Review an item using FSRS/SM-2 algorithm.
+   * Updates the ReviewItem record and returns the new schedule.
+   */
+  async reviewItem(
+    userId: string,
+    skillId: string,
+    quality: number,
+  ): Promise<{ nextReview: Date; interval: number; ef: number }> {
+    if (quality < 0 || quality > 5) {
+      throw new Error(`Quality must be 0-5, got ${quality}`);
+    }
+
+    const item = await this.prisma.reviewItem.findUnique({
+      where: { userId_skillId: { userId, skillId } },
+    });
+
+    if (!item) {
+      throw new Error(`Review item not found for user=${userId}, skill=${skillId}`);
+    }
+
+    const { interval, repetitions, ef } = this.calculateInterval(
+      quality,
+      item.repetitionCount,
+      item.easinessFactor,
+      item.intervalDays,
+    );
+
+    const nextReview = new Date(Date.now() + interval * 86400000);
+    const newMasteryLevel = this.computeMasteryLevel(repetitions, ef, interval);
+
+    await this.prisma.reviewItem.update({
+      where: { id: item.id },
+      data: {
+        easinessFactor: ef,
+        intervalDays: interval,
+        repetitionCount: repetitions,
+        masteryLevel: newMasteryLevel,
+        nextReview,
+        lastReviewedAt: new Date(),
+        lastQuality: quality,
+      },
+    });
+
+    return { nextReview, interval, ef };
+  }
+
   /** Create or get a review item for a skill (upsert — idempotent) */
   async createReviewItem(userId: string, skillId: string, skillDomain?: string) {
     const tomorrow = new Date();

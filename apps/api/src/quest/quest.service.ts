@@ -1,23 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { QuestGenerator } from '../ai/generators/quest.generator';
+import { QuestAssistantGenerator } from '../ai/generators/quest-assistant.generator';
+import type { QuestAssistantMode } from '../ai/schemas/quest-assistant.schema';
 
 /**
  * Quest Engine v2 (Phase 5C)
  *
  * Responsibilities:
  * - DA-06: Daily quest allocation with type diversity enforcement
- * - DA-07: XP cap enforcement (soft cap with diminishing returns)
  * - Quest validation dispatch (knowledge check, effort reflection, etc.)
+ * - AI quest generation + attempt recording + quest assist
+ *
+ * Note: XP cap enforcement (DA-07) lives in ProgressionService.
  */
-
-// ─── XP Caps by Subscription Tier (DEC-007) ─────────────────────
-
-const XP_CAPS: Record<string, { cap: number; postCapRate: number }> = {
-  free: { cap: 150, postCapRate: 0.1 },
-  pro: { cap: 500, postCapRate: 0.25 },
-  champion: { cap: 1000, postCapRate: 0.5 },
-};
 
 // ─── Quest Type Diversity (max 2 of same type per day) ──────────
 
@@ -31,6 +27,7 @@ export class QuestService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly questGenerator: QuestGenerator,
+    private readonly questAssistantGenerator: QuestAssistantGenerator,
   ) {}
 
   /**
@@ -134,66 +131,6 @@ export class QuestService {
       knowledgeCheck: task.knowledgeCheck,
       skillDomain: task.skillDomain,
     }));
-  }
-
-  /**
-   * DA-07: Calculate effective XP with soft cap (diminishing returns).
-   * Never zeroes out — always returns at least 1 XP.
-   *
-   * DEC-007 caps:
-   *   Free: 150 XP/day (10% after cap)
-   *   Pro: 500 XP/day (25% after cap)
-   *   Champion: 1000 XP/day (50% after cap)
-   */
-  async calculateEffectiveXp(
-    userId: string,
-    rawXp: number,
-  ): Promise<{ effectiveXp: number; dailyXpEarned: number; capped: boolean }> {
-    const progression = await this.prisma.userProgression.findUnique({
-      where: { userId },
-      select: { subscriptionTier: true },
-    });
-    const tier = progression?.subscriptionTier ?? 'free';
-    const tierCaps = XP_CAPS[tier];
-    const cap = tierCaps?.cap ?? 150;
-    const postCapRate = tierCaps?.postCapRate ?? 0.1;
-
-    // Get user timezone
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { timezone: true },
-    });
-    const todayStart = this.todayStartInTimezone(user?.timezone ?? 'UTC');
-
-    // Sum today's XP
-    const result = await this.prisma.xPEvent.aggregate({
-      where: {
-        userId,
-        createdAt: { gte: todayStart },
-      },
-      _sum: { amount: true },
-    });
-    const dailyXpEarned = result._sum.amount ?? 0;
-
-    if (dailyXpEarned < cap) {
-      // Under cap — full XP
-      const overflow = Math.max(0, dailyXpEarned + rawXp - cap);
-      if (overflow === 0) {
-        return { effectiveXp: rawXp, dailyXpEarned, capped: false };
-      }
-      // Partially capped
-      const fullPortion = rawXp - overflow;
-      const reducedPortion = Math.max(1, Math.floor(overflow * postCapRate));
-      return {
-        effectiveXp: fullPortion + reducedPortion,
-        dailyXpEarned,
-        capped: true,
-      };
-    }
-
-    // Fully over cap — diminishing returns
-    const effectiveXp = Math.max(1, Math.floor(rawXp * postCapRate));
-    return { effectiveXp, dailyXpEarned, capped: true };
   }
 
   /**
@@ -326,6 +263,13 @@ export class QuestService {
       existingTaskTitles: existingTitles,
     });
 
+    // Determine base order from existing tasks to avoid overlap on repeated calls
+    const maxOrder = await this.prisma.task.aggregate({
+      where: { milestoneId: milestone.id },
+      _max: { order: true },
+    });
+    const baseOrder = (maxOrder._max.order ?? 0) + 1;
+
     // Persist generated quests as Task rows
     const createdTasks = [];
     for (let i = 0; i < result.quests.length; i++) {
@@ -347,7 +291,7 @@ export class QuestService {
           knowledgeCheck: quest.knowledgeCheck as any,
           validationType: quest.knowledgeCheck ? 'knowledge_quiz' : 'completion_attestation',
           status: 'available',
-          order: 1000 + i,
+          order: baseOrder + i,
         },
       });
 
@@ -368,9 +312,78 @@ export class QuestService {
     return createdTasks;
   }
 
+  /**
+   * Record a task attempt for L3 quest session context.
+   * Creates a TaskAttempt row with auto-incrementing attemptNumber.
+   */
+  async recordAttempt(
+    userId: string,
+    taskId: string,
+    data: {
+      selectedIndex?: number;
+      answerData?: Record<string, unknown>;
+      correct?: boolean;
+      timeSpentSeconds?: number;
+      hintsRequested?: number;
+    },
+  ) {
+    // Get next attempt number
+    const lastAttempt = await this.prisma.taskAttempt.findFirst({
+      where: { userId, taskId },
+      orderBy: { attemptNumber: 'desc' },
+      select: { attemptNumber: true },
+    });
+    const attemptNumber = (lastAttempt?.attemptNumber ?? 0) + 1;
+
+    return this.prisma.taskAttempt.create({
+      data: {
+        userId,
+        taskId,
+        attemptNumber,
+        selectedIndex: data.selectedIndex ?? null,
+        answerData: (data.answerData as any) ?? null,
+        correct: data.correct ?? null,
+        submittedAt: new Date(),
+        timeSpentSeconds: data.timeSpentSeconds ?? null,
+        hintsRequested: data.hintsRequested ?? 0,
+      },
+    });
+  }
+
+  /**
+   * Quest Assistant — AI-powered hint/feedback/reattempt support.
+   * Uses L3 quest session context for attempt-aware responses.
+   */
+  async questAssist(
+    userId: string,
+    taskId: string,
+    mode: QuestAssistantMode,
+    userMessage?: string,
+  ) {
+    return this.questAssistantGenerator.generate(userId, {
+      taskId,
+      mode,
+      userMessage,
+    });
+  }
+
+  /**
+   * Get the start of today in the user's timezone, expressed as a UTC Date.
+   * Uses Intl to get the UTC offset for the timezone, then adjusts accordingly.
+   */
   private todayStartInTimezone(timezone: string): Date {
     const now = new Date();
+    // Get "today" in user's timezone as YYYY-MM-DD
     const dateStr = now.toLocaleDateString('en-CA', { timeZone: timezone });
-    return new Date(dateStr + 'T00:00:00Z');
+    // Get the timezone offset by comparing local midnight to UTC
+    const midnightLocal = new Date(`${dateStr}T00:00:00`);
+    const midnightInTz = new Date(
+      midnightLocal.toLocaleString('en-US', { timeZone: timezone }),
+    );
+    const midnightUtc = new Date(
+      midnightLocal.toLocaleString('en-US', { timeZone: 'UTC' }),
+    );
+    const offsetMs = midnightUtc.getTime() - midnightInTz.getTime();
+    return new Date(midnightLocal.getTime() + offsetMs);
   }
 }

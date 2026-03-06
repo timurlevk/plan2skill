@@ -3,14 +3,17 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useOnboardingStore, useOnboardingV2Store, useProgressionStore, isOnboardingV1Hydrated, isOnboardingV2Hydrated, getLevelInfo } from '@plan2skill/store';
+import { useOnboardingStore, useOnboardingV2Store, useProgressionStore, useCharacterStore, useSocialStore, isOnboardingV1Hydrated, isOnboardingV2Hydrated, getLevelInfo } from '@plan2skill/store';
 import { NeonIcon } from '../(onboarding)/_components/NeonIcon';
 import { t } from '../(onboarding)/_components/tokens';
+import { useI18nStore } from '@plan2skill/store';
+import { useLoadTranslations } from '../hooks/useLoadTranslations';
 import { CHARACTERS, charArtStrings, charPalettes } from '../(onboarding)/_components/characters';
 import { parseArt, PixelCanvas, AnimatedPixelCanvas } from '../(onboarding)/_components/PixelEngine';
 import { XPBar } from '../(onboarding)/_components/XPBar';
 import { ARCHETYPES } from '../(onboarding)/_data/archetypes';
 import { RightSidebar } from './_components/RightSidebar';
+import { useServerHydration } from './home/_hooks/useServerHydration';
 
 // ═══════════════════════════════════════════
 // DASHBOARD LAYOUT — Gamified Command Center
@@ -18,32 +21,35 @@ import { RightSidebar } from './_components/RightSidebar';
 // ═══════════════════════════════════════════
 
 const NAV_ITEMS = [
-  { href: '/home',      label: 'Command Center', icon: 'lightning'  as const, badge: false },
-  { href: '/roadmap',   label: 'Quest Map',       icon: 'compass'   as const, badge: false },
-  { href: '/forge',     label: 'The Forge',       icon: 'fire'      as const, badge: false },
-  { href: '/shop',      label: 'Merchant',        icon: 'coins'     as const, badge: false },
-  { href: '/league',    label: 'Guild Arena',     icon: 'trophy'    as const, badge: true  },
-  { href: '/hero-card', label: 'Hero Card',       icon: 'shield'    as const, badge: false },
+  { href: '/home',      label: 'Command Center', labelKey: 'nav.command_center', icon: 'lightning'  as const, badge: false },
+  { href: '/roadmap',   label: 'Quest Map',       labelKey: 'nav.quest_map',      icon: 'compass'   as const, badge: false },
+  { href: '/forge',     label: 'The Forge',       labelKey: 'nav.forge_label',    icon: 'fire'      as const, badge: false },
+  { href: '/shop',      label: 'Merchant',        labelKey: 'nav.merchant',       icon: 'coins'     as const, badge: false },
+  { href: '/league',    label: 'Guild Arena',     labelKey: 'nav.guild_arena',    icon: 'trophy'    as const, badge: true  },
+  { href: '/hero-card', label: 'Hero Card',       labelKey: 'nav.hero_card',      icon: 'shield'    as const, badge: false },
 ];
 
 // ─── User Menu (dropdown from bottom of sidebar) ───
 
 const USER_MENU_ITEMS = [
-  { id: 'hero-card',  label: 'Hero Card',       icon: 'shield'  as const, href: '/hero-card' },
-  { id: 'settings',   label: 'Hero Settings',   icon: 'gear'    as const, href: null },
-  { id: 'quiet-mode', label: 'Quiet Mode',      icon: 'gear'    as const, href: null, toggle: true },
+  { id: 'hero-card',  label: 'Hero Card',       labelKey: 'nav.hero_card',        icon: 'shield'  as const, href: '/hero-card' },
+  { id: 'settings',   label: 'Hero Settings',   labelKey: 'nav.hero_settings',    icon: 'gear'    as const, href: '/settings' },
+  { id: 'quiet-mode', label: 'Quiet Mode',      labelKey: 'nav.quiet_mode',       icon: 'gear'    as const, href: null, toggle: true },
   { id: 'divider' },
-  { id: 'restart',    label: 'Restart Journey',  icon: 'refresh' as const, href: null, danger: true },
-  { id: 'logout',     label: 'Leave Guild',      icon: 'close'   as const, href: null, danger: true },
+  { id: 'restart',    label: 'Restart Journey',  labelKey: 'nav.restart_journey',  icon: 'refresh' as const, href: null, danger: true },
+  { id: 'logout',     label: 'Leave Guild',      labelKey: 'nav.leave_guild',      icon: 'close'   as const, href: null, danger: true },
 ] as const;
 
-function UserMenu({ charMeta, archetype, level, xpTotal }: {
+function UserMenu({ charMeta, archetype, archetypeId, level, xpTotal, displayName }: {
   charMeta: { name: string; color: string } | undefined;
   archetype: { icon: string; name: string; color: string } | null | undefined;
+  archetypeId: string | null;
   level: number;
   xpTotal: number;
+  displayName: string;
 }) {
   const [open, setOpen] = useState(false);
+  const tr = useI18nStore((s) => s.t);
   const [closing, setClosing] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -88,7 +94,7 @@ function UserMenu({ charMeta, archetype, level, xpTotal }: {
     if ('href' in item && item.href) {
       router.push(item.href);
     } else if (item.id === 'restart') {
-      if (typeof window !== 'undefined' && window.confirm('Restart your journey? All progress will be reset.')) {
+      if (typeof window !== 'undefined' && window.confirm(tr('nav.restart_confirm', 'Restart your journey? All progress will be reset.'))) {
         resetStore();
         router.replace('/intent');
       }
@@ -119,7 +125,7 @@ function UserMenu({ charMeta, archetype, level, xpTotal }: {
           flex: 1, textAlign: 'left',
           fontFamily: t.body, fontSize: 12, fontWeight: 600, color: t.text,
         }}>
-          {charMeta?.name || 'Hero'}
+          {displayName || charMeta?.name || tr('character.hero_fallback', 'Hero')}
         </span>
         <span style={{
           fontFamily: t.body, fontSize: 10, color: open ? t.violet : t.textMuted,
@@ -152,14 +158,14 @@ function UserMenu({ charMeta, archetype, level, xpTotal }: {
           }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: t.display, fontSize: 13, fontWeight: 700, color: t.text }}>
-                {charMeta?.name || 'Hero'}
+                {displayName || charMeta?.name || tr('character.hero_fallback', 'Hero')}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontFamily: t.mono, fontSize: 10, fontWeight: 700, color: t.violet }}>
-                  Lv.{level}
+                  {tr('sidebar.level_badge', 'Lv.{n}').replace('{n}', String(level))}
                 </span>
                 <span style={{ fontFamily: t.mono, fontSize: 10, color: t.textMuted }}>
-                  {xpTotal} XP
+                  {tr('sidebar.xp_short', '{n} XP').replace('{n}', String(xpTotal))}
                 </span>
               </div>
             </div>
@@ -170,7 +176,7 @@ function UserMenu({ charMeta, archetype, level, xpTotal }: {
                 background: `${archetype.color}12`,
                 fontFamily: t.mono, fontSize: 9, fontWeight: 700, color: archetype.color,
               }}>
-                {archetype.icon} {archetype.name}
+                {archetype.icon} {archetypeId ? tr(`archetype.${archetypeId}`, archetype.name) : archetype.name}
               </span>
             )}
           </div>
@@ -193,7 +199,7 @@ function UserMenu({ charMeta, archetype, level, xpTotal }: {
                   onClick={() => handleItemClick(item)}
                   role="switch"
                   aria-checked={isQuietActive}
-                  aria-label={isQuietActive ? 'Quiet mode is on — click to turn off' : 'Quiet mode is off — click to turn on'}
+                  aria-label={isQuietActive ? tr('nav.aria_quiet_on', 'Quiet mode is on — click to turn off') : tr('nav.aria_quiet_off', 'Quiet mode is off — click to turn on')}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     width: '100%', padding: '8px 16px',
@@ -208,7 +214,7 @@ function UserMenu({ charMeta, archetype, level, xpTotal }: {
                     fontFamily: t.body, fontSize: 13, fontWeight: 500,
                     color: isQuietActive ? t.violet : t.textSecondary, flex: 1, textAlign: 'left',
                   }}>
-                    Quiet Mode
+                    {tr('nav.quiet_mode', 'Quiet Mode')}
                   </span>
                   <div style={{
                     width: 28, height: 16, borderRadius: 8,
@@ -246,7 +252,7 @@ function UserMenu({ charMeta, archetype, level, xpTotal }: {
                   fontFamily: t.body, fontSize: 13, fontWeight: 500,
                   color: danger ? t.rose : t.textSecondary,
                 }}>
-                  {'label' in item ? item.label : ''}
+                  {'labelKey' in item ? tr(item.labelKey, item.label) : ''}
                 </span>
               </button>
             );
@@ -260,9 +266,20 @@ function UserMenu({ charMeta, archetype, level, xpTotal }: {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { characterId, archetypeId, forgeComplete } = useOnboardingStore();
+  const { forgeComplete } = useOnboardingStore();
+  // DB-first with onboarding fallback (same pattern as home/page.tsx)
+  const dbCharacterId = useCharacterStore((s) => s.characterId);
+  const dbArchetypeId = useCharacterStore((s) => s.archetypeId);
+  const obCharacterId = useOnboardingStore((s) => s.characterId);
+  const obArchetypeId = useOnboardingStore((s) => s.archetypeId);
+  const characterId = dbCharacterId || obCharacterId;
+  const archetypeId = dbArchetypeId || obArchetypeId;
   const { onboardingCompletedAt } = useOnboardingV2Store();
   const { totalXp, level, currentStreak, energyCrystals, maxEnergyCrystals, coins, quietMode } = useProgressionStore();
+  const displayName = useSocialStore((s) => s.displayName);
+  const tr = useI18nStore((s) => s.t);
+  useLoadTranslations();
+  useServerHydration();
 
   // Hydration guard — wait for Zustand persist to rehydrate from localStorage
   // Uses onRehydrateStorage callback (best practice, not generic useEffect)
@@ -420,6 +437,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           from { opacity: 0; }
           to   { opacity: 1; }
         }
+        @keyframes shineSweep {
+          0%, 85%  { transform: translateX(-120%) rotate(25deg); }
+          100%     { transform: translateX(120%) rotate(25deg); }
+        }
         @media (prefers-reduced-motion: reduce) {
           *, *::before, *::after {
             animation-duration: 0.01ms !important;
@@ -485,7 +506,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {/* ═══ ZONE 1 — BRAND + HERO IDENTITY (pinned top) ═══ */}
 
           {/* Logo — clickable → /home */}
-          <Link href="/home" aria-label="Go to Command Center" style={{ textDecoration: 'none' }}>
+          <Link href="/home" aria-label={tr('nav.aria_home', 'Go to Command Center')} style={{ textDecoration: 'none' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, paddingLeft: 4 }}>
               <div style={{
                 width: 40, height: 40, borderRadius: 12,
@@ -508,7 +529,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             return (
               <div
                 role="region"
-                aria-label="Hero status"
+                aria-label={tr('sidebar.aria_hero_status', 'Hero status')}
                 style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center',
                   padding: '14px 12px 12px', marginBottom: 16,
@@ -526,17 +547,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     />
                   </div>
                 )}
-                {/* Name + Level */}
+                {/* Name */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
                   <span style={{ fontFamily: t.display, fontSize: 13, fontWeight: 700, color: t.text }}>
-                    {charMeta?.name || 'Hero'}
-                  </span>
-                  <span style={{
-                    fontFamily: t.mono, fontSize: 10, fontWeight: 700,
-                    color: t.violet, padding: '1px 6px', borderRadius: 6,
-                    background: `${t.violet}12`,
-                  }}>
-                    Lv.{level}
+                    {displayName || charMeta?.name || tr('character.hero_fallback', 'Hero')}
                   </span>
                 </div>
                 {/* Archetype badge */}
@@ -550,7 +564,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <span style={{
                       fontFamily: t.mono, fontSize: 10, fontWeight: 700, color: archetype.color,
                     }}>
-                      {archetype.name}
+                      {archetypeId ? tr(`archetype.${archetypeId}`, archetype.name) : archetype.name}
                     </span>
                   </div>
                 )}
@@ -561,19 +575,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <span style={{
                       fontFamily: t.mono, fontSize: 9, fontWeight: 700, color: t.gold,
                     }}>
-                      {heroLevelInfo.currentXp} / {heroLevelInfo.xpForNextLevel} XP
+                      {tr('sidebar.xp_progress', '{current} / {max} XP').replace('{current}', String(heroLevelInfo.currentXp)).replace('{max}', String(heroLevelInfo.xpForNextLevel))}
                     </span>
                     <span style={{
                       fontFamily: t.mono, fontSize: 9, fontWeight: 700, color: t.textMuted,
                     }}>
-                      Lv.{level + 1}
+                      {tr('sidebar.level_badge', 'Lv.{n}').replace('{n}', String(level + 1))}
                     </span>
                   </div>
                   <div
                     role="progressbar"
                     aria-valuenow={heroLevelInfo.currentXp}
                     aria-valuemax={heroLevelInfo.xpForNextLevel}
-                    aria-label={`Level ${level}: ${heroLevelInfo.currentXp} of ${heroLevelInfo.xpForNextLevel} XP`}
+                    aria-label={tr('sidebar.aria_xp_bar', 'Level {level}: {current} of {max} XP').replace('{level}', String(level)).replace('{current}', String(heroLevelInfo.currentXp)).replace('{max}', String(heroLevelInfo.xpForNextLevel))}
                     style={{
                       height: 6, borderRadius: 3,
                       background: t.border, overflow: 'hidden',
@@ -599,7 +613,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 }}>
                   {/* Streak — bounce on value change */}
                   <div
-                    aria-label={`${currentStreak} day streak`}
+                    aria-label={tr('stats.aria_streak', '{n} day streak').replace('{n}', String(currentStreak))}
                     style={{
                       display: 'flex', flexDirection: 'column', alignItems: 'center',
                       gap: 1, padding: '6px 2px', borderRadius: 10,
@@ -617,13 +631,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       {currentStreak}
                     </span>
                     <span style={{ fontFamily: t.body, fontSize: 7, color: t.textMuted }}>
-                      streak
+                      {tr('dashboard.streak_label', 'streak')}
                     </span>
                   </div>
 
                   {/* Energy */}
                   <div
-                    aria-label={`${energyCrystals} of ${maxEnergyCrystals} energy crystals`}
+                    aria-label={tr('sidebar.aria_energy', '{n} of {max} energy crystals').replace('{n}', String(energyCrystals)).replace('{max}', String(maxEnergyCrystals))}
                     style={{
                       display: 'flex', flexDirection: 'column', alignItems: 'center',
                       gap: 1, padding: '6px 2px', borderRadius: 10,
@@ -638,13 +652,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       {energyCrystals}/{maxEnergyCrystals}
                     </span>
                     <span style={{ fontFamily: t.body, fontSize: 7, color: t.textMuted }}>
-                      energy
+                      {tr('dashboard.energy_label', 'energy')}
                     </span>
                   </div>
 
                   {/* Coins — bounce on value change */}
                   <div
-                    aria-label={`${coins} coins`}
+                    aria-label={tr('sidebar.aria_coins', '{n} coins').replace('{n}', String(coins))}
                     style={{
                       display: 'flex', flexDirection: 'column', alignItems: 'center',
                       gap: 1, padding: '6px 2px', borderRadius: 10,
@@ -662,7 +676,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       {coins}
                     </span>
                     <span style={{ fontFamily: t.body, fontSize: 7, color: t.textMuted }}>
-                      coins
+                      {tr('dashboard.coins_label', 'coins')}
                     </span>
                   </div>
                 </div>
@@ -705,7 +719,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       color: active ? t.violet : t.textSecondary,
                       transition: 'color 0.2s ease',
                     }}>
-                      {item.label}
+                      {tr(item.labelKey, item.label)}
                     </span>
                     {active && (
                       <div style={{
@@ -715,7 +729,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     )}
                     {!active && item.badge && !quietMode && (
                       <div
-                        aria-label="New activity"
+                        aria-label={tr('nav.aria_new_activity', 'New activity')}
                         style={{
                           marginLeft: 'auto', width: 8, height: 8, borderRadius: '50%',
                           background: t.rose, boxShadow: `0 0 6px ${t.rose}60`,
@@ -734,8 +748,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <UserMenu
               charMeta={charMeta}
               archetype={archetype}
+              archetypeId={archetypeId}
               level={level}
               xpTotal={totalXp}
+              displayName={displayName}
             />
           </div>
         </aside>
@@ -802,10 +818,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               borderLeft: `1px solid ${t.border}`,
               paddingLeft: 20,
               paddingRight: 20,
-              alignSelf: 'flex-start',
-              position: 'sticky' as const,
-              top: 0,
-              maxHeight: '100vh',
+              height: '100%',
               overflowY: 'auto',
             }}
           >
@@ -856,7 +869,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     transition: 'color 0.2s ease',
                     lineHeight: 1,
                   }}>
-                    {item.label}
+                    {tr(item.labelKey, item.label)}
                   </span>
                 </div>
               </Link>

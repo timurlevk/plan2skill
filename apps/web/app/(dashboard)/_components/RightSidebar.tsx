@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useProgressionStore, useCharacterStore } from '@plan2skill/store';
+import { useProgressionStore, useCharacterStore, useI18nStore } from '@plan2skill/store';
 import { t, rarity as rarityTokens, LEAGUE_TIERS } from '../../(onboarding)/_components/tokens';
 import { NeonIcon } from '../../(onboarding)/_components/NeonIcon';
 import type { NeonIconType } from '../../(onboarding)/_components/NeonIcon';
@@ -70,14 +70,14 @@ function SidebarCard({ children, style }: {
 
 // ─── Equipment slot config ─────────────────────────────────────
 
-const SLOT_ICONS: Record<string, { icon: NeonIconType; label: string }> = {
-  weapon:    { icon: 'lightning', label: 'Weapon' },
-  shield:    { icon: 'shield',   label: 'Shield' },
-  armor:     { icon: 'gem',      label: 'Armor' },
-  helmet:    { icon: 'crown',    label: 'Helm' },
-  boots:     { icon: 'rocket',   label: 'Boots' },
-  ring:      { icon: 'sparkle',  label: 'Ring' },
-  companion: { icon: 'star',     label: 'Companion' },
+const SLOT_ICONS: Record<string, { icon: NeonIconType; label: string; labelKey: string }> = {
+  weapon:    { icon: 'lightning', label: 'Weapon',    labelKey: 'slot.weapon' },
+  shield:    { icon: 'shield',   label: 'Shield',    labelKey: 'slot.shield' },
+  armor:     { icon: 'gem',      label: 'Armor',     labelKey: 'slot.armor' },
+  helmet:    { icon: 'crown',    label: 'Helm',      labelKey: 'slot.helmet' },
+  boots:     { icon: 'rocket',   label: 'Boots',     labelKey: 'slot.boots' },
+  ring:      { icon: 'sparkle',  label: 'Ring',      labelKey: 'slot.ring' },
+  companion: { icon: 'star',     label: 'Companion', labelKey: 'slot.companion' },
 };
 
 // Rarity colors now come from canonical `rarity` import (tokens.ts)
@@ -87,6 +87,7 @@ const SLOT_ICONS: Record<string, { icon: NeonIconType; label: string }> = {
 // ═══════════════════════════════════════════
 
 export function RightSidebar() {
+  const tr = useI18nStore((s) => s.t);
   const { quietMode } = useProgressionStore();
   const { equipment, inventory, computedAttributes } = useCharacterStore();
   const weekly = useWeeklyChallenges();
@@ -100,7 +101,7 @@ export function RightSidebar() {
   return (
     <div
       role="complementary"
-      aria-label="Hero sidebar — stats, quests, mastery, equipment"
+      aria-label={tr('sidebar.aria_label', 'Hero sidebar — stats, quests, mastery, equipment')}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -130,14 +131,14 @@ export function RightSidebar() {
           <SectionHeader
             icon="book"
             color="cyan"
-            label="Skill Mastery"
+            label={tr('sidebar.skill_mastery', 'Skill Mastery')}
             badge={mastery.dueCount > 0 ? (
               <span style={{
                 fontFamily: t.mono, fontSize: 9, fontWeight: 700,
                 color: t.rose, padding: '2px 8px', borderRadius: 10,
                 background: `${t.rose}12`, border: `1px solid ${t.rose}20`,
               }}>
-                {mastery.dueCount} due
+                {tr('sidebar.mastery_due', '{n} due').replace('{n}', String(mastery.dueCount))}
               </span>
             ) : undefined}
           />
@@ -161,7 +162,7 @@ export function RightSidebar() {
                 fontFamily: t.mono, fontSize: 10, fontWeight: 700,
                 color: t.cyan, cursor: 'pointer',
               }}>
-                +{mastery.skills.length - 4} more skills →
+                {tr('sidebar.mastery_more', '+{n} more skills →').replace('{n}', String(mastery.skills.length - 4))}
               </div>
             </Link>
           )}
@@ -175,7 +176,7 @@ export function RightSidebar() {
                 color: t.cyan, cursor: 'pointer',
                 transition: 'background 0.2s ease',
               }}>
-                Review {mastery.dueCount} skill{mastery.dueCount > 1 ? 's' : ''} →
+                {tr('sidebar.mastery_review', 'Review {n} skills →').replace('{n}', String(mastery.dueCount))}
               </div>
             </Link>
           )}
@@ -185,7 +186,7 @@ export function RightSidebar() {
       {/* ─── 3. Equipment Preview (Secondary — Phase 5F) ─── */}
       {hasEquipment && (
         <SidebarCard>
-          <SectionHeader icon="shield" color="violet" label="Equipment" />
+          <SectionHeader icon="shield" color="violet" label={tr('sidebar.equipment', 'Equipment')} />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
             {Object.entries(SLOT_ICONS).slice(0, 4).map(([slot, cfg]) => {
               const equip = equipment.find((e) => e.slot === slot);
@@ -195,7 +196,7 @@ export function RightSidebar() {
               return (
                 <div
                   key={slot}
-                  aria-label={equip ? `${cfg.label}: ${invItem?.name ?? equip.itemId} (${equip.rarity})` : `${cfg.label}: empty`}
+                  aria-label={equip ? tr('sidebar.aria_slot_equipped', '{slot}: {item} ({rarity})').replace('{slot}', tr(cfg.labelKey, cfg.label)).replace('{item}', invItem?.name ?? equip.itemId).replace('{rarity}', equip.rarity) : tr('sidebar.aria_slot_empty', '{slot}: empty').replace('{slot}', tr(cfg.labelKey, cfg.label))}
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center',
                     gap: 4, padding: '8px 2px',
@@ -215,7 +216,7 @@ export function RightSidebar() {
                     color: equip ? rarityColor : t.textMuted,
                     textTransform: 'uppercase' as const,
                   }}>
-                    {cfg.label}
+                    {tr(cfg.labelKey, cfg.label)}
                   </span>
                 </div>
               );
@@ -230,7 +231,7 @@ export function RightSidebar() {
               return (
                 <div
                   key={slot}
-                  aria-label={equip ? `${cfg.label}: ${invItem?.name ?? equip.itemId} (${equip.rarity})` : `${cfg.label}: empty`}
+                  aria-label={equip ? tr('sidebar.aria_slot_equipped', '{slot}: {item} ({rarity})').replace('{slot}', tr(cfg.labelKey, cfg.label)).replace('{item}', invItem?.name ?? equip.itemId).replace('{rarity}', equip.rarity) : tr('sidebar.aria_slot_empty', '{slot}: empty').replace('{slot}', tr(cfg.labelKey, cfg.label))}
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center',
                     gap: 4, padding: '8px 2px',
@@ -250,7 +251,7 @@ export function RightSidebar() {
                     color: equip ? rarityColor : t.textMuted,
                     textTransform: 'uppercase' as const,
                   }}>
-                    {cfg.label}
+                    {tr(cfg.labelKey, cfg.label)}
                   </span>
                 </div>
               );
@@ -282,7 +283,7 @@ export function RightSidebar() {
               fontFamily: t.mono, fontSize: 10, fontWeight: 700,
               color: t.violet, cursor: 'pointer',
             }}>
-              Manage inventory →
+              {tr('sidebar.manage_inventory', 'Manage inventory →')}
             </div>
           </Link>
         </SidebarCard>
@@ -294,7 +295,7 @@ export function RightSidebar() {
       {/* ─── 4. Community (Tertiary — UX-R162: opt-in only) ─── */}
       {!quietMode && (
         <SidebarCard style={{ padding: 14 }}>
-          <SectionHeader icon="trophy" color="gold" label="Community" />
+          <SectionHeader icon="trophy" color="gold" label={tr('sidebar.community', 'Community')} />
 
           {/* Party Quest — compact */}
           <Link href="/league" style={{ textDecoration: 'none' }}>
@@ -321,12 +322,12 @@ export function RightSidebar() {
                   fontFamily: t.display, fontSize: 11, fontWeight: 700,
                   color: t.text, marginBottom: 2,
                 }}>
-                  Party Quest
+                  {tr('social.party_quest', 'Party Quest')}
                 </div>
                 <div style={{
                   fontFamily: t.body, fontSize: 9, color: t.textMuted,
                 }}>
-                  4 heroes fighting · Join the hunt
+                  {tr('social.party_desc', '{n} heroes fighting · Join the hunt').replace('{n}', '4')}
                 </div>
               </div>
               <NeonIcon type="compass" size={12} color="rose" />
@@ -358,12 +359,12 @@ export function RightSidebar() {
                   fontFamily: t.display, fontSize: 11, fontWeight: 700,
                   color: t.text, marginBottom: 2,
                 }}>
-                  Weekly League
+                  {tr('social.weekly_league', 'Weekly League')}
                 </div>
                 <div style={{
                   fontFamily: t.body, fontSize: 9, color: t.textMuted,
                 }}>
-                  Opt-in · No pressure
+                  {tr('social.league_desc', 'Opt-in · No pressure')}
                 </div>
               </div>
               <span style={{
@@ -372,7 +373,7 @@ export function RightSidebar() {
                 background: `${LEAGUE_TIERS.bronze.color}1A`, border: `1px solid ${LEAGUE_TIERS.bronze.color}33`,
                 textTransform: 'uppercase' as const, flexShrink: 0,
               }}>
-                Bronze
+                {tr('league.bronze', 'Bronze')}
               </span>
             </div>
           </Link>
@@ -387,12 +388,12 @@ export function RightSidebar() {
             fontFamily: t.display, fontSize: 13, fontWeight: 700,
             color: t.textSecondary, marginBottom: 4,
           }}>
-            Your quest board awaits
+            {tr('sidebar.empty_title', 'Your quest board awaits')}
           </div>
           <div style={{
             fontFamily: t.body, fontSize: 11, color: t.textMuted, lineHeight: 1.4,
           }}>
-            Complete quests to unlock weekly challenges, mastery rings, and equipment drops.
+            {tr('sidebar.empty_desc', 'Complete quests to unlock weekly challenges, mastery rings, and equipment drops.')}
           </div>
         </SidebarCard>
       )}

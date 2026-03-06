@@ -12,7 +12,7 @@ const DIFFICULTY_ORDER: Record<string, number> = { easy: 0, medium: 1, hard: 2 }
 export function useWeeklyChallenges() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
-  const { data, isLoading } = trpc.achievement.weeklyChallenges.useQuery(undefined, {
+  const { data, isLoading, isError } = trpc.achievement.weeklyChallenges.useQuery(undefined, {
     enabled: isAuthenticated,
     staleTime: 1000 * 60 * 3,
   });
@@ -30,5 +30,6 @@ export function useWeeklyChallenges() {
     allCompleted: data?.allCompleted ?? false,
     bonusClaimed: data?.bonusClaimed ?? false,
     isLoading,
+    isError,
   };
 }

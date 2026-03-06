@@ -5,6 +5,8 @@ import { RoadmapModule } from '../roadmap/roadmap.module';
 import { AchievementModule } from '../achievement/achievement.module';
 import { CharacterModule } from '../character/character.module';
 import { SkillEloModule } from '../skill-elo/skill-elo.module';
+import { SocialModule } from '../social/social.module';
+import { AiModule } from '../ai/ai.module';
 
 @Module({
   imports: [
@@ -13,6 +15,8 @@ import { SkillEloModule } from '../skill-elo/skill-elo.module';
     forwardRef(() => AchievementModule),
     forwardRef(() => CharacterModule),
     SkillEloModule,
+    forwardRef(() => SocialModule),
+    AiModule,
   ],
   providers: [ProgressionService],
   exports: [ProgressionService],

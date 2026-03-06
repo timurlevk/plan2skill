@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { t, rarity as rarityTokens } from './tokens';
 import { NeonIcon, type NeonIconType } from './NeonIcon';
 
@@ -28,6 +28,12 @@ interface QuestPreviewProps {
 export function QuestPreview({
   title, description, icon, tasks, xpReward, onToggleTask, domain,
 }: QuestPreviewProps) {
+  // SSR-safe reduced-motion hook (BLOCKER — Крок 9)
+  const [reducedMotion, setReducedMotion] = useState(false);
+  useEffect(() => {
+    setReducedMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }, []);
+
   const completedCount = tasks.filter((t) => t.completed).length;
   const allComplete = completedCount === tasks.length;
   const rarityConfig = rarityTokens.uncommon;
@@ -39,9 +45,9 @@ export function QuestPreview({
       borderRadius: 16,
       border: `1.5px solid ${allComplete ? t.cyan : t.border}`,
       padding: '20px 18px',
-      animation: 'fadeUp 0.5s ease-out',
+      animation: reducedMotion ? 'none' : 'fadeUp 0.5s ease-out',
       boxShadow: allComplete ? `0 0 20px ${t.cyan}20` : 'none',
-      transition: 'all 0.3s ease',
+      transition: reducedMotion ? 'none' : 'all 0.3s ease',
     }}>
       {/* Header */}
       <div style={{
@@ -102,7 +108,7 @@ export function QuestPreview({
         </div>
       </div>
 
-      {/* Progress bar */}
+      {/* Progress bar — GPU-safe: scaleX instead of width */}
       <div style={{
         height: 4,
         borderRadius: 2,
@@ -111,11 +117,13 @@ export function QuestPreview({
         overflow: 'hidden',
       }}>
         <div style={{
-          width: `${progressPct}%`,
+          width: '100%',
           height: '100%',
           borderRadius: 2,
           background: t.gradient,
-          transition: 'width 0.4s ease-out',
+          transform: `scaleX(${progressPct / 100})`,
+          transformOrigin: 'left',
+          transition: reducedMotion ? 'none' : 'transform 0.4s ease-out',
         }} />
       </div>
 

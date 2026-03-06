@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { t } from './tokens';
 import { NeonIcon, type NeonIconType } from './NeonIcon';
 
@@ -27,6 +27,16 @@ export function TileCard({
 }: TileCardProps) {
   const isCompact = size === 'compact';
 
+  // prefers-reduced-motion
+  const [reducedMotion, setReducedMotion] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReducedMotion(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
   return (
     <button
       onClick={onClick}
@@ -43,8 +53,8 @@ export function TileCard({
         border: `2px solid ${selected ? color : t.border}`,
         background: selected ? `${color}12` : t.bgCard,
         cursor: 'pointer',
-        transition: 'all 0.2s ease',
-        animation: `fadeUp 0.35s ease-out ${index * 0.05}s both`,
+        transition: 'border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease',
+        animation: reducedMotion ? 'none' : `fadeUp 0.35s ease-out ${index * 0.05}s both`,
         boxShadow: selected ? `0 0 16px ${color}25` : 'none',
         textAlign: isCompact ? 'left' : 'center',
         position: 'relative',
@@ -83,7 +93,7 @@ export function TileCard({
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
-        transition: 'all 0.2s ease',
+        transition: 'background 0.2s ease',
       }}>
         <NeonIcon type={icon} size={isCompact ? 16 : 18} color={color} active={selected} />
       </div>
@@ -122,7 +132,7 @@ export function TileCard({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          animation: 'celebratePop 0.25s ease-out',
+          animation: reducedMotion ? 'none' : 'celebratePop 0.25s ease-out',
           flexShrink: 0,
         }}>
           <svg width="10" height="10" viewBox="0 0 12 12" fill="none">

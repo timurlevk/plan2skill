@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { useCharacterStore } from '@plan2skill/store';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useCharacterStore, useI18nStore } from '@plan2skill/store';
 import { trpc } from '@plan2skill/api-client';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
-import { t } from '../../../(onboarding)/_components/tokens';
+import { t, rarity as rarityTokens } from '../../../(onboarding)/_components/tokens';
 import type { EquipmentSlot, Rarity } from '@plan2skill/types';
 
 // ═══════════════════════════════════════════
@@ -13,14 +13,7 @@ import type { EquipmentSlot, Rarity } from '@plan2skill/types';
 // Items grouped by slot, rarity badges (double-coded)
 // ═══════════════════════════════════════════
 
-// Rarity double-coded: color + shape + icon (UX-R: accessibility)
-const RARITY_CONFIG: Record<string, { color: string; icon: string; label: string; shape: string }> = {
-  common:    { color: '#71717A', icon: '●',  label: 'Common',    shape: 'circle' },
-  uncommon:  { color: '#6EE7B7', icon: '◆',  label: 'Uncommon',  shape: 'pentagon' },
-  rare:      { color: '#3B82F6', icon: '⬡',  label: 'Rare',      shape: 'hexagon' },
-  epic:      { color: '#9D7AFF', icon: '◈',  label: 'Epic',      shape: 'diamond' },
-  legendary: { color: '#FFD166', icon: '★',  label: 'Legendary', shape: 'octagon' },
-};
+// Rarity tokens now come from canonical import (tokens.ts)
 
 const SLOT_META: Record<string, { name: string; icon: string }> = {
   weapon:    { name: 'Weapon',    icon: 'lightning' },
@@ -41,8 +34,42 @@ interface InventoryDrawerProps {
 
 export function InventoryDrawer({ open, onClose }: InventoryDrawerProps) {
   const { inventory } = useCharacterStore();
+  const tr = useI18nStore((s) => s.t);
   const [filterSlot, setFilterSlot] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'rarity' | 'name'>('rarity');
+
+  // Drawer exit animation (MA-TR003: exit 300ms < enter 400ms)
+  const [closing, setClosing] = useState(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear stale close timer when drawer opens
+  useEffect(() => {
+    if (open && closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+      setClosing(false);
+    }
+  }, [open]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    };
+  }, []);
+
+  const closeWithAnimation = useCallback(() => {
+    const prefersReducedMotion = typeof window !== 'undefined'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) { onClose(); return; }
+    setClosing(true);
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => { setClosing(false); onClose(); }, 300);
+  }, [onClose]);
+
+  // Equip button press feedback (Micro tier: 150ms)
+  const [pressedEquip, setPressedEquip] = useState<string | null>(null);
+  const [equipError, setEquipError] = useState<string | null>(null);
 
   const equipMutation = trpc.equipment.equip.useMutation();
   const unequipMutation = trpc.equipment.unequip.useMutation();
@@ -68,7 +95,7 @@ export function InventoryDrawer({ open, onClose }: InventoryDrawerProps) {
     return groups;
   }, [filteredItems]);
 
-  if (!open) return null;
+  if (!open && !closing) return null;
 
   return (
     <div
@@ -79,23 +106,29 @@ export function InventoryDrawer({ open, onClose }: InventoryDrawerProps) {
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
       }}
     >
-      {/* Backdrop */}
+      {/* Backdrop — fade in/out */}
       <div
-        onClick={onClose}
+        onClick={closeWithAnimation}
         style={{
           position: 'absolute', inset: 0,
           background: 'rgba(0,0,0,0.5)',
           backdropFilter: 'blur(4px)',
+          animation: closing ? undefined : 'fadeIn 0.2s ease-out',
+          opacity: closing ? 0 : 1,
+          transition: closing ? 'opacity 0.15s ease-in' : undefined,
         }}
       />
 
-      {/* Drawer panel */}
+      {/* Drawer panel — slide up/down */}
       <div style={{
         position: 'relative', width: '100%', maxWidth: 560,
         maxHeight: '80vh', borderRadius: '24px 24px 0 0',
         background: t.bgCard, border: `1px solid ${t.border}`,
         borderBottom: 'none', padding: '20px 20px 32px',
-        overflowY: 'auto', animation: 'slideUp 0.4s ease-out',
+        overflowY: 'auto',
+        animation: closing
+          ? 'slideUp 0.3s ease-in reverse forwards'
+          : 'slideUp 0.4s ease-out',
       }}>
         {/* Handle */}
         <div style={{
@@ -110,14 +143,14 @@ export function InventoryDrawer({ open, onClose }: InventoryDrawerProps) {
             fontFamily: t.display, fontSize: 18, fontWeight: 900, color: t.text,
           }}>
             <NeonIcon type="gift" size={20} color="gold" />
-            Inventory
+            {tr('inventory.title', 'Inventory')}
             <span style={{ fontFamily: t.mono, fontSize: 11, fontWeight: 700, color: t.textMuted }}>
-              ({inventory.length} items)
+              {tr('inventory.count', '({n} items)').replace('{n}', String(inventory.length))}
             </span>
           </h2>
           <button
-            onClick={onClose}
-            aria-label="Close inventory"
+            onClick={closeWithAnimation}
+            aria-label={tr('inventory.close', 'Close inventory')}
             style={{
               width: 32, height: 32, borderRadius: 8,
               background: t.bgElevated, border: `1px solid ${t.border}`,
@@ -128,6 +161,17 @@ export function InventoryDrawer({ open, onClose }: InventoryDrawerProps) {
             <NeonIcon type="close" size={14} color="muted" />
           </button>
         </div>
+
+        {/* Phase W4: Error feedback */}
+        {equipError && (
+          <div style={{
+            padding: '8px 12px', borderRadius: 8, marginBottom: 10,
+            background: `${t.rose}12`, border: `1px solid ${t.rose}25`,
+            fontFamily: t.body, fontSize: 11, color: t.rose,
+          }}>
+            {equipError}
+          </div>
+        )}
 
         {/* Filters */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
@@ -141,7 +185,7 @@ export function InventoryDrawer({ open, onClose }: InventoryDrawerProps) {
               cursor: 'pointer',
             }}
           >
-            All
+            {tr('inventory.filter_all', 'All')}
           </button>
           {Object.entries(SLOT_META).map(([slot, meta]) => (
             <button
@@ -155,7 +199,7 @@ export function InventoryDrawer({ open, onClose }: InventoryDrawerProps) {
                 cursor: 'pointer',
               }}
             >
-              {meta.name}
+              {tr(`slot.${slot}`, meta.name)}
             </button>
           ))}
         </div>
@@ -172,7 +216,7 @@ export function InventoryDrawer({ open, onClose }: InventoryDrawerProps) {
               cursor: 'pointer',
             }}
           >
-            Sort by Rarity
+            {tr('inventory.sort_rarity', 'Sort by Rarity')}
           </button>
           <button
             onClick={() => setSortBy('name')}
@@ -184,7 +228,7 @@ export function InventoryDrawer({ open, onClose }: InventoryDrawerProps) {
               cursor: 'pointer',
             }}
           >
-            Sort by Name
+            {tr('inventory.sort_name', 'Sort by Name')}
           </button>
         </div>
 
@@ -193,14 +237,16 @@ export function InventoryDrawer({ open, onClose }: InventoryDrawerProps) {
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
             <NeonIcon type="gift" size={32} color="muted" style={{ marginBottom: 12 }} />
             <p style={{ fontFamily: t.display, fontSize: 14, fontWeight: 700, color: t.textSecondary }}>
-              No artifacts yet
+              {tr('inventory.empty', 'No artifacts yet')}
             </p>
             <p style={{ fontFamily: t.body, fontSize: 12, color: t.textMuted, marginTop: 4 }}>
-              Complete quests to earn equipment drops!
+              {tr('inventory.empty_hint', 'Complete quests to earn equipment drops!')}
             </p>
           </div>
         ) : (
-          Object.entries(groupedBySlot).map(([slot, items]) => {
+          (() => {
+            let flatIndex = 0;
+            return Object.entries(groupedBySlot).map(([slot, items]) => {
             const meta = SLOT_META[slot] ?? { name: slot, icon: 'gear' };
             return (
               <div key={slot} style={{ marginBottom: 20 }}>
@@ -215,7 +261,8 @@ export function InventoryDrawer({ open, onClose }: InventoryDrawerProps) {
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {items.map((item) => {
-                    const rc = RARITY_CONFIG[item.rarity] ?? RARITY_CONFIG.common!;
+                    const rc = rarityTokens[item.rarity as keyof typeof rarityTokens] ?? rarityTokens.common;
+                    const itemIdx = flatIndex++;
                     return (
                       <div
                         key={item.id || item.itemId}
@@ -224,6 +271,9 @@ export function InventoryDrawer({ open, onClose }: InventoryDrawerProps) {
                           padding: '10px 12px', borderRadius: 12,
                           background: `${rc.color}06`, border: `1px solid ${rc.color}20`,
                           transition: 'border-color 0.2s ease',
+                          // Stagger entrance (Micro tier, cap at 15 items)
+                          animation: 'fadeUp 0.3s ease-out both',
+                          animationDelay: `${Math.min(itemIdx, 14) * 0.06}s`,
                         }}
                       >
                         {/* Rarity icon */}
@@ -272,26 +322,48 @@ export function InventoryDrawer({ open, onClose }: InventoryDrawerProps) {
                           ))}
                         </div>
 
-                        {/* Equip button */}
+                        {/* Equip button — press feedback (Micro tier: 150ms) */}
                         <button
                           onClick={() => {
+                            setEquipError(null);
                             equipMutation.mutate(
                               { slot: item.slot as EquipmentSlot, itemId: item.itemId },
                               {
                                 onSuccess: () => {
-                                  // Refresh will come from server hydration
+                                  // Phase W4: Update equipment in store immediately
+                                  const charStore = useCharacterStore.getState();
+                                  const newEquipped = {
+                                    id: '', slot: item.slot, itemId: item.itemId,
+                                    rarity: item.rarity, equippedAt: new Date().toISOString(),
+                                    name: item.name, description: item.description,
+                                    attributeBonus: item.attributeBonus,
+                                  };
+                                  const updated = charStore.equipment.filter(e => e.slot !== item.slot);
+                                  charStore.setEquipment([...updated, newEquipped] as any);
+                                },
+                                onError: (err: { message: string }) => {
+                                  setEquipError(tr('inventory.equip_error', 'Failed to equip: {msg}').replace('{msg}', err.message));
+                                  console.warn('[InventoryDrawer] equip failed:', err.message);
                                 },
                               },
                             );
                           }}
+                          disabled={equipMutation.isPending}
+                          onMouseDown={() => setPressedEquip(item.itemId)}
+                          onMouseUp={() => setPressedEquip(null)}
+                          onMouseLeave={() => setPressedEquip(null)}
                           style={{
                             padding: '4px 10px', borderRadius: 6,
                             background: `${t.violet}15`, border: `1px solid ${t.violet}30`,
                             fontFamily: t.mono, fontSize: 9, fontWeight: 700,
-                            color: t.violet, cursor: 'pointer', flexShrink: 0,
+                            color: t.violet, cursor: equipMutation.isPending ? 'wait' : 'pointer',
+                            flexShrink: 0,
+                            transition: 'transform 0.15s ease-out',
+                            transform: pressedEquip === item.itemId ? 'scale(0.98) translateY(1px)' : 'scale(1)',
+                            opacity: equipMutation.isPending ? 0.6 : 1,
                           }}
                         >
-                          Equip
+                          {equipMutation.isPending ? '...' : tr('inventory.equip', 'Equip')}
                         </button>
                       </div>
                     );
@@ -299,7 +371,8 @@ export function InventoryDrawer({ open, onClose }: InventoryDrawerProps) {
                 </div>
               </div>
             );
-          })
+          });
+          })()
         )}
       </div>
     </div>

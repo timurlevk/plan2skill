@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plan2Skill — Dashboard Content Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0C0C10;
+    --card: #18181F;
+    --elevated: #1E1E28;
+    --border: #252530;
+    --text: #FFFFFF;
+    --muted: #71717A;
+    --violet: #9D7AFF;
+    --cyan: #4ECDC4;
+    --gold: #FFD166;
+    --rose: #FF6B8A;
+    --mint: #6EE7B7;
+    --blue: #3B82F6;
+    --orange: #F59E0B;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  h1 { font-size: 22px; font-weight: 800; margin-bottom: 8px; }
+  h1 span { background: linear-gradient(135deg, var(--violet), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .meta { color: var(--muted); font-size: 11px; margin-bottom: 16px; }
+  .stats {
+    display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px;
+  }
+  .stat-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 16px; min-width: 120px;
+  }
+  .stat-card .val { font-size: 22px; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+  .stat-card .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+  .filters {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center;
+  }
+  .filters label { color: var(--muted); font-size: 11px; }
+  .filters select, .filters input {
+    background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); padding: 5px 8px; font-size: 11px; font-family: inherit;
+  }
+  .filters select:focus, .filters input:focus { outline: none; border-color: var(--violet); }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 11px;
+  }
+  thead th {
+    background: var(--elevated); color: var(--cyan);
+    padding: 6px 8px; text-align: left; font-weight: 700;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
+    position: sticky; top: 0; z-index: 5;
+    border-bottom: 2px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid var(--border); }
+  tbody tr:hover { background: rgba(157,122,255,0.04); }
+  tbody td { padding: 5px 8px; vertical-align: top; max-width: 300px; }
+  td.text-col { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #ddd; word-break: break-word; }
+  td.key-col { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--gold); word-break: break-all; }
+  .badge {
+    display: inline-block; padding: 2px 6px; border-radius: 4px;
+    font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+  }
+  .b-static  { background: rgba(113,113,122,0.15); color: #a1a1aa; }
+  .b-dynamic { background: rgba(78,205,196,0.12); color: var(--cyan); }
+  .b-ai      { background: rgba(157,122,255,0.15); color: var(--violet); }
+  .b-db      { background: rgba(110,231,183,0.12); color: var(--mint); }
+  .b-store   { background: rgba(255,209,102,0.12); color: var(--gold); }
+  .b-mock    { background: rgba(245,158,11,0.12); color: var(--orange); }
+  .b-yes     { background: rgba(110,231,183,0.12); color: var(--mint); }
+  .b-no      { background: rgba(113,113,122,0.15); color: #71717A; }
+  .b-warn    { background: rgba(255,107,138,0.12); color: var(--rose); }
+  .b-budget  { background: rgba(110,231,183,0.1); color: var(--mint); border: 1px solid rgba(110,231,183,0.2); }
+  .b-balanced { background: rgba(78,205,196,0.1); color: var(--cyan); border: 1px solid rgba(78,205,196,0.2); }
+  .b-quality { background: rgba(157,122,255,0.1); color: var(--violet); border: 1px solid rgba(157,122,255,0.2); }
+  .b-none    { background: rgba(113,113,122,0.08); color: #555; border: 1px solid rgba(113,113,122,0.15); }
+  .b-template { background: rgba(255,209,102,0.1); color: var(--gold); border: 1px solid rgba(255,209,102,0.2); }
+  .b-i18n    { background: rgba(59,130,246,0.12); color: #3B82F6; }
+  /* Layer badges */
+  .b-layer-intl    { background: rgba(59,130,246,0.15); color: #60A5FA; border: 1px solid rgba(59,130,246,0.25); }
+  .b-layer-ref     { background: rgba(110,231,183,0.12); color: var(--mint); border: 1px solid rgba(110,231,183,0.2); }
+  .b-layer-ai      { background: rgba(157,122,255,0.15); color: var(--violet); border: 1px solid rgba(157,122,255,0.25); }
+  .b-layer-none    { background: rgba(113,113,122,0.08); color: #555; border: 1px solid rgba(113,113,122,0.15); }
+  .b-layer-compute { background: rgba(245,158,11,0.12); color: var(--gold); border: 1px solid rgba(245,158,11,0.2); }
+  /* Recommendation tags */
+  .rec-tag {
+    display: inline-block; padding: 1px 5px; border-radius: 3px;
+    font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+    margin-right: 3px; margin-bottom: 2px; white-space: nowrap;
+  }
+  .rec-i18n     { background: rgba(59,130,246,0.15); color: #60A5FA; }
+  .rec-ai       { background: rgba(157,122,255,0.15); color: #B49AFF; }
+  .rec-migrate  { background: rgba(255,107,138,0.15); color: #FF8FAA; }
+  .rec-ok       { background: rgba(110,231,183,0.1); color: #6EE7B7; }
+  .rec-rewrite  { background: rgba(245,158,11,0.15); color: #FBBF24; }
+  .rec-wire     { background: rgba(78,205,196,0.15); color: #4ECDC4; }
+  .rec-cell { font-size: 10px; line-height: 1.5; max-width: 260px; }
+  .action-cell { font-size: 10px; line-height: 1.4; max-width: 240px; color: #ccc; }
+  .action-cell code { background: rgba(157,122,255,0.1); color: var(--violet); padding: 1px 4px; border-radius: 3px; font-size: 9px; font-family: 'JetBrains Mono', monospace; }
+  .decision-cell { min-width: 160px; }
+  .decision-cell textarea {
+    width: 100%; min-height: 32px; padding: 4px 6px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text); font-family: inherit;
+    font-size: 10px; resize: vertical;
+  }
+  .decision-cell textarea:focus { outline: none; border-color: var(--violet); }
+  .decision-cell textarea::placeholder { color: #444; }
+  .btn-export {
+    background: linear-gradient(135deg, var(--violet), var(--cyan));
+    color: #fff; border: none; border-radius: 8px;
+    padding: 8px 20px; font-weight: 700; font-size: 12px; cursor: pointer;
+  }
+  .btn-export:hover { opacity: 0.9; }
+  .legend {
+    display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; padding: 10px 14px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  }
+  .legend-title { color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; margin-right: 4px; align-self: center; }
+  .legend-sep { width: 1px; background: var(--border); margin: 0 6px; }
+  .row-count { color: var(--muted); font-size: 11px; margin-left: 12px; align-self: center; }
+  @media print {
+    body { background: #fff; color: #000; font-size: 9px; }
+    .filters, .btn-export, .stats, .legend { display: none; }
+    thead th { background: #eee; color: #333; }
+    tbody td { border: 1px solid #ddd; }
+  }
+</style>
+</head>
+<body>
+
+<h1><span>Plan2Skill</span> — Dashboard Content Audit</h1>
+<p class="meta">Згенеровано 2026-03-05 | /home (dashboard) page deep audit — 21 components | Layers: next-intl / refContent / AI gen / computed</p>
+
+<div class="stats">
+  <div class="stat-card"><div class="val" style="color:var(--rose)">~250</div><div class="lbl">Hardcoded strings</div></div>
+  <div class="stat-card"><div class="val" style="color:var(--mint)">10</div><div class="lbl">tr() keys (only)</div></div>
+  <div class="stat-card"><div class="val" style="color:var(--blue)">20+</div><div class="lbl">Components</div></div>
+  <div class="stat-card"><div class="val" style="color:var(--orange)">~30</div><div class="lbl">Mock strings</div></div>
+  <div class="stat-card"><div class="val" style="color:var(--violet)">0%</div><div class="lbl">Dashboard i18n</div></div>
+</div>
+
+<div class="legend">
+  <span class="legend-title">Layers:</span>
+  <span class="badge b-layer-intl">next-intl</span>
+  <span class="badge b-layer-ref">refContent</span>
+  <span class="badge b-layer-ai">AI gen</span>
+  <span class="badge b-layer-compute">computed</span>
+  <span class="badge b-layer-none">&mdash;</span>
+  <div class="legend-sep"></div>
+  <span class="legend-title">Rec:</span>
+  <span class="rec-tag rec-i18n">i18n</span>
+  <span class="rec-tag rec-ai">+AI</span>
+  <span class="rec-tag rec-migrate">migrate</span>
+  <span class="rec-tag rec-wire">wire-up</span>
+  <span class="rec-tag rec-rewrite">rewrite</span>
+  <span class="rec-tag rec-ok">OK</span>
+</div>
+
+<div class="filters">
+  <label>Filter:</label>
+  <select id="filterComponent" onchange="applyFilters()">
+    <option value="">All Components</option>
+    <option value="page.tsx">page.tsx</option>
+    <option value="WelcomeBack.tsx">WelcomeBack.tsx</option>
+    <option value="StatsRow.tsx">StatsRow.tsx</option>
+    <option value="DailyQuests.tsx">DailyQuests.tsx</option>
+    <option value="ActiveQuests.tsx">ActiveQuests.tsx</option>
+    <option value="QuestCardModal.tsx">QuestCardModal.tsx</option>
+    <option value="AchievementToast.tsx">AchievementToast.tsx</option>
+    <option value="DailyEpisodeCard.tsx">DailyEpisodeCard.tsx</option>
+    <option value="SocialCards.tsx">SocialCards.tsx</option>
+    <option value="WeeklyChallenges.tsx">WeeklyChallenges.tsx</option>
+    <option value="QuestError.tsx">QuestError.tsx</option>
+    <option value="AttributeWidget.tsx">AttributeWidget.tsx</option>
+    <option value="MasteryRing.tsx">MasteryRing.tsx</option>
+    <option value="AchievementBadge.tsx">AchievementBadge.tsx</option>
+    <option value="LootRevealV2.tsx">LootRevealV2.tsx</option>
+    <option value="InventoryDrawer.tsx">InventoryDrawer.tsx</option>
+    <option value="achievements.ts">_data/achievements.ts</option>
+    <option value="layout.tsx">layout.tsx</option>
+    <option value="RightSidebar.tsx">RightSidebar.tsx</option>
+    <option value="xp-utils.ts">xp-utils.ts</option>
+    <option value="quest-templates.ts">quest-templates.ts</option>
+  </select>
+  <select id="filterLayer" onchange="applyFilters()">
+    <option value="">All Layers</option>
+    <option value="next-intl">next-intl</option>
+    <option value="refContent">refContent</option>
+    <option value="AI gen">AI gen</option>
+    <option value="computed">computed</option>
+    <option value="—">— (none)</option>
+  </select>
+  <select id="filterType" onchange="applyFilters()">
+    <option value="">All Types</option>
+    <option value="Static">Static</option>
+    <option value="Dynamic">Dynamic</option>
+    <option value="AI-Gen">AI-Generated</option>
+    <option value="DB/Seed">DB/Seed</option>
+    <option value="Mock">Mock</option>
+  </select>
+  <select id="filterI18n" onchange="applyFilters()">
+    <option value="">All i18n</option>
+    <option value="Yes">Yes</option>
+    <option value="No">No</option>
+    <option value="Locale-driven">Locale-driven</option>
+  </select>
+  <select id="filterRec" onchange="applyFilters()">
+    <option value="">All Recs</option>
+    <option value="i18n">i18n</option>
+    <option value="+AI">+AI</option>
+    <option value="migrate">migrate</option>
+    <option value="wire-up">wire-up</option>
+    <option value="rewrite">rewrite</option>
+    <option value="OK">OK</option>
+  </select>
+  <input type="text" id="filterText" placeholder="Search text / key..." oninput="applyFilters()" style="width:180px;">
+  <button class="btn-export" onclick="exportCSV()">Export CSV</button>
+  <button class="btn-export" onclick="saveDecisions()" style="background:linear-gradient(135deg,var(--gold),var(--rose));">Save JSON</button>
+  <span id="rowCount" class="row-count"></span>
+</div>
+
+<table id="auditTable">
+<thead>
+<tr>
+  <th style="width:28px">#</th>
+  <th>Text / Content</th>
+  <th>Component</th>
+  <th>Element</th>
+  <th>Layer</th>
+  <th>tr() Key / Ref</th>
+  <th>Type</th>
+  <th>AI Tier</th>
+  <th>i18n</th>
+  <th>Recommendation</th>
+  <th>Action Required</th>
+  <th class="decision-cell">Decision</th>
+</tr>
+</thead>
+<tbody id="auditBody"></tbody>
+</table>
+
+<script>
+const DATA = [
+// ══════════ COMPONENT 1: page.tsx — tr() strings (i18n YES) ══════════
+{c:"page.tsx",t:"Ascension!",el:"LevelUpCelebration <h2>",layer:"next-intl",key:"dashboard.ascension",type:"Static",tier:"-",i18n:"Yes",
+ rec:[{tag:"OK",c:"Already using tr()"}],
+ action:"No action. Already wired: <code>tr('dashboard.ascension', 'Ascension!')</code>.",dec:""},
+
+{c:"page.tsx",t:"Level {n}",el:"LevelUpCelebration <p>",layer:"next-intl",key:"dashboard.level_up",type:"Dynamic",tier:"-",i18n:"Yes",
+ rec:[{tag:"OK",c:"Already using tr() with interpolation"}],
+ action:"No action. Already wired: <code>tr('dashboard.level_up', 'Level {n}')</code>.",dec:""},
+
+{c:"page.tsx",t:"Tap anywhere to continue",el:"LevelUpCelebration hint",layer:"next-intl",key:"dashboard.tap_continue",type:"Static",tier:"-",i18n:"Yes",
+ rec:[{tag:"OK",c:"Already using tr()"}],
+ action:"No action. Already wired: <code>tr('dashboard.tap_continue')</code>.",dec:""},
+
+{c:"page.tsx",t:"7-Day Streak!",el:"StreakMilestone <h2>",layer:"next-intl",key:"dashboard.streak_7",type:"Static",tier:"-",i18n:"Yes",
+ rec:[{tag:"OK",c:"Already using tr()"}],
+ action:"No action. Already wired.",dec:""},
+
+{c:"page.tsx",t:"30-Day Legend!",el:"StreakMilestone <h2>",layer:"next-intl",key:"dashboard.streak_30",type:"Static",tier:"-",i18n:"Yes",
+ rec:[{tag:"OK",c:"Already using tr()"}],
+ action:"No action. Already wired.",dec:""},
+
+{c:"page.tsx",t:"100-Day Master!",el:"StreakMilestone <h2>",layer:"next-intl",key:"dashboard.streak_100",type:"Static",tier:"-",i18n:"Yes",
+ rec:[{tag:"OK",c:"Already using tr()"}],
+ action:"No action. Already wired.",dec:""},
+
+{c:"page.tsx",t:"365-Day Immortal!",el:"StreakMilestone <h2>",layer:"next-intl",key:"dashboard.streak_365",type:"Static",tier:"-",i18n:"Yes",
+ rec:[{tag:"OK",c:"Already using tr()"}],
+ action:"No action. Already wired.",dec:""},
+
+{c:"page.tsx",t:"Tap to continue",el:"StreakMilestone hint",layer:"next-intl",key:"dashboard.tap_dismiss",type:"Static",tier:"-",i18n:"Yes",
+ rec:[{tag:"OK",c:"Already using tr()"}],
+ action:"No action. Already wired.",dec:""},
+
+{c:"page.tsx",t:"{name}, let's get going!",el:"Main greeting <h1>",layer:"next-intl",key:"dashboard.greeting",type:"Dynamic",tier:"-",i18n:"Yes",
+ rec:[{tag:"OK",c:"Already using tr() with ICU {name}"}],
+ action:"No action. Already wired: <code>tr('dashboard.greeting')</code>.",dec:""},
+
+{c:"page.tsx",t:"Today's focus: Level up your skills",el:"Greeting subtitle",layer:"next-intl",key:"dashboard.today_focus",type:"Static",tier:"-",i18n:"Yes",
+ rec:[{tag:"OK",c:"Already using tr()"}],
+ action:"No action. Already wired.",dec:""},
+
+// ══════════ COMPONENT 1: page.tsx — Hardcoded EN (i18n NO) ══════════
+{c:"page.tsx",t:"${streak}-Day Streak! (non-milestone fallback)",el:"StreakMilestone <h2>",layer:"\u2014",key:"dashboard.streak_n",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU interpolation for {n}"}],
+ action:"Add <code>tr('dashboard.streak_n', '{n}-Day Streak!')</code> with ICU <code>{n}</code> placeholder.",dec:""},
+
+{c:"page.tsx",t:"Hero (fallback for charMeta?.name)",el:"avatar alt text",layer:"\u2014",key:"common.hero",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() for fallback name"}],
+ action:"Add <code>tr('common.hero')</code> to seed. Replace hardcoded \"Hero\" fallback.",dec:""},
+
+{c:"page.tsx",t:"Skill Mastery",el:"Section heading",layer:"\u2014",key:"dashboard.skill_mastery",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.skill_mastery')</code> to seed. Replace hardcoded string.",dec:""},
+
+{c:"page.tsx",t:"{n} due",el:"MasteryRing badge",layer:"\u2014",key:"dashboard.n_due",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {n}"}],
+ action:"Add <code>tr('dashboard.n_due', '{n} due')</code> with ICU placeholder.",dec:""},
+
+// ══════════ COMPONENT 2: WelcomeBack.tsx ══════════
+{c:"WelcomeBack.tsx",t:"Your adventure begins, ${name}!",el:"getWelcomeConfig greeting (first visit)",layer:"\u2014",key:"dashboard.welcome_first",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {name}"}],
+ action:"Add <code>tr('dashboard.welcome_first', 'Your adventure begins, {name}!')</code>.",dec:""},
+
+{c:"WelcomeBack.tsx",t:"Your first quest awaits, hero!",el:"getWelcomeConfig subtitle (first visit)",layer:"\u2014",key:"dashboard.welcome_first_sub",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.welcome_first_sub')</code> to seed.",dec:""},
+
+{c:"WelcomeBack.tsx",t:"Ready for more, ${name}?",el:"getWelcomeConfig greeting (1-3 days)",layer:"\u2014",key:"dashboard.welcome_short",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {name}"},{tag:"+AI",c:"BUDGET: personalized return greeting"}],
+ action:"Add <code>tr('dashboard.welcome_short')</code>. Phase 2: AI BUDGET rotation.",dec:""},
+
+{c:"WelcomeBack.tsx",t:"Your quests await, hero!",el:"getWelcomeConfig subtitle (1-3 days)",layer:"\u2014",key:"dashboard.welcome_short_sub",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.welcome_short_sub')</code> to seed.",dec:""},
+
+{c:"WelcomeBack.tsx",t:"We missed you, ${name}!",el:"getWelcomeConfig greeting (4-7 days)",layer:"\u2014",key:"dashboard.welcome_medium",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {name}"},{tag:"+AI",c:"BUDGET: contextual re-engagement"}],
+ action:"Add <code>tr('dashboard.welcome_medium')</code>. Phase 2: AI BUDGET personalized return.",dec:""},
+
+{c:"WelcomeBack.tsx",t:"Pick up where you left off with an easy quest.",el:"getWelcomeConfig subtitle (4-7 days)",layer:"\u2014",key:"dashboard.welcome_medium_sub",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.welcome_medium_sub')</code> to seed.",dec:""},
+
+{c:"WelcomeBack.tsx",t:"Let's refresh, ${name}!",el:"getWelcomeConfig greeting (8-30 days)",layer:"\u2014",key:"dashboard.welcome_long",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {name}"},{tag:"+AI",c:"BUDGET: momentum rebuild prompt"}],
+ action:"Add <code>tr('dashboard.welcome_long')</code>. Phase 2: AI BUDGET variation.",dec:""},
+
+{c:"WelcomeBack.tsx",t:"Start with something light to rebuild momentum.",el:"getWelcomeConfig subtitle (8-30 days)",layer:"\u2014",key:"dashboard.welcome_long_sub",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.welcome_long_sub')</code> to seed.",dec:""},
+
+{c:"WelcomeBack.tsx",t:"Welcome back, ${name}!",el:"getWelcomeConfig greeting (30+ days)",layer:"\u2014",key:"dashboard.welcome_return",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {name}"},{tag:"+AI",c:"BUDGET: fresh-start prompt"}],
+ action:"Add <code>tr('dashboard.welcome_return')</code>. Phase 2: AI BUDGET personalized return.",dec:""},
+
+{c:"WelcomeBack.tsx",t:"Great to see you again! Ready for a fresh start?",el:"getWelcomeConfig subtitle (30+ days)",layer:"\u2014",key:"dashboard.welcome_return_sub",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.welcome_return_sub')</code> to seed.",dec:""},
+
+{c:"WelcomeBack.tsx",t:"Quest Complete!",el:"WelcomeBack badge",layer:"\u2014",key:"dashboard.quest_complete",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.quest_complete')</code> to seed.",dec:""},
+
+{c:"WelcomeBack.tsx",t:"{mins} min",el:"duration label",layer:"\u2014",key:"common.mins",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {mins}"}],
+ action:"Add <code>tr('common.mins', '{mins} min')</code>.",dec:""},
+
+{c:"WelcomeBack.tsx",t:"+{xp} XP",el:"XP reward",layer:"\u2014",key:"common.plus_xp",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {xp}"}],
+ action:"Add <code>tr('common.plus_xp', '+{xp} XP')</code>.",dec:""},
+
+{c:"WelcomeBack.tsx",t:"Completed / Complete",el:"quest button",layer:"\u2014",key:"action.completed / action.complete",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add 2 tr() keys"}],
+ action:"Add <code>tr('action.completed')</code> + <code>tr('action.complete')</code> to seed.",dec:""},
+
+{c:"WelcomeBack.tsx",t:"Welcome back bonus: 2x XP!",el:"bonus badge",layer:"\u2014",key:"dashboard.welcome_bonus",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.welcome_bonus')</code> to seed.",dec:""},
+
+{c:"WelcomeBack.tsx",t:"Refresh goals?",el:"link",layer:"\u2014",key:"dashboard.refresh_goals",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.refresh_goals')</code> to seed.",dec:""},
+
+{c:"WelcomeBack.tsx",t:"Choose a different quest",el:"button",layer:"\u2014",key:"dashboard.choose_different",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.choose_different')</code> to seed.",dec:""},
+
+{c:"WelcomeBack.tsx",t:"Open quest details",el:"button",layer:"\u2014",key:"dashboard.open_quest",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.open_quest')</code> to seed.",dec:""},
+
+// ══════════ COMPONENT 3: StatsRow.tsx ══════════
+{c:"StatsRow.tsx",t:"Level",el:"stat label",layer:"\u2014",key:"dashboard.stat_level",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.stat_level')</code> to seed.",dec:""},
+
+{c:"StatsRow.tsx",t:"{n} days",el:"streak value",layer:"\u2014",key:"dashboard.streak_days",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {n}"}],
+ action:"Add <code>tr('dashboard.streak_days', '{n} days')</code>.",dec:""},
+
+{c:"StatsRow.tsx",t:"Streak",el:"stat label",layer:"\u2014",key:"dashboard.stat_streak",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.stat_streak')</code> to seed.",dec:""},
+
+{c:"StatsRow.tsx",t:"XP",el:"stat label",layer:"\u2014",key:"dashboard.stat_xp",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.stat_xp')</code> to seed.",dec:""},
+
+{c:"StatsRow.tsx",t:"Energy",el:"stat label",layer:"\u2014",key:"dashboard.stat_energy",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.stat_energy')</code> to seed.",dec:""},
+
+{c:"StatsRow.tsx",t:"Level aria-label / Streak aria-label / XP aria-label / Energy aria-label",el:"aria-labels (4x)",layer:"\u2014",key:"dashboard.aria_level / .aria_streak / .aria_xp / .aria_energy",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Accessibility — add 4 tr() keys"}],
+ action:"Add 4 aria-label keys: <code>tr('dashboard.aria_level')</code> etc.",dec:""},
+
+// ══════════ COMPONENT 4: DailyQuests.tsx ══════════
+{c:"DailyQuests.tsx",t:"Today's Quests",el:"section heading",layer:"\u2014",key:"dashboard.todays_quests",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.todays_quests')</code> to seed.",dec:""},
+
+{c:"DailyQuests.tsx",t:"getDailyProgressMessage() — 5 hardcoded variants",el:"progress message (computed)",layer:"computed",key:"dashboard.progress_*",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Translate 5 patterns"},{tag:"+AI",c:"BUDGET: personalized daily progress. Cache 4h"}],
+ action:"Add 5 tr() keys: <code>dashboard.progress_start</code>, <code>.progress_half</code>, <code>.progress_almost</code>, <code>.progress_done</code>, <code>.progress_remaining</code>. Phase 2: AI BUDGET personalization.",dec:""},
+
+{c:"DailyQuests.tsx",t:"No quests available yet",el:"empty state",layer:"\u2014",key:"dashboard.no_quests",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.no_quests')</code> to seed.",dec:""},
+
+{c:"DailyQuests.tsx",t:"{done}/{total} quests",el:"quest count badge",layer:"\u2014",key:"dashboard.quest_count",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {done} {total}"}],
+ action:"Add <code>tr('dashboard.quest_count', '{done}/{total} quests')</code>.",dec:""},
+
+{c:"DailyQuests.tsx",t:"Quest Complete!",el:"completion badge",layer:"\u2014",key:"dashboard.quest_complete",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key (shared with WelcomeBack)"}],
+ action:"Reuse <code>tr('dashboard.quest_complete')</code>.",dec:""},
+
+{c:"DailyQuests.tsx",t:"+{xp} XP",el:"XP reward",layer:"\u2014",key:"common.plus_xp",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Reuse shared key"}],
+ action:"Reuse <code>tr('common.plus_xp')</code>.",dec:""},
+
+{c:"DailyQuests.tsx",t:"{mins} min",el:"duration label",layer:"\u2014",key:"common.mins",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Reuse shared key"}],
+ action:"Reuse <code>tr('common.mins')</code>.",dec:""},
+
+{c:"DailyQuests.tsx",t:"quest.type labels (article, video, etc.)",el:"type badge",layer:"\u2014",key:"quest.type_*",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() per quest type"}],
+ action:"Add <code>tr('quest.type_article')</code>, <code>tr('quest.type_video')</code>, etc.",dec:""},
+
+// ══════════ COMPONENT 5: ActiveQuests.tsx ══════════
+{c:"ActiveQuests.tsx",t:"Quest Lines",el:"section heading",layer:"\u2014",key:"dashboard.quest_lines",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.quest_lines')</code> to seed.",dec:""},
+
+{c:"ActiveQuests.tsx",t:"No quest lines yet, hero!",el:"empty state title",layer:"\u2014",key:"dashboard.no_quest_lines",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.no_quest_lines')</code> to seed.",dec:""},
+
+{c:"ActiveQuests.tsx",t:"Complete onboarding to begin your journey",el:"empty state subtitle",layer:"\u2014",key:"dashboard.no_quest_lines_sub",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.no_quest_lines_sub')</code> to seed.",dec:""},
+
+{c:"ActiveQuests.tsx",t:"${goalLabel} Roadmap",el:"mock roadmap title",layer:"\u2014",key:"\u2014",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"migrate",c:"Should come from API roadmap data"}],
+ action:"Replace mock title with data from <code>roadmap.title</code> via tRPC.",dec:""},
+
+{c:"ActiveQuests.tsx",t:"Your ${n}-week journey to master ${goalLabel}",el:"mock description",layer:"\u2014",key:"\u2014",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"migrate",c:"Should come from API"},{tag:"+AI",c:"AI-generated roadmap description"}],
+ action:"Replace mock with API <code>roadmap.description</code>. Already AI-generated on creation.",dec:""},
+
+{c:"ActiveQuests.tsx",t:"Quest Line Complete!",el:"completion badge",layer:"\u2014",key:"dashboard.quest_line_complete",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.quest_line_complete')</code> to seed.",dec:""},
+
+{c:"ActiveQuests.tsx",t:"Forging your quest line...",el:"generating state",layer:"\u2014",key:"dashboard.forging_quest_line",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.forging_quest_line')</code> to seed.",dec:""},
+
+{c:"ActiveQuests.tsx",t:"All milestones conquered!",el:"completed state",layer:"\u2014",key:"dashboard.all_milestones",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.all_milestones')</code> to seed.",dec:""},
+
+{c:"ActiveQuests.tsx",t:"Current milestone: ${title}",el:"active state",layer:"\u2014",key:"dashboard.current_milestone",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {title}"}],
+ action:"Add <code>tr('dashboard.current_milestone', 'Current milestone: {title}')</code>.",dec:""},
+
+{c:"ActiveQuests.tsx",t:"Ready to begin",el:"default state",layer:"\u2014",key:"dashboard.ready_begin",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.ready_begin')</code> to seed.",dec:""},
+
+{c:"ActiveQuests.tsx",t:"${completed}/${total} quests",el:"quest counter",layer:"\u2014",key:"dashboard.quest_progress",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {completed} {total}"}],
+ action:"Add <code>tr('dashboard.quest_progress', '{completed}/{total} quests')</code>.",dec:""},
+
+{c:"ActiveQuests.tsx",t:"Forging...",el:"shimmer text",layer:"\u2014",key:"dashboard.forging",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.forging')</code> to seed.",dec:""},
+
+{c:"ActiveQuests.tsx",t:"Foundations & Setup",el:"mock phase title 1",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"migrate",c:"Replace with API roadmap phase data"}],
+ action:"Remove mock. Wire to <code>roadmap.milestones[0].title</code> from tRPC.",dec:""},
+
+{c:"ActiveQuests.tsx",t:"Core Concepts",el:"mock phase title 2",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"migrate",c:"Replace with API roadmap phase data"}],
+ action:"Remove mock. Wire to <code>roadmap.milestones[1].title</code> from tRPC.",dec:""},
+
+{c:"ActiveQuests.tsx",t:"Building Blocks",el:"mock phase title 3",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"migrate",c:"Replace with API roadmap phase data"}],
+ action:"Remove mock. Wire to <code>roadmap.milestones[2].title</code> from tRPC.",dec:""},
+
+{c:"ActiveQuests.tsx",t:"Advanced Techniques",el:"mock phase title 4",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"migrate",c:"Replace with API roadmap phase data"}],
+ action:"Remove mock. Wire to <code>roadmap.milestones[3].title</code> from tRPC.",dec:""},
+
+{c:"ActiveQuests.tsx",t:"Capstone Project",el:"mock phase title 5",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"migrate",c:"Replace with API roadmap phase data"}],
+ action:"Remove mock. Wire to <code>roadmap.milestones[4].title</code> from tRPC.",dec:""},
+
+// ══════════ COMPONENT 6: QuestCardModal.tsx ══════════
+// Celebrating phase
+{c:"QuestCardModal.tsx",t:"Quest Complete!",el:"celebrating phase heading",layer:"\u2014",key:"quest.complete",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('quest.complete')</code> to seed.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"\u2605 BONUS +{xp} XP \u2605",el:"celebrating bonus badge",layer:"\u2014",key:"quest.bonus_xp",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {xp}"}],
+ action:"Add <code>tr('quest.bonus_xp', '\u2605 BONUS +{xp} XP \u2605')</code>.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"Tap to continue",el:"celebrating hint",layer:"\u2014",key:"action.tap_continue",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('action.tap_continue')</code> to seed.",dec:""},
+
+// Summary phase
+{c:"QuestCardModal.tsx",t:"Quest Complete! (summary)",el:"summary heading",layer:"\u2014",key:"quest.complete_summary",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Reuse quest.complete key"}],
+ action:"Reuse <code>tr('quest.complete')</code>.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"Quest Bounty",el:"summary reward section",layer:"\u2014",key:"quest.bounty",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('quest.bounty')</code> to seed.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"Lucky Bonus!",el:"summary lucky bonus",layer:"\u2014",key:"quest.lucky_bonus",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('quest.lucky_bonus')</code> to seed.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"Total",el:"summary total label",layer:"\u2014",key:"common.total",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('common.total')</code> to seed.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"Milestone bonus!",el:"summary milestone badge",layer:"\u2014",key:"quest.milestone_bonus",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('quest.milestone_bonus')</code> to seed.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"${n}-day streak",el:"summary streak info",layer:"\u2014",key:"quest.streak_info",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {n}"}],
+ action:"Add <code>tr('quest.streak_info', '{n}-day streak')</code>.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"Complete daily quests to build your streak!",el:"summary streak hint (new)",layer:"\u2014",key:"quest.streak_hint_new",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"},{tag:"+AI",c:"BUDGET: personalized streak encouragement"}],
+ action:"Add <code>tr('quest.streak_hint_new')</code>. Phase 2: AI BUDGET variation.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"Keep the momentum going!",el:"summary streak hint (active)",layer:"\u2014",key:"quest.streak_hint_active",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"},{tag:"+AI",c:"BUDGET: personalized momentum message"}],
+ action:"Add <code>tr('quest.streak_hint_active')</code>. Phase 2: AI BUDGET variation.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"Today's Progress",el:"summary progress label",layer:"\u2014",key:"dashboard.today_progress",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.today_progress')</code> to seed.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"Next Quest",el:"summary button",layer:"\u2014",key:"action.next_quest",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('action.next_quest')</code> to seed.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"Return to Command Center",el:"summary button",layer:"\u2014",key:"action.return_command",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('action.return_command')</code> to seed.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"All Quests Complete!",el:"summary final badge",layer:"\u2014",key:"dashboard.all_quests_complete",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.all_quests_complete')</code> to seed.",dec:""},
+
+// Viewing phase
+{c:"QuestCardModal.tsx",t:"Quest Objectives",el:"viewing heading",layer:"\u2014",key:"quest.objectives",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('quest.objectives')</code> to seed.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"AI Tip",el:"viewing AI tip label",layer:"\u2014",key:"quest.ai_tip",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('quest.ai_tip')</code> to seed.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"Fun Fact",el:"viewing fun fact label",layer:"\u2014",key:"quest.fun_fact",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('quest.fun_fact')</code> to seed.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"Knowledge Check",el:"viewing quiz heading",layer:"\u2014",key:"quest.knowledge_check",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('quest.knowledge_check')</code> to seed.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"Correct! +5 bonus XP for your wisdom!",el:"quiz correct feedback",layer:"\u2014",key:"quest.answer_correct",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('quest.answer_correct')</code> to seed.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"Not quite \u2014 review the objectives above...",el:"quiz wrong feedback",layer:"\u2014",key:"quest.answer_wrong",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('quest.answer_wrong')</code> to seed.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"Recharge tomorrow (2x)",el:"energy depleted state",layer:"\u2014",key:"quest.recharge_tomorrow",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('quest.recharge_tomorrow')</code> to seed.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"Quest Bounty (viewing)",el:"viewing reward label",layer:"\u2014",key:"quest.bounty",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Reuse quest.bounty"}],
+ action:"Reuse <code>tr('quest.bounty')</code>.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"{xp} XP earned / +{xp} XP",el:"viewing XP labels",layer:"\u2014",key:"quest.xp_earned / common.plus_xp",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {xp}"}],
+ action:"Add <code>tr('quest.xp_earned', '{xp} XP earned')</code>. Reuse <code>common.plus_xp</code>.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"Complete Quest",el:"viewing action button",layer:"\u2014",key:"action.complete_quest",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('action.complete_quest')</code> to seed.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"Restart Quest",el:"viewing restart button",layer:"\u2014",key:"action.restart_quest",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('action.restart_quest')</code> to seed.",dec:""},
+
+{c:"QuestCardModal.tsx",t:"Not now",el:"viewing dismiss button",layer:"\u2014",key:"action.not_now",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('action.not_now')</code> to seed.",dec:""},
+
+// ══════════ COMPONENT 7: AchievementToast.tsx ══════════
+{c:"AchievementToast.tsx",t:"Achievement Unlocked!",el:"toast label",layer:"\u2014",key:"achievement.unlocked",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('achievement.unlocked')</code> to seed.",dec:""},
+
+{c:"AchievementToast.tsx",t:"achievement.title / achievement.description",el:"toast content",layer:"refContent",key:"achievement:* \u2192 title, description",type:"DB/Seed",tier:"-",i18n:"No",
+ rec:[{tag:"wire-up",c:"Should come from refTranslation"}],
+ action:"Wire toast to read <code>achievement.title</code> / <code>.description</code> from refTranslation via locale.",dec:""},
+
+// ══════════ COMPONENT 8: DailyEpisodeCard.tsx ══════════
+{c:"DailyEpisodeCard.tsx",t:"EP {n}",el:"episode number badge",layer:"\u2014",key:"narrative.ep_n",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {n}"}],
+ action:"Add <code>tr('narrative.ep_n', 'EP {n}')</code>.",dec:""},
+
+{c:"DailyEpisodeCard.tsx",t:"Episode {n} \u00b7 Season {n}",el:"episode/season label",layer:"\u2014",key:"narrative.ep_season",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {ep} {season}"}],
+ action:"Add <code>tr('narrative.ep_season', 'Episode {ep} \u00b7 Season {season}')</code>.",dec:""},
+
+{c:"DailyEpisodeCard.tsx",t:"Chronicle \u2192",el:"chronicle link",layer:"\u2014",key:"narrative.chronicle_link",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('narrative.chronicle_link')</code> to seed.",dec:""},
+
+{c:"DailyEpisodeCard.tsx",t:"Read More \u25bc",el:"expand button",layer:"\u2014",key:"action.read_more",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('action.read_more')</code> to seed.",dec:""},
+
+{c:"DailyEpisodeCard.tsx",t:"\u2713 Read (2x)",el:"read badge",layer:"\u2014",key:"narrative.read",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('narrative.read')</code> to seed.",dec:""},
+
+{c:"DailyEpisodeCard.tsx",t:"+{xp} XP \u2713 Read",el:"XP + read badge combo",layer:"\u2014",key:"narrative.xp_read",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {xp}"}],
+ action:"Add <code>tr('narrative.xp_read', '+{xp} XP \u2713 Read')</code>.",dec:""},
+
+{c:"DailyEpisodeCard.tsx",t:"Dismiss \u00d7",el:"dismiss button",layer:"\u2014",key:"narrative.dismiss",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('narrative.dismiss')</code> to seed.",dec:""},
+
+{c:"DailyEpisodeCard.tsx",t:"todayEpisode.title / .contextSentence / .body / .cliffhanger / .sageReflection",el:"AI narrative content",layer:"AI gen",key:"NarrativeGenerator",type:"AI-Gen",tier:"QUALITY",i18n:"Locale-driven",
+ rec:[{tag:"OK",c:"AI-generated in user locale. No action needed."}],
+ action:"No action. Already wired via <code>buildLocaleInstruction()</code>.",dec:""},
+
+// ══════════ COMPONENT 9: SocialCards.tsx ══════════
+{c:"SocialCards.tsx",t:"Party Quest",el:"card heading",layer:"\u2014",key:"social.party_quest",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"rewrite",c:"Placeholder \u2014 mock feature, not shipped"}],
+ action:"Defer. Flag as mock in code. Add <code>tr()</code> when feature ships.",dec:""},
+
+{c:"SocialCards.tsx",t:"Epic (rarity badge)",el:"rarity badge",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"rewrite",c:"Mock data"}],
+ action:"Defer. Will use <code>tr('rarity.epic')</code> when feature ships.",dec:""},
+
+{c:"SocialCards.tsx",t:"Procrastination Dragon",el:"boss name",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"rewrite",c:"Mock data \u2014 will come from API"}],
+ action:"Defer. Will be API-driven when social feature ships.",dec:""},
+
+{c:"SocialCards.tsx",t:"4 heroes fighting",el:"party status",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"rewrite",c:"Mock data"}],
+ action:"Defer until social feature ships.",dec:""},
+
+{c:"SocialCards.tsx",t:"HP / 847 / 1200",el:"boss health bar",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"rewrite",c:"Mock data"}],
+ action:"Defer. HP label: <code>tr('social.hp')</code> when shipped.",dec:""},
+
+{c:"SocialCards.tsx",t:"Complete quests to deal damage",el:"party quest hint",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"rewrite",c:"Mock data"}],
+ action:"Defer until social feature ships.",dec:""},
+
+{c:"SocialCards.tsx",t:"Weekly League",el:"card heading",layer:"\u2014",key:"social.weekly_league",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"rewrite",c:"Placeholder \u2014 mock feature"}],
+ action:"Defer. Flag as mock. Add <code>tr()</code> when feature ships.",dec:""},
+
+{c:"SocialCards.tsx",t:"\u25cf Bronze",el:"rank badge",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"rewrite",c:"Mock data"}],
+ action:"Defer until league feature ships.",dec:""},
+
+{c:"SocialCards.tsx",t:"#-- / 30",el:"rank position",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"rewrite",c:"Mock data"}],
+ action:"Defer until league feature ships.",dec:""},
+
+{c:"SocialCards.tsx",t:"Top 10 promote \u00b7 Bottom 5 demote",el:"league rules",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"rewrite",c:"Mock data"}],
+ action:"Defer until league feature ships.",dec:""},
+
+{c:"SocialCards.tsx",t:"Join Weekly League",el:"CTA button",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"rewrite",c:"Mock data"}],
+ action:"Defer until league feature ships.",dec:""},
+
+{c:"SocialCards.tsx",t:"Opt-in \u00b7 Resets weekly \u00b7 No pressure",el:"league disclaimer",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"rewrite",c:"Mock data"}],
+ action:"Defer until league feature ships.",dec:""},
+
+// ══════════ COMPONENT 10: WeeklyChallenges.tsx ══════════
+{c:"WeeklyChallenges.tsx",t:"Weekly Quests (2x)",el:"section heading",layer:"\u2014",key:"dashboard.weekly_quests",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.weekly_quests')</code> to seed.",dec:""},
+
+{c:"WeeklyChallenges.tsx",t:"Complete ${n} quests",el:"challenge desc template",layer:"\u2014",key:"weekly.challenge_quests",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {n}"}],
+ action:"Add <code>tr('weekly.challenge_quests', 'Complete {n} quests')</code>.",dec:""},
+
+{c:"WeeklyChallenges.tsx",t:"Earn ${n} XP",el:"challenge desc template",layer:"\u2014",key:"weekly.challenge_xp",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {n}"}],
+ action:"Add <code>tr('weekly.challenge_xp', 'Earn {n} XP')</code>.",dec:""},
+
+{c:"WeeklyChallenges.tsx",t:"Maintain a ${n}-day streak",el:"challenge desc template",layer:"\u2014",key:"weekly.challenge_streak",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {n}"}],
+ action:"Add <code>tr('weekly.challenge_streak')</code>.",dec:""},
+
+{c:"WeeklyChallenges.tsx",t:"Read ${n} episodes",el:"challenge desc template",layer:"\u2014",key:"weekly.challenge_episodes",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {n}"}],
+ action:"Add <code>tr('weekly.challenge_episodes')</code>.",dec:""},
+
+{c:"WeeklyChallenges.tsx",t:"Score ${n}% on quizzes",el:"challenge desc template",layer:"\u2014",key:"weekly.challenge_quiz",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {n}"}],
+ action:"Add <code>tr('weekly.challenge_quiz')</code>.",dec:""},
+
+{c:"WeeklyChallenges.tsx",t:"Forge ${n} artifacts / Equip ${n} items / Complete ${n} milestones",el:"challenge desc templates (3 more)",layer:"\u2014",key:"weekly.challenge_forge / .challenge_equip / .challenge_milestones",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add 3 tr() keys with ICU {n}"}],
+ action:"Add 3 <code>tr()</code> keys for remaining challenge templates.",dec:""},
+
+{c:"WeeklyChallenges.tsx",t:"Earn ${n} coins / Complete all daily quests / Review ${n} skills",el:"challenge desc templates (3 more)",layer:"\u2014",key:"weekly.challenge_coins / .challenge_daily_all / .challenge_review",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add 3 tr() keys with ICU {n}"}],
+ action:"Add 3 <code>tr()</code> keys for remaining challenge templates.",dec:""},
+
+{c:"WeeklyChallenges.tsx",t:"10 challenge hints (motivational strings)",el:"challenge hints",layer:"\u2014",key:"weekly.hint_*",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add 10 tr() keys"},{tag:"+AI",c:"BUDGET: personalized hints. Cache 1d"}],
+ action:"Add 10 <code>tr('weekly.hint_1')</code> through <code>tr('weekly.hint_10')</code>. Phase 2: AI BUDGET personalization.",dec:""},
+
+{c:"WeeklyChallenges.tsx",t:"Weekly Champion! +150 XP claimed",el:"completion celebration",layer:"\u2014",key:"weekly.champion",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('weekly.champion')</code> to seed.",dec:""},
+
+{c:"WeeklyChallenges.tsx",t:"All challenges complete! (variant)",el:"all-done celebration",layer:"\u2014",key:"weekly.all_complete",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('weekly.all_complete')</code> to seed.",dec:""},
+
+{c:"WeeklyChallenges.tsx",t:"Bonus unlocked! (variant)",el:"bonus celebration",layer:"\u2014",key:"weekly.bonus_unlocked",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('weekly.bonus_unlocked')</code> to seed.",dec:""},
+
+{c:"WeeklyChallenges.tsx",t:"Keep going, hero! (variant)",el:"progress celebration",layer:"\u2014",key:"weekly.keep_going",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('weekly.keep_going')</code> to seed.",dec:""},
+
+{c:"WeeklyChallenges.tsx",t:"+150 XP + \ud83e\ude99 50",el:"reward display",layer:"\u2014",key:"weekly.reward_display",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {xp} {coins}"}],
+ action:"Add <code>tr('weekly.reward_display', '+{xp} XP + coin {coins}')</code>.",dec:""},
+
+{c:"WeeklyChallenges.tsx",t:"${completed}/3 completed \u2192 +150 XP + \ud83e\ude99 50 bonus",el:"progress summary",layer:"\u2014",key:"weekly.progress_summary",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {completed} {xp} {coins}"}],
+ action:"Add <code>tr('weekly.progress_summary')</code> with ICU placeholders.",dec:""},
+
+{c:"WeeklyChallenges.tsx",t:"Claimed",el:"claimed badge",layer:"\u2014",key:"weekly.claimed",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('weekly.claimed')</code> to seed.",dec:""},
+
+// ══════════ COMPONENT 11: QuestError.tsx ══════════
+{c:"QuestError.tsx",t:"The path is blocked",el:"error heading",layer:"\u2014",key:"error.quest_blocked",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('error.quest_blocked')</code> to seed.",dec:""},
+
+{c:"QuestError.tsx",t:"Something went wrong loading your quests.",el:"error description",layer:"\u2014",key:"error.quest_load",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('error.quest_load')</code> to seed.",dec:""},
+
+{c:"QuestError.tsx",t:"Try again, hero",el:"retry button",layer:"\u2014",key:"action.try_again",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('action.try_again')</code> to seed.",dec:""},
+
+// ══════════ COMPONENT 12: AttributeWidget.tsx ══════════
+{c:"AttributeWidget.tsx",t:"Hero Attributes",el:"section heading",layer:"\u2014",key:"herocard.attributes",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('herocard.attributes')</code> to seed.",dec:""},
+
+{c:"AttributeWidget.tsx",t:"STR / Strength",el:"attribute name + abbr",layer:"\u2014",key:"herocard.attr_str / herocard.attr_str_name",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() for name + abbreviation"}],
+ action:"Add <code>tr('herocard.attr_str')</code> (abbr) + <code>tr('herocard.attr_str_name')</code> (full).",dec:""},
+
+{c:"AttributeWidget.tsx",t:"INT / Intelligence",el:"attribute name + abbr",layer:"\u2014",key:"herocard.attr_int / herocard.attr_int_name",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() for name + abbreviation"}],
+ action:"Add <code>tr('herocard.attr_int')</code> + <code>tr('herocard.attr_int_name')</code>.",dec:""},
+
+{c:"AttributeWidget.tsx",t:"CHA / Charisma",el:"attribute name + abbr",layer:"\u2014",key:"herocard.attr_cha / herocard.attr_cha_name",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() for name + abbreviation"}],
+ action:"Add <code>tr('herocard.attr_cha')</code> + <code>tr('herocard.attr_cha_name')</code>.",dec:""},
+
+{c:"AttributeWidget.tsx",t:"CON / Constitution",el:"attribute name + abbr",layer:"\u2014",key:"herocard.attr_con / herocard.attr_con_name",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() for name + abbreviation"}],
+ action:"Add <code>tr('herocard.attr_con')</code> + <code>tr('herocard.attr_con_name')</code>.",dec:""},
+
+{c:"AttributeWidget.tsx",t:"DEX / Dexterity",el:"attribute name + abbr",layer:"\u2014",key:"herocard.attr_dex / herocard.attr_dex_name",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() for name + abbreviation"}],
+ action:"Add <code>tr('herocard.attr_dex')</code> + <code>tr('herocard.attr_dex_name')</code>.",dec:""},
+
+{c:"AttributeWidget.tsx",t:"WIS / Wisdom",el:"attribute name + abbr",layer:"\u2014",key:"herocard.attr_wis / herocard.attr_wis_name",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() for name + abbreviation"}],
+ action:"Add <code>tr('herocard.attr_wis')</code> + <code>tr('herocard.attr_wis_name')</code>.",dec:""},
+
+{c:"AttributeWidget.tsx",t:"Your technical might. Grows from coding & building quests.",el:"STR description",layer:"\u2014",key:"herocard.attr_str_desc",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('herocard.attr_str_desc')</code> to seed.",dec:""},
+
+{c:"AttributeWidget.tsx",t:"Your knowledge depth. Grows from reading & research quests.",el:"INT description",layer:"\u2014",key:"herocard.attr_int_desc",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('herocard.attr_int_desc')</code> to seed.",dec:""},
+
+{c:"AttributeWidget.tsx",t:"Your communication skills. Grows from collaboration quests.",el:"CHA description",layer:"\u2014",key:"herocard.attr_cha_desc",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('herocard.attr_cha_desc')</code> to seed.",dec:""},
+
+{c:"AttributeWidget.tsx",t:"Your endurance & consistency. Grows from streaks & daily habits.",el:"CON description",layer:"\u2014",key:"herocard.attr_con_desc",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('herocard.attr_con_desc')</code> to seed.",dec:""},
+
+{c:"AttributeWidget.tsx",t:"Your agility & adaptability. Grows from diverse quest types.",el:"DEX description",layer:"\u2014",key:"herocard.attr_dex_desc",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('herocard.attr_dex_desc')</code> to seed.",dec:""},
+
+{c:"AttributeWidget.tsx",t:"Your insight & reflection. Grows from quizzes & reviews.",el:"WIS description",layer:"\u2014",key:"herocard.attr_wis_desc",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('herocard.attr_wis_desc')</code> to seed.",dec:""},
+
+{c:"AttributeWidget.tsx",t:"Base: {n}",el:"tooltip base stat",layer:"\u2014",key:"herocard.attr_base",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {n}"}],
+ action:"Add <code>tr('herocard.attr_base', 'Base: {n}')</code>.",dec:""},
+
+{c:"AttributeWidget.tsx",t:"Equip: +{n}",el:"tooltip equip bonus",layer:"\u2014",key:"herocard.attr_equip",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {n}"}],
+ action:"Add <code>tr('herocard.attr_equip', 'Equip: +{n}')</code>.",dec:""},
+
+// ══════════ COMPONENT 13: MasteryRing.tsx ══════════
+{c:"MasteryRing.tsx",t:"New",el:"mastery level label",layer:"\u2014",key:"mastery.new",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('mastery.new')</code> to seed.",dec:""},
+
+{c:"MasteryRing.tsx",t:"Attempted",el:"mastery level label",layer:"\u2014",key:"mastery.attempted",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('mastery.attempted')</code> to seed.",dec:""},
+
+{c:"MasteryRing.tsx",t:"Familiar",el:"mastery level label",layer:"\u2014",key:"mastery.familiar",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('mastery.familiar')</code> to seed.",dec:""},
+
+{c:"MasteryRing.tsx",t:"Proficient",el:"mastery level label",layer:"\u2014",key:"mastery.proficient",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('mastery.proficient')</code> to seed.",dec:""},
+
+{c:"MasteryRing.tsx",t:"Advanced",el:"mastery level label",layer:"\u2014",key:"mastery.advanced",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('mastery.advanced')</code> to seed.",dec:""},
+
+{c:"MasteryRing.tsx",t:"Mastered",el:"mastery level label",layer:"\u2014",key:"mastery.mastered",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('mastery.mastered')</code> to seed.",dec:""},
+
+{c:"MasteryRing.tsx",t:"Review overdue",el:"overdue badge",layer:"\u2014",key:"mastery.review_overdue",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('mastery.review_overdue')</code> to seed.",dec:""},
+
+// ══════════ COMPONENT 14: AchievementBadge.tsx ══════════
+{c:"AchievementBadge.tsx",t:"??? (locked placeholder)",el:"locked badge text",layer:"\u2014",key:"achievement.locked",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('achievement.locked')</code> to seed.",dec:""},
+
+{c:"AchievementBadge.tsx",t:"Locked achievement: ... (aria-labels)",el:"accessibility labels",layer:"\u2014",key:"achievement.aria_locked",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {name}"}],
+ action:"Add <code>tr('achievement.aria_locked', 'Locked achievement: {name}')</code>.",dec:""},
+
+// ══════════ COMPONENT 15: LootRevealV2.tsx ══════════
+{c:"LootRevealV2.tsx",t:"Common",el:"rarity label",layer:"refContent",key:"rarity.common",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('rarity.common')</code> to seed.",dec:""},
+
+{c:"LootRevealV2.tsx",t:"Uncommon",el:"rarity label",layer:"refContent",key:"rarity.uncommon",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('rarity.uncommon')</code> to seed.",dec:""},
+
+{c:"LootRevealV2.tsx",t:"Rare",el:"rarity label",layer:"refContent",key:"rarity.rare",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('rarity.rare')</code> to seed.",dec:""},
+
+{c:"LootRevealV2.tsx",t:"Epic",el:"rarity label",layer:"refContent",key:"rarity.epic",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('rarity.epic')</code> to seed.",dec:""},
+
+{c:"LootRevealV2.tsx",t:"Legendary",el:"rarity label",layer:"refContent",key:"rarity.legendary",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('rarity.legendary')</code> to seed.",dec:""},
+
+{c:"LootRevealV2.tsx",t:"Something is forging...",el:"loading state",layer:"\u2014",key:"loot.forging",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('loot.forging')</code> to seed.",dec:""},
+
+{c:"LootRevealV2.tsx",t:"Tap to skip",el:"skip hint",layer:"\u2014",key:"action.tap_skip",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('action.tap_skip')</code> to seed.",dec:""},
+
+{c:"LootRevealV2.tsx",t:"Claim Artifact",el:"claim button",layer:"\u2014",key:"loot.claim",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('loot.claim')</code> to seed.",dec:""},
+
+// ══════════ COMPONENT 16: InventoryDrawer.tsx ══════════
+{c:"InventoryDrawer.tsx",t:"Weapon",el:"equipment slot name",layer:"refContent",key:"equipment.slot_weapon",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('equipment.slot_weapon')</code> to seed.",dec:""},
+
+{c:"InventoryDrawer.tsx",t:"Shield",el:"equipment slot name",layer:"refContent",key:"equipment.slot_shield",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('equipment.slot_shield')</code> to seed.",dec:""},
+
+{c:"InventoryDrawer.tsx",t:"Armor",el:"equipment slot name",layer:"refContent",key:"equipment.slot_armor",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('equipment.slot_armor')</code> to seed.",dec:""},
+
+{c:"InventoryDrawer.tsx",t:"Helmet",el:"equipment slot name",layer:"refContent",key:"equipment.slot_helmet",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('equipment.slot_helmet')</code> to seed.",dec:""},
+
+{c:"InventoryDrawer.tsx",t:"Boots",el:"equipment slot name",layer:"refContent",key:"equipment.slot_boots",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('equipment.slot_boots')</code> to seed.",dec:""},
+
+{c:"InventoryDrawer.tsx",t:"Ring",el:"equipment slot name",layer:"refContent",key:"equipment.slot_ring",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('equipment.slot_ring')</code> to seed.",dec:""},
+
+{c:"InventoryDrawer.tsx",t:"Companion",el:"equipment slot name",layer:"refContent",key:"equipment.slot_companion",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('equipment.slot_companion')</code> to seed.",dec:""},
+
+{c:"InventoryDrawer.tsx",t:"Inventory",el:"drawer heading",layer:"\u2014",key:"equipment.inventory",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('equipment.inventory')</code> to seed.",dec:""},
+
+{c:"InventoryDrawer.tsx",t:"({n} items)",el:"item count",layer:"\u2014",key:"equipment.item_count",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {n}"}],
+ action:"Add <code>tr('equipment.item_count', '({n} items)')</code>.",dec:""},
+
+{c:"InventoryDrawer.tsx",t:"All",el:"filter tab",layer:"\u2014",key:"common.all",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('common.all')</code> to seed.",dec:""},
+
+{c:"InventoryDrawer.tsx",t:"Sort by Rarity / Sort by Name",el:"sort options",layer:"\u2014",key:"equipment.sort_rarity / equipment.sort_name",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add 2 tr() keys"}],
+ action:"Add <code>tr('equipment.sort_rarity')</code> + <code>tr('equipment.sort_name')</code>.",dec:""},
+
+{c:"InventoryDrawer.tsx",t:"No artifacts yet",el:"empty state title",layer:"\u2014",key:"equipment.empty_title",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('equipment.empty_title')</code> to seed.",dec:""},
+
+{c:"InventoryDrawer.tsx",t:"Complete quests to earn equipment drops!",el:"empty state subtitle",layer:"\u2014",key:"equipment.empty_subtitle",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('equipment.empty_subtitle')</code> to seed.",dec:""},
+
+{c:"InventoryDrawer.tsx",t:"Equip",el:"equip button",layer:"\u2014",key:"action.equip",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('action.equip')</code> to seed.",dec:""},
+
+{c:"InventoryDrawer.tsx",t:"Failed to equip: ...",el:"error toast",layer:"\u2014",key:"equipment.equip_error",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('equipment.equip_error')</code> to seed.",dec:""},
+
+// ══════════ COMPONENT 17: _data/achievements.ts ══════════
+{c:"achievements.ts",t:"First Steps / Complete your first quest",el:"achievement #1",layer:"refContent",key:"achievement:first_steps \u2192 title, description",type:"DB/Seed",tier:"-",i18n:"No",
+ rec:[{tag:"migrate",c:"Move to refContent + refTranslation for i18n"}],
+ action:"Add refContent row + refTranslation rows (en/uk/pl) for title + description.",dec:""},
+
+{c:"achievements.ts",t:"Adventurer / Complete 5 quests",el:"achievement #2",layer:"refContent",key:"achievement:adventurer",type:"DB/Seed",tier:"-",i18n:"No",
+ rec:[{tag:"migrate",c:"Move to refContent + refTranslation"}],
+ action:"Add refContent row + refTranslation rows.",dec:""},
+
+{c:"achievements.ts",t:"On Fire / 7-day streak",el:"achievement #3",layer:"refContent",key:"achievement:on_fire",type:"DB/Seed",tier:"-",i18n:"No",
+ rec:[{tag:"migrate",c:"Move to refContent + refTranslation"}],
+ action:"Add refContent row + refTranslation rows.",dec:""},
+
+{c:"achievements.ts",t:"31 achievements total (titles + descriptions)",el:"achievement seed data (31 rows)",layer:"refContent",key:"achievement:* \u2192 title, description",type:"DB/Seed",tier:"-",i18n:"No",
+ rec:[{tag:"migrate",c:"Batch: 31 refContent + 124 refTranslation rows (31\u00d72 fields\u00d72 locales)"}],
+ action:"Create <code>seed-achievements.ts</code>: 31 refContent rows + 124 refTranslation rows. High effort \u2014 batch script.",dec:""},
+
+// ══════════ COMPONENT 18: layout.tsx ══════════
+{c:"layout.tsx",t:"Command Center",el:"nav label",layer:"\u2014",key:"nav.home",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('nav.home')</code> to seed. Wire NAV_ITEMS to use <code>tr()</code>.",dec:""},
+
+{c:"layout.tsx",t:"Quest Map",el:"nav label",layer:"\u2014",key:"nav.questmap",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('nav.questmap')</code> to seed.",dec:""},
+
+{c:"layout.tsx",t:"The Forge",el:"nav label",layer:"\u2014",key:"nav.forge",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('nav.forge')</code> to seed.",dec:""},
+
+{c:"layout.tsx",t:"Merchant",el:"nav label",layer:"\u2014",key:"nav.shop",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('nav.shop')</code> to seed.",dec:""},
+
+{c:"layout.tsx",t:"Guild Arena",el:"nav label",layer:"\u2014",key:"nav.arena",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('nav.arena')</code> to seed.",dec:""},
+
+{c:"layout.tsx",t:"Hero Card",el:"nav label",layer:"\u2014",key:"nav.herocard",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('nav.herocard')</code> to seed.",dec:""},
+
+{c:"layout.tsx",t:"Hero Card (user menu)",el:"user menu item",layer:"\u2014",key:"nav.menu_herocard",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('nav.menu_herocard')</code> to seed.",dec:""},
+
+{c:"layout.tsx",t:"Hero Settings",el:"user menu item",layer:"\u2014",key:"nav.menu_settings",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('nav.menu_settings')</code> to seed.",dec:""},
+
+{c:"layout.tsx",t:"Quiet Mode",el:"user menu item",layer:"\u2014",key:"nav.menu_quiet",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('nav.menu_quiet')</code> to seed.",dec:""},
+
+{c:"layout.tsx",t:"Restart Journey",el:"user menu item",layer:"\u2014",key:"nav.menu_restart",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('nav.menu_restart')</code> to seed.",dec:""},
+
+{c:"layout.tsx",t:"Leave Guild",el:"user menu item",layer:"\u2014",key:"nav.menu_leave",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('nav.menu_leave')</code> to seed.",dec:""},
+
+{c:"layout.tsx",t:"Restart your journey? All progress will be reset.",el:"confirmation dialog",layer:"\u2014",key:"dashboard.restart_confirm",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.restart_confirm')</code> to seed.",dec:""},
+
+{c:"layout.tsx",t:"P2 / Plan2Skill",el:"logo text",layer:"\u2014",key:"\u2014",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"OK",c:"Brand name \u2014 no translation needed"}],
+ action:"No action. Brand stays in English.",dec:""},
+
+{c:"layout.tsx",t:"Lv.{n}",el:"level badge",layer:"\u2014",key:"common.level_short",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {n}"}],
+ action:"Add <code>tr('common.level_short', 'Lv.{n}')</code>.",dec:""},
+
+{c:"layout.tsx",t:"{xp} / {xpForNext} XP",el:"XP progress bar",layer:"\u2014",key:"dashboard.xp_progress",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {xp} {xpForNext}"}],
+ action:"Add <code>tr('dashboard.xp_progress', '{xp} / {xpForNext} XP')</code>.",dec:""},
+
+{c:"layout.tsx",t:"streak / energy / coins (stat labels)",el:"hero status labels",layer:"\u2014",key:"dashboard.stat_streak / .stat_energy / .stat_coins",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add 3 tr() keys"}],
+ action:"Add <code>tr('dashboard.stat_streak')</code>, <code>tr('dashboard.stat_energy')</code>, <code>tr('dashboard.stat_coins')</code>.",dec:""},
+
+{c:"layout.tsx",t:"Quiet mode is on / Quiet mode is off",el:"aria-labels",layer:"\u2014",key:"dashboard.aria_quiet_on / .aria_quiet_off",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Accessibility \u2014 add 2 tr() keys"}],
+ action:"Add 2 aria-label keys.",dec:""},
+
+// ══════════ COMPONENT 19: RightSidebar.tsx ══════════
+{c:"RightSidebar.tsx",t:"7 equipment slot labels",el:"sidebar equipment display",layer:"refContent",key:"equipment.slot_*",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Reuse equipment.slot_* tr() keys"}],
+ action:"Reuse shared <code>tr('equipment.slot_*')</code> keys from InventoryDrawer.",dec:""},
+
+{c:"RightSidebar.tsx",t:"Skill Mastery",el:"sidebar section heading",layer:"\u2014",key:"dashboard.skill_mastery",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Reuse dashboard.skill_mastery"}],
+ action:"Reuse <code>tr('dashboard.skill_mastery')</code>.",dec:""},
+
+{c:"RightSidebar.tsx",t:"{n} due",el:"mastery badge",layer:"\u2014",key:"dashboard.n_due",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Reuse dashboard.n_due"}],
+ action:"Reuse <code>tr('dashboard.n_due')</code>.",dec:""},
+
+{c:"RightSidebar.tsx",t:"+{n} more skills \u2192",el:"skills overflow link",layer:"\u2014",key:"dashboard.more_skills",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {n}"}],
+ action:"Add <code>tr('dashboard.more_skills', '+{n} more skills \u2192')</code>.",dec:""},
+
+{c:"RightSidebar.tsx",t:"Review {n} skill(s) \u2192",el:"review link",layer:"\u2014",key:"dashboard.review_skills",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {n} + plural"}],
+ action:"Add <code>tr('dashboard.review_skills')</code> with ICU plural.",dec:""},
+
+{c:"RightSidebar.tsx",t:"Equipment",el:"sidebar section heading",layer:"\u2014",key:"dashboard.equipment",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.equipment')</code> to seed.",dec:""},
+
+{c:"RightSidebar.tsx",t:"Manage inventory \u2192",el:"sidebar link",layer:"\u2014",key:"dashboard.manage_inventory",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.manage_inventory')</code> to seed.",dec:""},
+
+{c:"RightSidebar.tsx",t:"Community",el:"sidebar section heading",layer:"\u2014",key:"dashboard.community",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.community')</code> to seed.",dec:""},
+
+{c:"RightSidebar.tsx",t:"Party Quest / 4 heroes fighting \u00b7 Join the hunt",el:"community mock card",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"rewrite",c:"Placeholder \u2014 replace when social feature ships"}],
+ action:"Defer. Flag as mock placeholder in code.",dec:""},
+
+{c:"RightSidebar.tsx",t:"Weekly League / Opt-in \u00b7 No pressure / Bronze",el:"league mock card",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"rewrite",c:"Placeholder \u2014 replace when league feature ships"}],
+ action:"Defer. Flag as mock placeholder in code.",dec:""},
+
+{c:"RightSidebar.tsx",t:"Your quest board awaits",el:"empty state title",layer:"\u2014",key:"dashboard.sidebar_empty",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.sidebar_empty')</code> to seed.",dec:""},
+
+{c:"RightSidebar.tsx",t:"Complete quests to unlock...",el:"empty state subtitle",layer:"\u2014",key:"dashboard.sidebar_empty_sub",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.sidebar_empty_sub')</code> to seed.",dec:""},
+
+// ══════════ COMPONENT 20: _utils/xp-utils.ts ══════════
+{c:"xp-utils.ts",t:"Begin your journey, hero!",el:"progress message (0 done)",layer:"computed",key:"dashboard.progress_begin",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"},{tag:"+AI",c:"BUDGET: personalized encouragement"}],
+ action:"Add <code>tr('dashboard.progress_begin')</code>. Phase 2: AI BUDGET variation.",dec:""},
+
+{c:"xp-utils.ts",t:"All quests conquered! Glorious!",el:"progress message (all done)",layer:"computed",key:"dashboard.progress_all_done",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"},{tag:"+AI",c:"BUDGET: personalized celebration"}],
+ action:"Add <code>tr('dashboard.progress_all_done')</code>. Phase 2: AI BUDGET variation.",dec:""},
+
+{c:"xp-utils.ts",t:"One quest away from glory!",el:"progress message (1 remaining)",layer:"computed",key:"dashboard.progress_one_left",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"},{tag:"+AI",c:"BUDGET: personalized final push"}],
+ action:"Add <code>tr('dashboard.progress_one_left')</code>. Phase 2: AI BUDGET variation.",dec:""},
+
+{c:"xp-utils.ts",t:"Over halfway \u2014 keep the momentum!",el:"progress message (>50%)",layer:"computed",key:"dashboard.progress_over_half",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"},{tag:"+AI",c:"BUDGET: personalized midpoint"}],
+ action:"Add <code>tr('dashboard.progress_over_half')</code>. Phase 2: AI BUDGET variation.",dec:""},
+
+{c:"xp-utils.ts",t:"{n} quests remain on your path",el:"progress message (default)",layer:"computed",key:"dashboard.progress_remaining",type:"Dynamic",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() with ICU {n}"},{tag:"+AI",c:"BUDGET: contextual remaining message"}],
+ action:"Add <code>tr('dashboard.progress_remaining', '{n} quests remain on your path')</code>.",dec:""},
+
+{c:"xp-utils.ts",t:"Good morning",el:"time-of-day greeting",layer:"computed",key:"dashboard.greeting_morning",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.greeting_morning')</code> to seed.",dec:""},
+
+{c:"xp-utils.ts",t:"Good afternoon",el:"time-of-day greeting",layer:"computed",key:"dashboard.greeting_afternoon",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.greeting_afternoon')</code> to seed.",dec:""},
+
+{c:"xp-utils.ts",t:"Good evening",el:"time-of-day greeting",layer:"computed",key:"dashboard.greeting_evening",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add tr() key"}],
+ action:"Add <code>tr('dashboard.greeting_evening')</code> to seed.",dec:""},
+
+// ══════════ COMPONENT 21: _utils/quest-templates.ts ══════════
+{c:"quest-templates.ts",t:"Read: Introduction to ${g}",el:"quest title template (article)",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"migrate",c:"Quest content should be AI-generated"},{tag:"+AI",c:"BALANCED: AI quest generator"}],
+ action:"Remove mock template. Quest titles are AI-generated via <code>QuestGenerator</code>.",dec:""},
+
+{c:"quest-templates.ts",t:"Watch: ${g} Fundamentals",el:"quest title template (video)",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"migrate",c:"Quest content should be AI-generated"},{tag:"+AI",c:"BALANCED: AI quest generator"}],
+ action:"Remove mock template. Wire to <code>QuestGenerator</code>.",dec:""},
+
+{c:"quest-templates.ts",t:"Quiz: ${g} Basics",el:"quest title template (quiz)",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"migrate",c:"Quest content should be AI-generated"},{tag:"+AI",c:"BALANCED: AI quest generator"}],
+ action:"Remove mock template. Wire to <code>QuestGenerator</code>.",dec:""},
+
+{c:"quest-templates.ts",t:"Build: ${g} Mini-Project",el:"quest title template (project)",layer:"\u2014",key:"\u2014",type:"Mock",tier:"-",i18n:"No",
+ rec:[{tag:"migrate",c:"Quest content should be AI-generated"},{tag:"+AI",c:"BALANCED: AI quest generator"}],
+ action:"Remove mock template. Wire to <code>QuestGenerator</code>.",dec:""},
+
+{c:"quest-templates.ts",t:"Scroll / Vision / Trial / Forge",el:"quest type display names (4)",layer:"\u2014",key:"quest.type_scroll / .type_vision / .type_trial / .type_forge",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add 4 tr() keys"}],
+ action:"Add <code>tr('quest.type_scroll')</code>, <code>tr('quest.type_vision')</code>, <code>tr('quest.type_trial')</code>, <code>tr('quest.type_forge')</code>.",dec:""},
+
+{c:"quest-templates.ts",t:"Tier I / Tier II / Tier III / Tier IV / Tier V",el:"challenge tier labels (5)",layer:"\u2014",key:"quest.tier_1 / .tier_2 / .tier_3 / .tier_4 / .tier_5",type:"Static",tier:"-",i18n:"No",
+ rec:[{tag:"i18n",c:"Add 5 tr() keys"}],
+ action:"Add <code>tr('quest.tier_1')</code> through <code>tr('quest.tier_5')</code>.",dec:""},
+
+{c:"quest-templates.ts",t:"All mock task descriptions, objectives, AI tips, fun facts",el:"quest template body content",layer:"\u2014",key:"\u2014",type:"Mock",tier:"BALANCED",i18n:"No",
+ rec:[{tag:"migrate",c:"All should be AI-generated"},{tag:"+AI",c:"BALANCED: quest/quiz/fun-fact generators"}],
+ action:"Remove all mock content. Already wired to AI generators: <code>QuestGenerator</code>, <code>QuizGenerator</code>, <code>FunFactGenerator</code>.",dec:""},
+
+{c:"quest-templates.ts",t:"All mock quiz questions and options",el:"quest template quiz content",layer:"\u2014",key:"\u2014",type:"Mock",tier:"BUDGET",i18n:"No",
+ rec:[{tag:"migrate",c:"Replace with AI-generated quizzes"},{tag:"+AI",c:"BUDGET: QuizGenerator"}],
+ action:"Remove mock quiz data. Wire to <code>QuizGenerator</code> which produces locale-aware output.",dec:""},
+];
+
+let currentRows = [];
+
+function renderTable(data) {
+  const tbody = document.getElementById('auditBody');
+  tbody.innerHTML = '';
+  currentRows = data;
+  document.getElementById('rowCount').textContent = data.length + ' / ' + DATA.length + ' rows';
+  data.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    tr.className = 'data-row';
+    tr.dataset.component = r.c;
+    tr.dataset.type = r.type;
+    tr.dataset.layer = r.layer;
+
+    const typeClass = r.type === 'Static' ? 'b-static' : r.type === 'Dynamic' ? 'b-dynamic' : r.type === 'AI-Gen' ? 'b-ai' : r.type === 'DB/Seed' ? 'b-db' : r.type === 'Mock' ? 'b-mock' : 'b-store';
+    const tierClass = r.tier === 'BUDGET' ? 'b-budget' : r.tier === 'BALANCED' ? 'b-balanced' : r.tier === 'QUALITY' ? 'b-quality' : r.tier === 'TEMPLATE' ? 'b-template' : 'b-none';
+    const i18nClass = r.i18n === 'Yes' ? 'b-yes' : r.i18n === 'Partial' ? 'b-warn' : r.i18n === 'Locale-driven' ? 'b-i18n' : 'b-no';
+    const layerClass = r.layer === 'next-intl' ? 'b-layer-intl' : r.layer === 'refContent' ? 'b-layer-ref' : r.layer === 'AI gen' ? 'b-layer-ai' : r.layer === 'computed' ? 'b-layer-compute' : 'b-layer-none';
+
+    let recHtml = '';
+    if (r.rec && r.rec.length > 0) {
+      recHtml = r.rec.map(rc => {
+        const cls = rc.tag === 'i18n' ? 'rec-i18n' : rc.tag === '+AI' ? 'rec-ai' : rc.tag === 'migrate' ? 'rec-migrate' : rc.tag === 'OK' ? 'rec-ok' : rc.tag === 'rewrite' ? 'rec-rewrite' : rc.tag === 'wire-up' ? 'rec-wire' : 'rec-ok';
+        return '<span class="rec-tag ' + cls + '">' + escHtml(rc.tag) + '</span> ' + escHtml(rc.c);
+      }).join('<br>');
+    }
+
+    tr.innerHTML =
+      '<td style="color:var(--muted);font-size:10px;">' + (i+1) + '</td>' +
+      '<td class="text-col">' + escHtml(r.t) + '</td>' +
+      '<td>' + escHtml(r.c) + '</td>' +
+      '<td>' + escHtml(r.el) + '</td>' +
+      '<td><span class="badge ' + layerClass + '">' + escHtml(r.layer) + '</span></td>' +
+      '<td class="key-col">' + escHtml(r.key) + '</td>' +
+      '<td><span class="badge ' + typeClass + '">' + r.type + '</span></td>' +
+      '<td><span class="badge ' + tierClass + '">' + r.tier + '</span></td>' +
+      '<td><span class="badge ' + i18nClass + '">' + r.i18n + '</span></td>' +
+      '<td class="rec-cell">' + recHtml + '</td>' +
+      '<td class="action-cell">' + r.action + '</td>' +
+      '<td class="decision-cell"><textarea placeholder="Decision..." data-idx="' + i + '">' + escHtml(r.dec) + '</textarea></td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function applyFilters() {
+  const component = document.getElementById('filterComponent').value;
+  const layer = document.getElementById('filterLayer').value;
+  const type = document.getElementById('filterType').value;
+  const i18nStatus = document.getElementById('filterI18n').value;
+  const rec = document.getElementById('filterRec').value;
+  const text = document.getElementById('filterText').value.toLowerCase();
+
+  let filtered = DATA;
+  if (component) filtered = filtered.filter(r => r.c === component);
+  if (layer) filtered = filtered.filter(r => r.layer === layer);
+  if (type) {
+    if (type === 'Static') filtered = filtered.filter(r => r.type === 'Static');
+    else if (type === 'Dynamic') filtered = filtered.filter(r => r.type === 'Dynamic');
+    else if (type === 'AI-Gen') filtered = filtered.filter(r => r.type === 'AI-Gen');
+    else if (type === 'DB/Seed') filtered = filtered.filter(r => r.type === 'DB/Seed');
+    else if (type === 'Mock') filtered = filtered.filter(r => r.type === 'Mock');
+  }
+  if (i18nStatus) filtered = filtered.filter(r => r.i18n === i18nStatus);
+  if (rec) filtered = filtered.filter(r => r.rec && r.rec.some(rc => rc.tag === rec));
+  if (text) filtered = filtered.filter(r =>
+    r.t.toLowerCase().includes(text) ||
+    r.c.toLowerCase().includes(text) ||
+    r.el.toLowerCase().includes(text) ||
+    r.key.toLowerCase().includes(text) ||
+    r.action.toLowerCase().includes(text) ||
+    (r.rec && r.rec.some(rc => rc.c.toLowerCase().includes(text)))
+  );
+  renderTable(filtered);
+}
+
+function exportCSV() {
+  const textareas = document.querySelectorAll('.decision-cell textarea');
+  textareas.forEach(ta => {
+    const idx = parseInt(ta.dataset.idx);
+    if (currentRows[idx]) currentRows[idx].dec = ta.value;
+  });
+
+  let csv = 'No,Text,Component,Element,Layer,Key,Type,AI Tier,i18n,Recommendation,Action Required,Decision\n';
+  currentRows.forEach((r, i) => {
+    const recText = r.rec ? r.rec.map(rc => '[' + rc.tag + '] ' + rc.c).join(' | ') : '';
+    csv += (i+1) + ',"' + r.t.replace(/"/g,'""') + '","' + r.c.replace(/"/g,'""') + '","' + r.el.replace(/"/g,'""') + '","' + r.layer + '","' + r.key.replace(/"/g,'""') + '","' + r.type + '","' + r.tier + '","' + r.i18n + '","' + recText.replace(/"/g,'""') + '","' + r.action.replace(/<[^>]+>/g,'').replace(/"/g,'""') + '","' + r.dec.replace(/"/g,'""') + '"\n';
+  });
+
+  const blob = new Blob(['\ufeff' + csv], {type: 'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'plan2skill-dashboard-content-audit.csv';
+  a.click();
+}
+
+function saveDecisions() {
+  const textareas = document.querySelectorAll('.decision-cell textarea');
+  const decisions = {};
+  textareas.forEach(ta => {
+    const idx = parseInt(ta.dataset.idx);
+    if (ta.value.trim()) {
+      decisions[idx] = {
+        text: currentRows[idx]?.t || '',
+        component: currentRows[idx]?.c || '',
+        layer: currentRows[idx]?.layer || '',
+        key: currentRows[idx]?.key || '',
+        action: currentRows[idx]?.action?.replace(/<[^>]+>/g,'') || '',
+        recommendation: currentRows[idx]?.rec ? currentRows[idx].rec.map(rc => '[' + rc.tag + '] ' + rc.c).join(' | ') : '',
+        decision: ta.value.trim(),
+      };
+    }
+  });
+
+  const blob = new Blob([JSON.stringify(decisions, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'plan2skill-dashboard-decisions.json';
+  a.click();
+}
+
+renderTable(DATA);
+</script>
+</body>
+</html>

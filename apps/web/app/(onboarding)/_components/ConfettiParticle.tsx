@@ -32,7 +32,8 @@ export function ConfettiParticle({ index }: { index: number }) {
   );
 }
 
-export function ConfettiLayer({ count = 30 }: { count?: number }) {
+export function ConfettiLayer({ count = 12, reducedMotion = false }: { count?: number; reducedMotion?: boolean }) {
+  if (reducedMotion) return null;
   return (
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
       {Array.from({ length: count }, (_, i) => (

@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useI18nStore } from '@plan2skill/store';
 import { useMachine } from '@xstate/react';
 import { lootRevealMachine } from '../_machines/loot-reveal.machine';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
@@ -27,6 +28,7 @@ interface LootRevealV2Props {
 }
 
 export function LootRevealV2({ lootDrop, onClaim }: LootRevealV2Props) {
+  const tr = useI18nStore((s) => s.t);
   const [state, send] = useMachine(lootRevealMachine);
 
   // Trigger reveal when lootDrop arrives
@@ -50,9 +52,22 @@ export function LootRevealV2({ lootDrop, onClaim }: LootRevealV2Props) {
   const prefersReducedMotion = typeof window !== 'undefined'
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  if (prefersReducedMotion && (isTeasing || isRevealing)) {
-    send({ type: 'SKIP' });
-  }
+  // Claim button press feedback (Micro tier: 150ms)
+  const [pressedClaim, setPressedClaim] = useState(false);
+
+  // Overlay exit animation (MA-TR003: exit 200ms < enter 300ms)
+  const [exiting, setExiting] = useState(false);
+  const handleClaimWithExit = useCallback(() => {
+    if (prefersReducedMotion) { send({ type: 'CLAIM' }); onClaim(); return; }
+    setExiting(true);
+    setTimeout(() => { send({ type: 'CLAIM' }); onClaim(); setExiting(false); }, 200);
+  }, [send, onClaim, prefersReducedMotion]);
+
+  useEffect(() => {
+    if (prefersReducedMotion && (isTeasing || isRevealing)) {
+      send({ type: 'SKIP' });
+    }
+  }, [prefersReducedMotion, isTeasing, isRevealing, send]);
 
   return (
     <div
@@ -64,6 +79,8 @@ export function LootRevealV2({ lootDrop, onClaim }: LootRevealV2Props) {
         background: 'rgba(0,0,0,0.7)',
         backdropFilter: 'blur(8px)',
         animation: 'fadeUp 0.3s ease-out',
+        opacity: exiting ? 0 : 1,
+        transition: exiting ? 'opacity 0.2s ease-in' : undefined,
       }}
       onClick={() => {
         if (isTeasing || isRevealing) send({ type: 'SKIP' });
@@ -73,7 +90,9 @@ export function LootRevealV2({ lootDrop, onClaim }: LootRevealV2Props) {
         width: 320, padding: 32, borderRadius: 24, textAlign: 'center',
         background: t.bgCard, border: `1px solid ${rarityConfig.color}40`,
         boxShadow: `0 0 ${40 * rarityConfig.intensity}px ${rarityConfig.color}30`,
-        animation: isRevealing ? 'cardFlip 1.5s ease-out' : 'bounceIn 0.4s ease-out',
+        animation: exiting
+          ? 'fadeUp 0.2s ease-in reverse forwards'
+          : isRevealing ? 'cardFlip 1.5s ease-out' : 'bounceIn 0.4s ease-out',
       }}>
         {/* Teasing state — chest glow */}
         {isTeasing && (
@@ -87,10 +106,10 @@ export function LootRevealV2({ lootDrop, onClaim }: LootRevealV2Props) {
               <NeonIcon type="gift" size={40} color={rarityConfig.color} />
             </div>
             <p style={{ fontFamily: t.display, fontSize: 16, fontWeight: 700, color: t.text, marginTop: 12 }}>
-              Something is forging...
+              {tr('loot.forging', 'Something is forging...')}
             </p>
             <p style={{ fontFamily: t.body, fontSize: 11, color: t.textMuted, marginTop: 4 }}>
-              Tap to skip
+              {tr('loot.tap_skip', 'Tap to skip')}
             </p>
           </div>
         )}
@@ -98,17 +117,18 @@ export function LootRevealV2({ lootDrop, onClaim }: LootRevealV2Props) {
         {/* Revealing / Revealed / Claimed — show item */}
         {(isRevealing || isRevealed || isClaimed) && (
           <>
-            {/* Rarity badge */}
+            {/* Rarity badge — bounceIn on reveal (Micro tier: 400ms + 300ms delay) */}
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
               padding: '4px 14px', borderRadius: 20, marginBottom: 16,
               background: `${rarityConfig.color}15`, border: `1px solid ${rarityConfig.color}40`,
+              animation: isRevealed ? 'bounceIn 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.3s both' : undefined,
             }}>
               <span style={{ fontFamily: t.mono, fontSize: 14, color: rarityConfig.color }}>
                 {rarityConfig.icon}
               </span>
               <span style={{ fontFamily: t.mono, fontSize: 11, fontWeight: 800, color: rarityConfig.color, textTransform: 'uppercase' }}>
-                {rarityConfig.label}
+                {tr(`rarity.${item.rarity}`, rarityConfig.label)}
               </span>
             </div>
 
@@ -162,25 +182,25 @@ export function LootRevealV2({ lootDrop, onClaim }: LootRevealV2Props) {
               </div>
             )}
 
-            {/* Claim button */}
+            {/* Claim button — press feedback (Micro tier: 150ms) */}
             {isRevealed && (
               <button
-                onClick={() => {
-                  send({ type: 'CLAIM' });
-                  onClaim();
-                }}
+                onClick={handleClaimWithExit}
+                onMouseDown={() => setPressedClaim(true)}
+                onMouseUp={() => setPressedClaim(false)}
+                onMouseLeave={() => setPressedClaim(false)}
                 style={{
                   padding: '12px 32px', borderRadius: 14, border: 'none',
                   background: `linear-gradient(135deg, ${rarityConfig.color}, ${t.violet})`,
                   fontFamily: t.display, fontSize: 14, fontWeight: 800,
                   color: '#FFF', cursor: 'pointer',
                   boxShadow: `0 4px 16px ${rarityConfig.color}40`,
-                  transition: 'transform 0.15s ease',
+                  transition: 'transform 0.15s ease-out',
+                  transform: pressedClaim ? 'scale(0.98)' : 'scale(1)',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
-                onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                onMouseEnter={(e) => { if (!pressedClaim) e.currentTarget.style.transform = 'scale(1.05)'; }}
               >
-                Claim Artifact
+                {tr('loot.claim', 'Claim Artifact')}
               </button>
             )}
           </>

@@ -6,6 +6,21 @@ import { RoadmapService } from '../roadmap/roadmap.service';
 import { AchievementService } from '../achievement/achievement.service';
 import { CharacterService } from '../character/character.service';
 import { SkillEloService } from '../skill-elo/skill-elo.service';
+import { LeagueService } from '../social/league.service';
+import { PartyQuestService } from '../social/party-quest.service';
+import { InsightGeneratorService } from '../ai/core/insight-generator.service';
+import { CacheService } from '../ai/core/cache.service';
+
+/** Trigger insight generation every N completions */
+const INSIGHT_GENERATION_INTERVAL = 5;
+
+// ─── XP Caps by Subscription Tier (DEC-007) ─────────────────────
+
+const XP_CAPS: Record<string, { cap: number; postCapRate: number }> = {
+  free: { cap: 150, postCapRate: 0.1 },
+  pro: { cap: 500, postCapRate: 0.25 },
+  champion: { cap: 1000, postCapRate: 0.5 },
+};
 
 @Injectable()
 export class ProgressionService {
@@ -20,6 +35,12 @@ export class ProgressionService {
     @Inject(forwardRef(() => CharacterService))
     private readonly characterService: CharacterService,
     private readonly skillEloService: SkillEloService,
+    @Inject(forwardRef(() => LeagueService))
+    private readonly leagueService: LeagueService,
+    @Inject(forwardRef(() => PartyQuestService))
+    private readonly partyQuestService: PartyQuestService,
+    private readonly insightGeneratorService: InsightGeneratorService,
+    private readonly cacheService: CacheService,
   ) {}
 
   /**
@@ -162,6 +183,17 @@ export class ProgressionService {
             frozenAt: null,
           },
         });
+
+        // Phase 5F: Daily login bonus (10 coins) + streak milestone (25 coins at 7-day multiples)
+        let coinBonus = 10;
+        if (newStreak > 0 && newStreak % 7 === 0) {
+          coinBonus += 25;
+        }
+        await this.prisma.userProgression.update({
+          where: { userId },
+          data: { coins: { increment: coinBonus } },
+        });
+
         return { updated: true, currentStreak: newStreak, status: 'active' };
       }
     }
@@ -180,10 +212,18 @@ export class ProgressionService {
     return { updated: true, currentStreak: 1, status: 'active' };
   }
 
-  /** Convert a Date to midnight in user's timezone (for day boundary) */
+  /** Convert a Date to midnight in user's timezone, expressed as UTC */
   private dateInTimezone(date: Date, timezone: string): Date {
-    const str = date.toLocaleDateString('en-CA', { timeZone: timezone }); // YYYY-MM-DD
-    return new Date(str + 'T00:00:00Z');
+    const dateStr = date.toLocaleDateString('en-CA', { timeZone: timezone });
+    const midnightLocal = new Date(`${dateStr}T00:00:00`);
+    const midnightInTz = new Date(
+      midnightLocal.toLocaleString('en-US', { timeZone: timezone }),
+    );
+    const midnightUtc = new Date(
+      midnightLocal.toLocaleString('en-US', { timeZone: 'UTC' }),
+    );
+    const offsetMs = midnightUtc.getTime() - midnightInTz.getTime();
+    return new Date(midnightLocal.getTime() + offsetMs);
   }
 
   /** Get full progression profile for a user */
@@ -245,6 +285,75 @@ export class ProgressionService {
     };
   }
 
+  /**
+   * DA-07: Calculate effective XP with soft cap (diminishing returns).
+   * Never zeroes out — always returns at least 1 XP.
+   *
+   * DEC-007 caps:
+   *   Free: 150 XP/day (10% after cap)
+   *   Pro: 500 XP/day (25% after cap)
+   *   Champion: 1000 XP/day (50% after cap)
+   */
+  private async calculateEffectiveXp(userId: string, rawXp: number): Promise<number> {
+    const progression = await this.prisma.userProgression.findUnique({
+      where: { userId },
+      select: { subscriptionTier: true },
+    });
+    const tier = progression?.subscriptionTier ?? 'free';
+    const tierCaps = XP_CAPS[tier];
+    const cap = tierCaps?.cap ?? 150;
+    const postCapRate = tierCaps?.postCapRate ?? 0.1;
+
+    // Get user timezone
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { timezone: true },
+    });
+    const todayStart = this.todayStartInTimezone(user?.timezone ?? 'UTC');
+
+    // Sum today's XP
+    const result = await this.prisma.xPEvent.aggregate({
+      where: {
+        userId,
+        createdAt: { gte: todayStart },
+      },
+      _sum: { amount: true },
+    });
+    const dailyXpEarned = result._sum.amount ?? 0;
+
+    if (dailyXpEarned < cap) {
+      // Under cap — full XP
+      const overflow = Math.max(0, dailyXpEarned + rawXp - cap);
+      if (overflow === 0) {
+        return rawXp;
+      }
+      // Partially capped
+      const fullPortion = rawXp - overflow;
+      const reducedPortion = Math.max(1, Math.floor(overflow * postCapRate));
+      return fullPortion + reducedPortion;
+    }
+
+    // Fully over cap — diminishing returns
+    return Math.max(1, Math.floor(rawXp * postCapRate));
+  }
+
+  /**
+   * Get the start of today in the user's timezone, expressed as a UTC Date.
+   */
+  private todayStartInTimezone(timezone: string): Date {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-CA', { timeZone: timezone });
+    const midnightLocal = new Date(`${dateStr}T00:00:00`);
+    const midnightInTz = new Date(
+      midnightLocal.toLocaleString('en-US', { timeZone: timezone }),
+    );
+    const midnightUtc = new Date(
+      midnightLocal.toLocaleString('en-US', { timeZone: 'UTC' }),
+    );
+    const offsetMs = midnightUtc.getTime() - midnightInTz.getTime();
+    return new Date(midnightLocal.getTime() + offsetMs);
+  }
+
   /** XP already earned in current level */
   private xpInCurrentLevel(totalXp: number, level: number): number {
     // Cumulative XP to reach current level = 10*(level-1)² + 90*(level-1)
@@ -302,14 +411,31 @@ export class ProgressionService {
       data: { status: 'completed', completedAt: new Date() },
     });
 
+    // Unlock next task in milestone
+    const nextTask = await this.prisma.task.findFirst({
+      where: {
+        milestoneId: task.milestoneId,
+        status: 'locked',
+        order: { gt: task.order },
+      },
+      orderBy: { order: 'asc' },
+    });
+    if (nextTask) {
+      await this.prisma.task.update({
+        where: { id: nextTask.id },
+        data: { status: 'available' },
+      });
+    }
+
     // Consume energy crystal
     await this.prisma.userProgression.update({
       where: { userId },
       data: { energyCrystals: { decrement: 1 } },
     });
 
-    // Award XP
-    const xpResult = await this.awardXp(userId, task.xpReward, 'task_complete');
+    // Award XP (with soft cap enforcement — DEC-007)
+    const effectiveXp = await this.calculateEffectiveXp(userId, task.xpReward);
+    const xpResult = await this.awardXp(userId, effectiveXp, 'task_complete');
 
     // Award coins
     await this.prisma.userProgression.update({
@@ -334,6 +460,7 @@ export class ProgressionService {
         rarity: task.rarity,
         baseXp: task.xpReward,
         bonusXp: 0,
+        qualityScore: (validationResult as Record<string, unknown>)?.qualityScore as number ?? null,
         validationResult: validationResult as any,
         timeSpentSeconds: timeSpentSeconds ?? null,
       },
@@ -350,11 +477,19 @@ export class ProgressionService {
     // Update streak with timezone
     const streakResult = await this.updateStreak(userId, timezone);
 
-    // Check milestone completion
-    const completedTasks = task.milestone.tasks.filter(
-      (t) => t.status === 'completed' || t.id === taskId,
-    ).length;
-    const totalTasks = task.milestone.tasks.length;
+    // League XP (non-blocking)
+    this.leagueService.addWeeklyXp(userId, xpResult.xpEarned).catch(() => {});
+
+    // Party Quest damage (non-blocking)
+    this.partyQuestService.dealDamage(userId, xpResult.xpEarned).catch(() => {});
+
+    // Fresh query for milestone completion check (avoids stale snapshot)
+    const freshMilestone = await this.prisma.milestone.findUnique({
+      where: { id: task.milestoneId },
+      include: { tasks: { select: { id: true, status: true } } },
+    });
+    const completedTasks = freshMilestone!.tasks.filter(t => t.status === 'completed').length;
+    const totalTasks = freshMilestone!.tasks.length;
     const milestoneCompleted = completedTasks >= totalTasks;
 
     // Phase 5H: Attribute growth on milestone completion
@@ -366,6 +501,34 @@ export class ProgressionService {
         where: { id: task.milestoneId },
         data: { status: 'completed', progress: 100 },
       });
+
+      // Activate next milestone in sequence
+      const nextMilestone = await this.prisma.milestone.findFirst({
+        where: {
+          roadmapId: task.milestone.roadmapId,
+          status: 'locked',
+          order: { gt: task.milestone.order },
+        },
+        orderBy: { order: 'asc' },
+      });
+      if (nextMilestone) {
+        await this.prisma.milestone.update({
+          where: { id: nextMilestone.id },
+          data: { status: 'active' },
+        });
+        // Unlock first task of new milestone
+        const firstTask = await this.prisma.task.findFirst({
+          where: { milestoneId: nextMilestone.id, status: 'locked' },
+          orderBy: { order: 'asc' },
+        });
+        if (firstTask) {
+          await this.prisma.task.update({
+            where: { id: firstTask.id },
+            data: { status: 'available' },
+          });
+        }
+      }
+
       await this.awardXp(userId, 100, 'milestone_complete');
 
       // Find dominant skill domain from milestone tasks
@@ -386,12 +549,12 @@ export class ProgressionService {
             where: { skillDomain: dominantDomain, validTo: null },
           });
           if (mapping) {
-            await this.characterService.addAttribute(userId, mapping.primaryAttr, mapping.primaryGrowth);
-            await this.characterService.addAttribute(userId, mapping.secondaryAttr, mapping.secondaryGrowth);
+            const effectivePrimary = await this.characterService.addAttribute(userId, mapping.primaryAttr, mapping.primaryGrowth);
+            const effectiveSecondary = await this.characterService.addAttribute(userId, mapping.secondaryAttr, mapping.secondaryGrowth);
             evolutionTierChange = await this.characterService.checkEvolution(userId);
             attributeGrowthResult = [
-              { attribute: mapping.primaryAttr, amount: mapping.primaryGrowth },
-              { attribute: mapping.secondaryAttr, amount: mapping.secondaryGrowth },
+              { attribute: mapping.primaryAttr, amount: effectivePrimary },
+              { attribute: mapping.secondaryAttr, amount: effectiveSecondary },
             ];
           }
         } catch {
@@ -414,7 +577,7 @@ export class ProgressionService {
     const completedRoadmapTasks = allMilestones.reduce(
       (sum, m) => sum + m.tasks.filter((t) => t.status === 'completed').length,
       0,
-    ) + 1;
+    );
     const roadmapProgress = totalRoadmapTasks > 0
       ? (completedRoadmapTasks / totalRoadmapTasks) * 100
       : 0;
@@ -453,6 +616,19 @@ export class ProgressionService {
       });
     }
 
+    // Cache invalidation after quest completion (non-blocking)
+    this.cacheService.invalidateForEvent(userId, 'quest_complete').catch(() => {});
+
+    // L4: Trigger insight generation every N completions (non-blocking)
+    this.prisma.questCompletion
+      .count({ where: { userId } })
+      .then((count) => {
+        if (count > 0 && count % INSIGHT_GENERATION_INTERVAL === 0) {
+          this.insightGeneratorService.generateInsights(userId).catch(() => {});
+        }
+      })
+      .catch(() => {});
+
     return {
       xpEarned: xpResult.xpEarned,
       coinsEarned: task.coinReward,
@@ -463,6 +639,7 @@ export class ProgressionService {
       streakUpdated: streakResult.updated,
       currentStreak: streakResult.currentStreak,
       milestoneCompleted,
+      milestoneId: task.milestoneId,
       roadmapProgress,
       roadmapCompleted,
       lootDrop,

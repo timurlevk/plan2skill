@@ -445,6 +445,39 @@ export class NarrativeService {
     return { status: 'archived' };
   }
 
+  // ─── Scheduled Publishing ────────────────────────────────────
+
+  /**
+   * Publish all episodes that are reviewed and past their publishAt date.
+   * Called by NarrativeSchedulerService on a 5-minute interval.
+   */
+  async publishScheduledEpisodes(): Promise<number> {
+    const now = new Date();
+
+    const episodes = await this.prisma.episode.findMany({
+      where: {
+        status: 'reviewed',
+        publishAt: { lte: now },
+      },
+      select: { id: true },
+    });
+
+    if (episodes.length === 0) return 0;
+
+    const ids = episodes.map((e) => e.id);
+
+    await this.prisma.episode.updateMany({
+      where: { id: { in: ids } },
+      data: {
+        status: 'published',
+        publishedAt: now,
+      },
+    });
+
+    this.logger.log(`Published ${ids.length} scheduled episodes`);
+    return ids.length;
+  }
+
   // ─── Internal Helpers ─────────────────────────────────────────
 
   private async getOrCreatePreference(userId: string) {

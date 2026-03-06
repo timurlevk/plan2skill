@@ -82,6 +82,64 @@ export class CacheService {
     }
   }
 
+  /**
+   * Event-driven cache invalidation.
+   * Invalidates cached results that become stale after specific events.
+   */
+  async invalidateForEvent(
+    userId: string,
+    event: 'quest_complete' | 'roadmap_change' | 'character_change',
+  ): Promise<void> {
+    try {
+      // Build list of generator type prefixes to invalidate (scoped to userId)
+      let prefixes: string[];
+
+      switch (event) {
+        case 'quest_complete':
+          prefixes = [
+            `quest:${userId}:`,
+            `recommendation:${userId}:`,
+            `quiz:${userId}:`,
+            `assessment:${userId}:`,
+            `code-challenge:${userId}:`,
+          ];
+          break;
+        case 'roadmap_change':
+          prefixes = [
+            `quest:${userId}:`,
+            `recommendation:${userId}:`,
+            `resource:${userId}:`,
+            `code-challenge:${userId}:`,
+            `narrative:${userId}:`,
+          ];
+          break;
+        case 'character_change':
+          prefixes = [`motivational:${userId}:`];
+          break;
+        default: {
+          const _exhaustive: never = event;
+          this.logger.warn(`Unknown cache event: ${_exhaustive}`);
+          return;
+        }
+      }
+
+      // Delete all matching cache entries (fire in parallel)
+      await Promise.all(
+        prefixes.map((prefix) =>
+          this.prisma.aiCache.deleteMany({
+            where: { cacheKey: { startsWith: prefix } },
+          }),
+        ),
+      );
+
+      this.logger.debug(
+        `Cache invalidated for user "${userId}", event "${event}", prefixes: ${prefixes.join(', ')}`,
+      );
+    } catch (err) {
+      this.logger.warn(`Cache invalidateForEvent failed: ${event}`, err);
+    }
+  }
+
   private cleanup(): void {
     this.prisma.aiCache
       .deleteMany({ where: { expiresAt: { lt: new Date() } } })

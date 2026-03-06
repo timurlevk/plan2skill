@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useOnboardingStore } from '@plan2skill/store';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
 import { t } from '../../../(onboarding)/_components/tokens';
@@ -37,7 +37,7 @@ function buildStatRows(stats: RoadmapCompletionStats | null) {
 // Confetti particles
 function ConfettiParticles() {
   const particles = useMemo(() =>
-    Array.from({ length: 30 }, (_, i) => ({
+    Array.from({ length: 8 }, (_, i) => ({
       id: i,
       left: `${Math.random() * 100}%`,
       delay: `${Math.random() * 2}s`,
@@ -73,6 +73,12 @@ export function CompletionCelebration({
   onSkip,
   onClaimTrophy,
 }: CompletionCelebrationProps) {
+  // SSR-safe reduced-motion hook (BLOCKER — Крок 9)
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  useEffect(() => {
+    setPrefersReducedMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }, []);
+
   const characterId = useOnboardingStore((s) => s.characterId);
   const charMeta = CHARACTERS.find((c) => c.id === characterId);
 
@@ -106,14 +112,14 @@ export function CompletionCelebration({
         cursor: isTrophyClaim ? 'default' : 'pointer',
       }}
     >
-      {/* Confetti */}
-      <ConfettiParticles />
+      {/* Confetti — hidden when reduced motion preferred */}
+      {!prefersReducedMotion && <ConfettiParticles />}
 
       {/* Title */}
       <h1 style={{
         fontFamily: t.display, fontSize: 32, fontWeight: 900,
         color: t.gold, textAlign: 'center',
-        animation: 'celebratePop 0.6s ease-out 0.3s both',
+        animation: prefersReducedMotion ? 'none' : 'celebratePop 0.6s ease-out 0.3s both',
         textShadow: `0 0 20px ${t.gold}40`,
         marginBottom: 16,
       }}>
@@ -123,7 +129,7 @@ export function CompletionCelebration({
       {/* Character */}
       {charData && (
         <div style={{
-          animation: 'bounceIn 0.5s ease-out 0.6s both',
+          animation: prefersReducedMotion ? 'none' : 'bounceIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.6s both',
           marginBottom: 16,
         }}>
           <AnimatedPixelCanvas
@@ -140,19 +146,19 @@ export function CompletionCelebration({
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: `${t.gold}15`, border: `2px solid ${t.gold}`,
         boxShadow: `0 0 20px ${t.gold}30`,
-        animation: 'slideUp 0.5s ease-out 0.9s both',
+        animation: prefersReducedMotion ? 'none' : 'slideUp 0.5s ease-out 0.9s both',
         marginBottom: 24,
       }}>
         <NeonIcon type="trophy" size={32} color={t.gold} />
       </div>
 
-      {/* Stats summary card */}
+      {/* Stats summary card — no stagger delays when reduced motion */}
       {stats && (
         <div style={{
           width: '100%', maxWidth: 360,
           padding: 20, borderRadius: 16,
           background: t.bgCard, border: `1px solid ${t.border}`,
-          animation: 'fadeUp 0.4s ease-out 1.2s both',
+          animation: prefersReducedMotion ? 'none' : 'fadeUp 0.4s ease-out 1.2s both',
           marginBottom: 24,
         }}>
           {statRows.map((row, i) => (
@@ -162,7 +168,7 @@ export function CompletionCelebration({
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '8px 0',
                 borderBottom: i < statRows.length - 1 ? `1px solid ${t.border}` : 'none',
-                animation: `fadeUp 0.3s ease-out ${1.3 + i * 0.1}s both`,
+                animation: prefersReducedMotion ? 'none' : `fadeUp 0.3s ease-out ${1.3 + i * 0.1}s both`,
               }}
             >
               <NeonIcon type={row.icon} size={16} color={row.color} />
@@ -190,11 +196,11 @@ export function CompletionCelebration({
             padding: '14px 28px', borderRadius: 14,
             background: `linear-gradient(135deg, ${t.gold}, ${t.violet})`,
             border: 'none', cursor: 'pointer',
-            animation: 'fadeUp 0.4s ease-out 1.8s both',
-            transition: 'transform 0.2s ease',
+            animation: prefersReducedMotion ? 'none' : 'fadeUp 0.4s ease-out 1.8s both',
+            transition: prefersReducedMotion ? 'none' : 'transform 0.2s ease',
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+          onMouseEnter={(e) => { if (!prefersReducedMotion) e.currentTarget.style.transform = 'translateY(-2px)'; }}
+          onMouseLeave={(e) => { if (!prefersReducedMotion) e.currentTarget.style.transform = 'translateY(0)'; }}
         >
           <NeonIcon type="trophy" size={18} color="#FFF" />
           <span style={{
@@ -205,15 +211,37 @@ export function CompletionCelebration({
         </button>
       )}
 
-      {/* Tap to skip hint (during auto-play) */}
+      {/* Tap to skip — prominent, accessible button (UX-R164: Macro animations MUST be interruptible) */}
       {!isTrophyClaim && (
-        <p style={{
-          fontFamily: t.body, fontSize: 11, color: t.textMuted,
-          position: 'absolute', bottom: 24,
-          animation: 'fadeUp 0.3s ease-out 1s both',
-        }}>
-          Tap anywhere to skip
-        </p>
+        <button
+          onClick={(e) => { e.stopPropagation(); onSkip(); }}
+          aria-label="Skip celebration"
+          style={{
+            position: 'absolute', bottom: 24,
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '10px 20px', borderRadius: 12,
+            background: `${t.bgCard}CC`,
+            border: `1px solid ${t.border}`,
+            cursor: 'pointer',
+            fontFamily: t.body, fontSize: 13, fontWeight: 600,
+            color: t.textSecondary,
+            animation: prefersReducedMotion ? 'none' : 'fadeUp 0.3s ease-out 0.6s both',
+            transition: 'border-color 0.2s ease, color 0.2s ease',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = t.violet;
+            e.currentTarget.style.color = t.text;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = t.border;
+            e.currentTarget.style.color = t.textSecondary;
+          }}
+        >
+          Skip
+          <span style={{ fontSize: 11, color: t.textMuted }}>or tap anywhere</span>
+        </button>
       )}
     </div>
   );

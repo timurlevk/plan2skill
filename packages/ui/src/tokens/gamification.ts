@@ -54,12 +54,18 @@ export const ARCHETYPES: ArchetypeConfig[] = [
 // ─── Attributes ──────────────────────────────────────────────────
 
 export const ATTRIBUTES: AttributeConfig[] = [
-  { key: 'MAS', name: 'MAS', fullName: 'Mastery', icon: '⚔', color: '#9D7AFF' },
-  { key: 'INS', name: 'INS', fullName: 'Insight', icon: '◈', color: '#3B82F6' },
-  { key: 'INF', name: 'INF', fullName: 'Influence', icon: '◉', color: '#FF6B8A' },
-  { key: 'RES', name: 'RES', fullName: 'Resilience', icon: '◆', color: '#6EE7B7' },
-  { key: 'VER', name: 'VER', fullName: 'Versatility', icon: '✦', color: '#4ECDC4' },
-  { key: 'DIS', name: 'DIS', fullName: 'Discovery', icon: '★', color: '#FFD166' },
+  { key: 'STR', name: 'STR', fullName: 'Strength', icon: '⚔', color: '#9D7AFF',
+    description: 'Your technical might. Grows from Hard Skills milestones and equipment.' },
+  { key: 'INT', name: 'INT', fullName: 'Intelligence', icon: '◈', color: '#3B82F6',
+    description: 'Strategic thinking. Grows from Strategy milestones and equipment.' },
+  { key: 'CHA', name: 'CHA', fullName: 'Charisma', icon: '◉', color: '#FF6B8A',
+    description: 'Communication and leadership. Grows from Communication milestones.' },
+  { key: 'CON', name: 'CON', fullName: 'Constitution', icon: '◆', color: '#6EE7B7',
+    description: 'Consistency and endurance. Grows from sustained practice.' },
+  { key: 'DEX', name: 'DEX', fullName: 'Dexterity', icon: '✦', color: '#4ECDC4',
+    description: 'Adaptability and breadth. Grows from cross-domain exploration.' },
+  { key: 'WIS', name: 'WIS', fullName: 'Wisdom', icon: '★', color: '#FFD166',
+    description: 'Curiosity and exploration. Grows from Hobbies milestones.' },
 ];
 
 // ─── Rarity Tiers ────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { NeonIcon, type NeonIconType } from '../../../(onboarding)/_components/NeonIcon';
 import { t } from '../../../(onboarding)/_components/tokens';
 import type { WhatsNextOption, TrendingDomain } from '@plan2skill/types';
@@ -30,6 +30,15 @@ export function WhatsNextScreen({
   trending,
   onSelectOption,
 }: WhatsNextScreenProps) {
+  // SSR-safe reduced-motion hook (BLOCKER — Крок 9)
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  useEffect(() => {
+    setPrefersReducedMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }, []);
+
+  // Button press feedback
+  const [pressedCard, setPressedCard] = useState<string | null>(null);
+
   const topTrending = trending.slice(0, 2).map((d) => d.skillDomain).join(', ');
 
   const cards: OptionCard[] = useMemo(() => {
@@ -106,14 +115,14 @@ export function WhatsNextScreen({
         fontFamily: t.display, fontSize: 24, fontWeight: 900,
         color: t.text, textAlign: 'center',
         marginBottom: 8,
-        animation: 'fadeUp 0.4s ease-out both',
+        animation: prefersReducedMotion ? 'none' : 'fadeUp 0.4s ease-out both',
       }}>
         Your journey continues, Hero!
       </h2>
       <p style={{
         fontFamily: t.body, fontSize: 14, color: t.textSecondary,
         textAlign: 'center', marginBottom: 24,
-        animation: 'fadeUp 0.4s ease-out 0.1s both',
+        animation: prefersReducedMotion ? 'none' : 'fadeUp 0.4s ease-out 0.1s both',
       }}>
         Choose your next adventure
       </p>
@@ -136,19 +145,23 @@ export function WhatsNextScreen({
               border: `1px solid ${card.borderColor}30`,
               cursor: 'pointer',
               textAlign: 'left',
-              transition: 'all 0.2s ease',
-              animation: `fadeUp 0.4s ease-out ${0.15 + i * 0.08}s both`,
+              transition: 'border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease',
+              animation: prefersReducedMotion ? 'none' : `fadeUp 0.4s ease-out ${0.15 + i * 0.08}s both`,
+              transform: pressedCard === card.option ? 'scale(0.98)' : 'translateY(0)',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = card.borderColor;
-              e.currentTarget.style.transform = 'translateY(-2px)';
+              if (pressedCard !== card.option) e.currentTarget.style.transform = 'translateY(-2px)';
               e.currentTarget.style.boxShadow = `0 0 12px ${card.borderColor}20`;
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.borderColor = `${card.borderColor}30`;
               e.currentTarget.style.transform = 'translateY(0)';
               e.currentTarget.style.boxShadow = 'none';
+              setPressedCard(null);
             }}
+            onMouseDown={() => setPressedCard(card.option)}
+            onMouseUp={() => setPressedCard(null)}
           >
             {/* Icon */}
             <div style={{

@@ -6,6 +6,8 @@ import type { LlmTracer } from './llm-tracer';
 import type { CacheService } from './cache.service';
 import type { ContextEnrichmentService } from './context-enrichment.service';
 import type { ContentSafetyService } from './content-safety.service';
+import type { AiRateLimitService } from './rate-limit.service';
+import type { TemplateService } from './template.service';
 import { ValidationError } from './errors';
 
 export abstract class BaseGenerator<TInput, TOutput> {
@@ -26,6 +28,11 @@ export abstract class BaseGenerator<TInput, TOutput> {
   ): string;
 
   // ─── Optional overrides ───────────────────────────────────────
+  /** Return a task ID for L3 quest session context. Override in quest-related generators. */
+  protected getTaskId(_input: TInput): string | undefined {
+    return undefined;
+  }
+
   /** Return a cache key for this input, or null to skip caching */
   protected getCacheKey(_input: TInput, _context: GeneratorContext): string | null {
     return null;
@@ -40,6 +47,8 @@ export abstract class BaseGenerator<TInput, TOutput> {
     protected readonly cacheService: CacheService,
     protected readonly contextService: ContextEnrichmentService,
     protected readonly safetyService: ContentSafetyService,
+    protected readonly rateLimitService: AiRateLimitService,
+    protected readonly templateService: TemplateService,
   ) {
     this.logger = new Logger(this.constructor.name);
   }
@@ -60,10 +69,17 @@ export abstract class BaseGenerator<TInput, TOutput> {
    */
   async generate(userId: string, input: TInput): Promise<TOutput> {
     // Step 1: Build context
-    const context = await this.contextService.build(userId, this.generatorType);
+    const taskId = this.getTaskId(input);
+    const context = await this.contextService.build(userId, this.generatorType, taskId);
 
-    // Step 2: Check cache
-    const cacheKey = this.getCacheKey(input, context);
+    // Step 1.5: Rate limit check
+    await this.rateLimitService.check(userId, context.learnerProfile.subscriptionTier);
+
+    // Step 2: Check cache (inject userId after generator-type prefix for per-user scoping)
+    const rawCacheKey = this.getCacheKey(input, context);
+    const cacheKey = rawCacheKey
+      ? this.scopeCacheKey(rawCacheKey, context.learnerProfile.userId)
+      : null;
     if (cacheKey) {
       const cached = await this.cacheService.get<TOutput>(cacheKey);
       if (cached) {
@@ -115,6 +131,34 @@ export abstract class BaseGenerator<TInput, TOutput> {
         systemPrompt,
         userPrompt,
       });
+
+      // Attempt template fallback before re-throwing
+      const locale = context.learnerProfile.locale;
+      const templateResult = this.templateService.getFallback<TOutput>(this.generatorType, input, locale);
+      if (templateResult) {
+        // Validate template against output schema to catch schema drift
+        const parsed = this.outputSchema.safeParse(templateResult);
+        if (parsed.success) {
+          this.logger.warn(`Using template fallback for ${this.generatorType}`);
+          // Track as template
+          this.tracer.trackSuccess({
+            userId,
+            generatorType: this.generatorType,
+            model: 'template',
+            purpose: this.generatorType,
+            inputTokens: 0,
+            outputTokens: 0,
+            durationMs: 0,
+            attempt: 0,
+            cacheHit: false,
+          });
+          return parsed.data;
+        }
+        this.logger.warn(
+          `Template fallback failed schema validation for ${this.generatorType}`,
+        );
+      }
+
       throw err;
     }
 
@@ -205,5 +249,20 @@ export abstract class BaseGenerator<TInput, TOutput> {
 
     // Step 10: Return
     return validated;
+  }
+
+  /**
+   * Insert userId after the generator-type prefix in a cache key.
+   * e.g. "assessment:abc123" -> "assessment:userId:abc123"
+   * Keys without a colon get userId prepended: "key" -> "userId:key"
+   */
+  private scopeCacheKey(rawKey: string, userId: string): string {
+    const colonIdx = rawKey.indexOf(':');
+    if (colonIdx === -1) {
+      return `${userId}:${rawKey}`;
+    }
+    const prefix = rawKey.slice(0, colonIdx);
+    const rest = rawKey.slice(colonIdx + 1);
+    return `${prefix}:${userId}:${rest}`;
   }
 }

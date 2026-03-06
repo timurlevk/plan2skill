@@ -55,7 +55,7 @@ export class LlmTracer implements ILlmTracer {
             systemPrompt: data.systemPrompt ?? '',
             userPrompt: data.userPrompt ?? '',
             responseText: data.responseText,
-            structuredOutput: data.structuredOutput as object ?? undefined,
+            structuredOutput: (data.structuredOutput as object) ?? undefined,
           },
         });
       }

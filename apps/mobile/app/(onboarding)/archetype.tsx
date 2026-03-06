@@ -69,16 +69,16 @@ const SCENARIOS: Scenario[] = [
   },
 ];
 
-// ── Pixel Art Engine (from v7 style guide) ──
-const parsePixelArt = (str: string, pal: Record<string, string>) =>
-  str.trim().split('\n').map(r => [...r.trim()].map(c => c === '.' ? null : pal[c] || null));
+// ── Pixel Art Engine (from @plan2skill/pixelforge) ──
+import {
+  parseArt,
+  BODY_TEMPLATES_V1,
+  DEFAULT_PALETTES_V1,
+} from '@plan2skill/pixelforge';
 
 const PixelCanvas = ({ data, size = 5 }: { data: (string | null)[][]; size?: number }) => {
   if (!data?.length) return null;
-  const w = data[0].length, h = data.length;
-  const shadows: string[] = [];
-  data.forEach((row, y) => row.forEach((c, x) => { if (c) shadows.push(`${x*size}px ${y*size}px 0 0 ${c}`); }));
-  // PixelCanvas uses View + boxShadow which doesn't work natively — use nested Views instead
+  const w = data[0]!.length, h = data.length;
   return (
     <View style={{ width: w * size, height: h * size }}>
       {data.map((row, y) =>
@@ -102,28 +102,8 @@ const PixelCanvas = ({ data, size = 5 }: { data: (string | null)[][]; size?: num
   );
 };
 
-// Character art strings & palettes from v7
-const charArtStrings: Record<string, string> = {
-  aria:  '....HHHH....\n...HHHHHH...\n..HHHhHHHH..\n.HHSSSSSSHH.\n.HSEESSEESH.\n.HSEwSSEwSH.\n.HSrSSSSrSH.\n..HSSmmSSH..\n...HSSSSH...\n...TTTTTT...\n..TTTTTTTT..\n.ATTTTTTTTA.\n.ATTTttTTTA.\n..TTTTTTTT..\n...PP..PP...\n..FFF..FFF..',
-  kofi:  '..HHHHHHHH..\n..HHHHHHHH..\n...HHHHHH...\n..HSSSSSSH..\n..SEESSEES..\n..SEwSSEwS..\n..SrSSSSrS..\n...SSmmSS...\n....SSSS....\n...TTTTTT...\n..TTTTTTTT..\n.ATTTTTTTTA.\n.ATTTttTTTA.\n..TTTTTTTT..\n...PP..PP...\n..FFF..FFF..',
-  mei:   '...HHHHHH...\n..HHHHHHHH..\n.HhhhhhhhhH.\n.HHSSSSSSHH.\n.HSEESSEESH.\n.HSEwSSEwSH.\n..HrSSSSrH..\n...SSmmSS...\n....SSSS....\n...TTTTTT...\n..TTTTTTTT..\n.ATTTTTTTTA.\n.ATTTttTTTA.\n..TTTTTTTT..\n...PP..PP...\n..FFF..FFF..',
-  diego: '..H.HHhH.H..\n..HHHHHHHH..\n..HHHhHHHH..\n..HSSSSSSH..\n..SEESSEES..\n..SEwSSEwS..\n..SrSSSSrS..\n...SSmmSS...\n....SSSS....\n...TTTTTT...\n..TTTTTTTT..\n.ATTTTTTTTA.\n.ATTTttTTTA.\n..TTTTTTTT..\n...PP..PP...\n..FFF..FFF..',
-  zara:  '..HHH..HHH..\n.HHHH..HHHH.\n..HHHHHHHH..\n..HSSSSSSH..\n..SEESSEES..\n..SEwSSEwS..\n..SrSSSSrS..\n...SSmmSS...\n....SSSS....\n...TTTTTT...\n..TTTTTTTT..\n.ATTTTTTTTA.\n.ATTTttTTTA.\n..TTTTTTTT..\n...PP..PP...\n..FFF..FFF..',
-  alex:  '..HHHH......\n..HHHHHHH...\n..HHHhHHHH..\n..HSSSSSSH..\n..SEESSEES..\n..SEwSSEwS..\n..SrSSSSrS..\n...SSmmSS...\n....SSSS....\n...TTTTTT...\n..TTTTTTTT..\n.ATTTTTTTTA.\n.ATTTttTTTA.\n..TTTTTTTT..\n...PP..PP...\n..FFF..FFF..',
-  priya: '....HHHH....\n...HHHHHH...\n..HHHhHHHH..\n.HHSSSSSSHH.\n.HSEESSEESH.\n.HSEwSSEwSH.\n..SrSSSSrSH.\n...SSmmSS.H.\n....SSSS.H..\n...TTTTTT...\n..TTTTTTTT..\n.ATTTTTTTTA.\n.ATTTttTTTA.\n..TTTTTTTT..\n...PP..PP...\n..FFF..FFF..',
-  liam:  '.H..HHHH..H.\n.HHHHHHHHHH.\n..HHHhHHHH..\n..HSSSSSSH..\n..SEESSEES..\n..SEwSSEwS..\n..SrSSSSrS..\n...SSmmSS...\n....SSSS....\n...TTTTTT...\n..TTTTTTTT..\n.ATTTTTTTTA.\n.ATTTttTTTA.\n..TTTTTTTT..\n...PP..PP...\n..FFF..FFF..',
-};
-
-const charPalettes: Record<string, Record<string, string>> = {
-  aria:  {H:'#E8C35A',h:'#FFD980',S:'#FFDAB9',E:'#2A2040',w:'#FFF',r:'#FFB5A0',m:'#E8907A',T:'#9D7AFF',t:'#7B5FCC',A:'#FFDAB9',P:'#6B4FBB',F:'#5A3FAA'},
-  kofi:  {H:'#1A1008',h:'#2A1A10',S:'#8B5E3C',E:'#0A0A1E',w:'#FFF',r:'#7A4E2C',m:'#6A3E20',T:'#2A9D8F',t:'#1A7A6A',A:'#8B5E3C',P:'#155A50',F:'#104A40'},
-  mei:   {H:'#1A1A2E',h:'#2A2A40',S:'#DEB887',E:'#1A1020',w:'#FFF',r:'#D4A06A',m:'#C08060',T:'#E879F9',t:'#C060D0',A:'#DEB887',P:'#9040A0',F:'#7030A0'},
-  diego: {H:'#5C3A1E',h:'#7A5030',S:'#D4A574',E:'#1A1020',w:'#FFF',r:'#C89058',m:'#B07848',T:'#3B82F6',t:'#2A60C0',A:'#D4A574',P:'#1A3070',F:'#102060'},
-  zara:  {H:'#1A1008',h:'#2A1A10',S:'#7B4B2A',E:'#0A0A1E',w:'#FFF',r:'#6A3B1A',m:'#5A3018',T:'#FF6B8A',t:'#D04A6A',A:'#7B4B2A',P:'#8A2040',F:'#701838'},
-  alex:  {H:'#6B48A8',h:'#9D7AFF',S:'#D2A37C',E:'#1A1020',w:'#FFF',r:'#C0905A',m:'#A87848',T:'#4ECDC4',t:'#3AABA0',A:'#D2A37C',P:'#1A6A60',F:'#105A50'},
-  priya: {H:'#1A1008',h:'#2A1810',S:'#C68642',E:'#0A0A1E',w:'#FFF',r:'#B87530',m:'#A06828',T:'#FFD166',t:'#E0B040',A:'#C68642',P:'#8A6A10',F:'#705808'},
-  liam:  {H:'#CC4422',h:'#E85830',S:'#FFE0C0',E:'#1A2030',w:'#FFF',r:'#FFBBA0',m:'#E8907A',T:'#818CF8',t:'#6060D0',A:'#FFE0C0',P:'#3A3080',F:'#2A2070'},
-};
+const charArtStrings: Record<string, string> = BODY_TEMPLATES_V1;
+const charPalettes: Record<string, Record<string, string>> = DEFAULT_PALETTES_V1;
 
 // Map archetypes to representative characters
 const archetypeChars: Record<string, string> = {
@@ -206,7 +186,7 @@ export default function ArchetypeScreen() {
 
   const winnerData = winner ? ARCHETYPES.find(a => a.id === winner) : null;
   const winnerCharId = winner ? archetypeChars[winner] : null;
-  const winnerArt = winnerCharId ? parsePixelArt(charArtStrings[winnerCharId], charPalettes[winnerCharId]) : null;
+  const winnerArt = winnerCharId ? parseArt(charArtStrings[winnerCharId], charPalettes[winnerCharId]) : null;
 
   // ── QUIZ PHASE ──
   if (phase === 'quiz') {
@@ -280,7 +260,7 @@ export default function ArchetypeScreen() {
 
           {ARCHETYPES.map((arch) => {
             const isSelected = overrideSelection === arch.id;
-            const art = parsePixelArt(charArtStrings[archetypeChars[arch.id]], charPalettes[archetypeChars[arch.id]]);
+            const art = parseArt(charArtStrings[archetypeChars[arch.id]], charPalettes[archetypeChars[arch.id]]);
             return (
               <TouchableOpacity
                 key={arch.id}

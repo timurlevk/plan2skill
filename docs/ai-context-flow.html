@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plan2Skill — AI Context Flow</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+  :root {
+    --bg: #0C0C10;
+    --bg2: #09090C;
+    --card: #18181F;
+    --elevated: #1E1E28;
+    --border: #252530;
+    --border-glow: #303040;
+    --text: #EEEEF0;
+    --muted: #71717A;
+    --dim: #52525B;
+    --violet: #9D7AFF;
+    --violet-dim: rgba(157,122,255,0.12);
+    --cyan: #4ECDC4;
+    --cyan-dim: rgba(78,205,196,0.10);
+    --gold: #FFD166;
+    --gold-dim: rgba(255,209,102,0.10);
+    --rose: #FF6B8A;
+    --rose-dim: rgba(255,107,138,0.10);
+    --mint: #6EE7B7;
+    --mint-dim: rgba(110,231,183,0.10);
+    --blue: #3B82F6;
+    --blue-dim: rgba(59,130,246,0.10);
+    --orange: #F59E0B;
+    --peach: #FFAA80;
+    --font: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --mono: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  /* ── Canvas Grain ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 9999;
+  }
+
+  /* ── Layout ── */
+  .page { max-width: 1340px; margin: 0 auto; padding: 32px 28px 80px; }
+
+  /* ── Header ── */
+  .header { margin-bottom: 40px; position: relative; }
+  .header::after {
+    content: '';
+    position: absolute; bottom: -20px; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), var(--violet-dim), var(--border), transparent);
+  }
+  .header h1 {
+    font-size: 32px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 6px;
+  }
+  .header h1 .gradient {
+    background: linear-gradient(135deg, var(--violet), var(--cyan));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .header .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+
+  .stats-row { display: flex; gap: 14px; flex-wrap: wrap; }
+  .stat-pill {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 18px;
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+  .stat-pill:hover {
+    border-color: var(--border-glow);
+    box-shadow: 0 0 20px rgba(157,122,255,0.06);
+  }
+  .stat-pill .num {
+    font-family: var(--mono); font-size: 24px; font-weight: 700; line-height: 1;
+  }
+  .stat-pill .lbl {
+    font-size: 10px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.06em; line-height: 1.3;
+  }
+
+  /* ── Section ── */
+  .section {
+    margin-top: 48px;
+    animation: fadeUp 0.6s ease both;
+  }
+  .section:nth-child(2) { animation-delay: 0.05s; }
+  .section:nth-child(3) { animation-delay: 0.10s; }
+  .section:nth-child(4) { animation-delay: 0.15s; }
+  .section:nth-child(5) { animation-delay: 0.20s; }
+  .section:nth-child(6) { animation-delay: 0.25s; }
+  .section:nth-child(7) { animation-delay: 0.30s; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .section-head {
+    display: flex; align-items: baseline; gap: 10px;
+    margin-bottom: 20px;
+  }
+  .section-num {
+    font-family: var(--mono); font-size: 11px; font-weight: 600;
+    color: var(--violet); background: var(--violet-dim);
+    padding: 3px 8px; border-radius: 5px;
+  }
+  .section-title {
+    font-size: 20px; font-weight: 800; letter-spacing: -0.01em;
+  }
+  .section-desc {
+    font-size: 12px; color: var(--muted); margin-bottom: 20px; max-width: 700px;
+  }
+
+  /* ── Pipeline ── */
+  .pipeline-wrapper {
+    overflow-x: auto; padding-bottom: 12px;
+    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+  }
+  .pipeline-wrapper::-webkit-scrollbar { height: 6px; }
+  .pipeline-wrapper::-webkit-scrollbar-track { background: transparent; }
+  .pipeline-wrapper::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .pipeline {
+    display: flex; align-items: center; gap: 0;
+    min-width: max-content; padding: 16px 0;
+  }
+  .pipe-node {
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    position: relative;
+  }
+  .pipe-box {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 14px; text-align: center;
+    min-width: 80px; transition: all 0.3s;
+    position: relative;
+  }
+  .pipe-box:hover {
+    border-color: var(--cyan); transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(78,205,196,0.12);
+  }
+  .pipe-box .step-num {
+    font-family: var(--mono); font-size: 9px; font-weight: 700;
+    color: var(--dim); position: absolute; top: -8px; left: 50%;
+    transform: translateX(-50%); background: var(--bg);
+    padding: 0 6px; white-space: nowrap;
+  }
+  .pipe-box .step-label {
+    font-size: 11px; font-weight: 700; white-space: nowrap;
+  }
+  .pipe-box .step-detail {
+    font-size: 9px; color: var(--muted); font-family: var(--mono);
+    margin-top: 2px; white-space: nowrap;
+  }
+  .pipe-arrow {
+    width: 28px; height: 2px; background: var(--border); position: relative;
+    flex-shrink: 0;
+  }
+  .pipe-arrow::after {
+    content: ''; position: absolute; right: -1px; top: -4px;
+    border: 5px solid transparent; border-left: 6px solid var(--border);
+  }
+  .pipe-arrow.glow { background: var(--cyan); }
+  .pipe-arrow.glow::after { border-left-color: var(--cyan); }
+
+  .pipe-entry {
+    background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(59,130,246,0.05));
+    border-color: rgba(59,130,246,0.3);
+  }
+  .pipe-entry .step-label { color: var(--blue); }
+  .pipe-exit {
+    background: linear-gradient(135deg, rgba(110,231,183,0.12), rgba(110,231,183,0.04));
+    border-color: rgba(110,231,183,0.3);
+  }
+  .pipe-exit .step-label { color: var(--mint); }
+  .pipe-llm {
+    background: linear-gradient(135deg, rgba(157,122,255,0.18), rgba(78,205,196,0.08));
+    border-color: rgba(157,122,255,0.35);
+    padding: 12px 18px;
+  }
+  .pipe-llm .step-label { color: var(--violet); font-size: 13px; }
+  .pipe-cache {
+    background: linear-gradient(135deg, rgba(255,209,102,0.10), rgba(255,209,102,0.03));
+    border-color: rgba(255,209,102,0.25);
+  }
+  .pipe-cache .step-label { color: var(--gold); }
+  .pipe-safety {
+    border-color: rgba(255,107,138,0.25);
+    background: linear-gradient(135deg, rgba(255,107,138,0.08), transparent);
+  }
+  .pipe-safety .step-label { color: var(--rose); }
+  .pipe-trace {
+    border-color: rgba(245,158,11,0.25);
+    background: linear-gradient(135deg, rgba(245,158,11,0.08), transparent);
+  }
+  .pipe-trace .step-label { color: var(--orange); }
+
+  /* ── Context Assembly Diagram ── */
+  .assembly-grid {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto 1fr;
+    gap: 16px; align-items: start;
+  }
+  .assembly-col { display: flex; flex-direction: column; gap: 10px; }
+  .assembly-col-title {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--muted); margin-bottom: 4px;
+    text-align: center;
+  }
+  .query-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; transition: all 0.3s;
+    position: relative;
+  }
+  .query-card:hover {
+    border-color: var(--cyan); box-shadow: 0 0 16px rgba(78,205,196,0.08);
+  }
+  .query-tag {
+    font-family: var(--mono); font-size: 10px; font-weight: 700;
+    color: var(--cyan); margin-bottom: 6px;
+  }
+  .query-table {
+    font-family: var(--mono); font-size: 10px; color: var(--dim);
+    display: grid; gap: 2px;
+  }
+  .query-table .tbl-name {
+    color: var(--gold); font-weight: 600; font-size: 11px; margin-bottom: 2px;
+  }
+  .query-table .field { color: #aaa; }
+
+  .arrows-col {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 6px; padding-top: 30px;
+  }
+  .arrow-h {
+    width: 32px; height: 2px; background: var(--border); position: relative;
+  }
+  .arrow-h::after {
+    content: ''; position: absolute; right: -1px; top: -4px;
+    border: 5px solid transparent; border-left: 6px solid var(--border);
+  }
+
+  .ctx-block {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px; transition: all 0.3s;
+    position: relative;
+  }
+  .ctx-block:hover {
+    border-color: var(--violet); box-shadow: 0 0 20px rgba(157,122,255,0.08);
+  }
+  .ctx-block .ctx-name {
+    font-size: 12px; font-weight: 700; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .ctx-block .ctx-badge {
+    font-family: var(--mono); font-size: 8px; font-weight: 700;
+    padding: 2px 5px; border-radius: 3px; text-transform: uppercase;
+  }
+  .ctx-always { background: rgba(110,231,183,0.12); color: var(--mint); }
+  .ctx-optional { background: rgba(255,209,102,0.10); color: var(--gold); }
+  .ctx-computed { background: rgba(78,205,196,0.10); color: var(--cyan); }
+  .ctx-fields {
+    font-family: var(--mono); font-size: 10px; color: var(--dim);
+    display: grid; gap: 2px;
+  }
+  .ctx-fields .f { color: #aaa; }
+  .ctx-fields .f .type { color: var(--dim); font-size: 9px; }
+
+  .budget-arrow-section {
+    display: flex; align-items: center; justify-content: center;
+    gap: 12px; margin-top: 20px; padding: 16px 0;
+  }
+  .budget-arrow-line {
+    flex: 1; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--violet), transparent);
+  }
+  .budget-arrow-label {
+    font-family: var(--mono); font-size: 11px; font-weight: 700;
+    color: var(--violet); background: var(--violet-dim);
+    padding: 5px 14px; border-radius: 8px;
+    border: 1px solid rgba(157,122,255,0.25);
+    white-space: nowrap;
+  }
+
+  /* ── Budget Map Table ── */
+  .budget-table-wrap {
+    overflow-x: auto; border-radius: 12px;
+    border: 1px solid var(--border); background: var(--card);
+  }
+  .budget-table {
+    width: 100%; border-collapse: collapse; font-size: 12px;
+  }
+  .budget-table thead th {
+    background: var(--elevated); padding: 10px 12px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--cyan);
+    border-bottom: 2px solid var(--border); text-align: center;
+    position: sticky; top: 0; z-index: 3;
+    white-space: nowrap;
+  }
+  .budget-table thead th:first-child { text-align: left; min-width: 180px; }
+  .budget-table tbody tr {
+    border-bottom: 1px solid var(--border);
+    cursor: pointer; transition: background 0.2s;
+  }
+  .budget-table tbody tr:hover { background: rgba(157,122,255,0.04); }
+  .budget-table tbody td {
+    padding: 8px 12px; text-align: center; vertical-align: middle;
+  }
+  .budget-table tbody td:first-child {
+    text-align: left; font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .budget-table .gen-name {
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+  }
+  .check {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 6px;
+    font-size: 14px; font-weight: 700;
+  }
+  .check-on {
+    background: rgba(110,231,183,0.12); color: var(--mint);
+  }
+  .check-off {
+    background: rgba(113,113,122,0.06); color: #333;
+  }
+
+  .badge {
+    display: inline-block; padding: 2px 7px; border-radius: 4px;
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.04em; white-space: nowrap;
+  }
+  .b-quality { background: rgba(157,122,255,0.14); color: var(--violet); border: 1px solid rgba(157,122,255,0.25); }
+  .b-balanced { background: rgba(78,205,196,0.12); color: var(--cyan); border: 1px solid rgba(78,205,196,0.25); }
+  .b-budget { background: rgba(110,231,183,0.12); color: var(--mint); border: 1px solid rgba(110,231,183,0.25); }
+  .b-cache {
+    font-family: var(--mono); font-size: 9px; font-weight: 600;
+    color: var(--gold); background: var(--gold-dim);
+    padding: 2px 6px; border-radius: 4px;
+  }
+  .b-no-cache {
+    font-family: var(--mono); font-size: 9px; font-weight: 600;
+    color: var(--dim); background: rgba(113,113,122,0.08);
+    padding: 2px 6px; border-radius: 4px;
+  }
+
+  /* ── Generator Cards ── */
+  .gen-cards {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 16px;
+  }
+  .gen-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 20px;
+    transition: all 0.35s; position: relative; overflow: hidden;
+  }
+  .gen-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    border-radius: 14px 14px 0 0;
+    transition: opacity 0.3s; opacity: 0.5;
+  }
+  .gen-card:hover {
+    border-color: var(--border-glow); transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  }
+  .gen-card:hover::before { opacity: 1; }
+  .gen-card.tier-quality::before { background: linear-gradient(90deg, var(--violet), transparent); }
+  .gen-card.tier-balanced::before { background: linear-gradient(90deg, var(--cyan), transparent); }
+  .gen-card.tier-budget::before { background: linear-gradient(90deg, var(--mint), transparent); }
+
+  .gen-card-head {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .gen-card-name {
+    font-family: var(--mono); font-size: 15px; font-weight: 700;
+  }
+  .gen-card-meta {
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .meta-chip {
+    font-family: var(--mono); font-size: 9px; font-weight: 600;
+    padding: 2px 7px; border-radius: 4px;
+    background: rgba(113,113,122,0.08); color: var(--muted);
+    border: 1px solid rgba(113,113,122,0.12);
+  }
+
+  .gen-card-section {
+    margin-bottom: 12px;
+  }
+  .gen-card-section:last-child { margin-bottom: 0; }
+  .gen-card-section-title {
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--dim); margin-bottom: 6px;
+  }
+  .field-tags {
+    display: flex; flex-wrap: wrap; gap: 4px;
+  }
+  .field-tag {
+    font-family: var(--mono); font-size: 10px; font-weight: 500;
+    padding: 3px 8px; border-radius: 5px;
+    background: rgba(157,122,255,0.08); color: #bbb;
+    border: 1px solid rgba(157,122,255,0.12);
+  }
+  .field-tag.ctx-user { background: rgba(59,130,246,0.08); border-color: rgba(59,130,246,0.15); color: #8AB4F8; }
+  .field-tag.ctx-learn { background: rgba(78,205,196,0.08); border-color: rgba(78,205,196,0.12); color: #7DD4CC; }
+  .field-tag.ctx-char { background: rgba(255,209,102,0.08); border-color: rgba(255,209,102,0.12); color: #FFD88A; }
+  .field-tag.ctx-perf { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.12); color: #F5B94E; }
+  .field-tag.ctx-narr { background: rgba(157,122,255,0.08); border-color: rgba(157,122,255,0.12); color: #B49AFF; }
+
+  .cache-formula {
+    font-family: var(--mono); font-size: 10px; color: var(--gold);
+    background: rgba(255,209,102,0.06); border: 1px solid rgba(255,209,102,0.12);
+    border-radius: 6px; padding: 6px 10px; display: inline-block;
+  }
+  .user-prompt-note {
+    font-size: 11px; color: var(--muted); font-style: italic;
+  }
+
+  /* ── Fallback Flow ── */
+  .fallback-flow {
+    display: flex; align-items: stretch; gap: 0;
+    overflow-x: auto; padding: 20px 0;
+  }
+  .fb-node {
+    display: flex; flex-direction: column; align-items: center;
+    text-align: center; position: relative;
+  }
+  .fb-box {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 16px; min-width: 120px;
+    transition: all 0.3s;
+  }
+  .fb-box:hover {
+    transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  }
+  .fb-box .fb-title { font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+  .fb-box .fb-detail { font-size: 10px; color: var(--muted); font-family: var(--mono); }
+  .fb-arrow {
+    width: 36px; height: 2px; background: var(--border);
+    align-self: center; position: relative; flex-shrink: 0;
+  }
+  .fb-arrow::after {
+    content: ''; position: absolute; right: -1px; top: -4px;
+    border: 5px solid transparent; border-left: 6px solid var(--border);
+  }
+  .fb-arrow.success { background: var(--mint); }
+  .fb-arrow.success::after { border-left-color: var(--mint); }
+  .fb-arrow.error { background: var(--rose); }
+  .fb-arrow.error::after { border-left-color: var(--rose); }
+  .fb-arrow.gold { background: var(--gold); }
+  .fb-arrow.gold::after { border-left-color: var(--gold); }
+
+  .fb-success { border-color: rgba(110,231,183,0.3); background: linear-gradient(135deg, rgba(110,231,183,0.08), transparent); }
+  .fb-success .fb-title { color: var(--mint); }
+  .fb-error { border-color: rgba(255,107,138,0.3); background: linear-gradient(135deg, rgba(255,107,138,0.08), transparent); }
+  .fb-error .fb-title { color: var(--rose); }
+  .fb-template { border-color: rgba(255,209,102,0.3); background: linear-gradient(135deg, rgba(255,209,102,0.08), transparent); }
+  .fb-template .fb-title { color: var(--gold); }
+  .fb-llm-node { border-color: rgba(157,122,255,0.3); background: linear-gradient(135deg, rgba(157,122,255,0.12), transparent); }
+  .fb-llm-node .fb-title { color: var(--violet); }
+
+  .fb-branch {
+    display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
+  }
+  .fb-branch-row {
+    display: flex; align-items: center; gap: 0;
+  }
+  .fb-label {
+    font-family: var(--mono); font-size: 9px; font-weight: 700;
+    padding: 2px 6px; border-radius: 3px; margin: 0 6px;
+    white-space: nowrap;
+  }
+  .fb-label-ok { background: rgba(110,231,183,0.12); color: var(--mint); }
+  .fb-label-err { background: rgba(255,107,138,0.12); color: var(--rose); }
+  .fb-label-found { background: rgba(255,209,102,0.12); color: var(--gold); }
+  .fb-label-null { background: rgba(113,113,122,0.12); color: var(--muted); }
+
+  /* ── E2E Trace ── */
+  .trace-steps { display: flex; flex-direction: column; gap: 0; }
+  .trace-step {
+    display: grid; grid-template-columns: 50px 36px 1fr;
+    gap: 0; align-items: start; position: relative;
+  }
+  .trace-num {
+    font-family: var(--mono); font-size: 11px; font-weight: 700;
+    color: var(--dim); text-align: right; padding: 14px 0 0 0;
+  }
+  .trace-line {
+    display: flex; flex-direction: column; align-items: center;
+    padding-top: 14px;
+  }
+  .trace-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--border); border: 2px solid var(--elevated);
+    z-index: 2; flex-shrink: 0;
+  }
+  .trace-dot.active { background: var(--cyan); border-color: var(--bg); box-shadow: 0 0 8px rgba(78,205,196,0.4); }
+  .trace-dot.violet { background: var(--violet); border-color: var(--bg); box-shadow: 0 0 8px rgba(157,122,255,0.4); }
+  .trace-dot.gold { background: var(--gold); border-color: var(--bg); box-shadow: 0 0 8px rgba(255,209,102,0.4); }
+  .trace-dot.mint { background: var(--mint); border-color: var(--bg); box-shadow: 0 0 8px rgba(110,231,183,0.4); }
+  .trace-connector {
+    width: 2px; flex: 1; min-height: 20px;
+    background: var(--border);
+  }
+
+  .trace-content {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px; margin: 4px 0 0 0;
+    transition: all 0.3s;
+  }
+  .trace-content:hover {
+    border-color: var(--border-glow);
+  }
+  .trace-title {
+    font-size: 13px; font-weight: 700; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .trace-data {
+    font-family: var(--mono); font-size: 10px; color: #aaa;
+    background: rgba(0,0,0,0.2); border-radius: 6px;
+    padding: 8px 10px; white-space: pre-wrap; line-height: 1.6;
+    overflow-x: auto;
+  }
+  .trace-data .k { color: var(--cyan); }
+  .trace-data .v { color: var(--gold); }
+  .trace-data .s { color: var(--mint); }
+  .trace-data .c { color: var(--dim); font-style: italic; }
+
+  /* ── Scroll navigation ── */
+  .nav-bar {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(12,12,16,0.85); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 28px; margin: 0 -28px;
+    display: flex; gap: 6px; overflow-x: auto;
+  }
+  .nav-link {
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    color: var(--muted); text-decoration: none;
+    padding: 5px 12px; border-radius: 6px;
+    transition: all 0.2s; white-space: nowrap; cursor: pointer;
+    border: none; background: none;
+  }
+  .nav-link:hover { color: var(--text); background: var(--elevated); }
+  .nav-link.active { color: var(--violet); background: var(--violet-dim); }
+
+  /* ── Responsive ── */
+  @media (max-width: 900px) {
+    .assembly-grid { grid-template-columns: 1fr; }
+    .arrows-col { flex-direction: row; padding-top: 0; }
+    .arrow-h { width: 2px; height: 24px; }
+    .arrow-h::after { right: auto; bottom: -1px; top: auto; left: -4px; border: 5px solid transparent; border-top: 6px solid var(--border); border-left: 5px solid transparent; }
+    .gen-cards { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ═══ HEADER ═══ -->
+  <div class="header">
+    <h1><span class="gradient">Plan2Skill</span> — AI Context Flow</h1>
+    <div class="subtitle">How context is collected, enriched, filtered, embedded into prompts, cached, and traced across 11 AI generators.</div>
+    <div class="stats-row">
+      <div class="stat-pill">
+        <div class="num" style="color:var(--violet)">11</div>
+        <div class="lbl">Generators</div>
+      </div>
+      <div class="stat-pill">
+        <div class="num" style="color:var(--cyan)">6</div>
+        <div class="lbl">DB Queries<br>(parallel)</div>
+      </div>
+      <div class="stat-pill">
+        <div class="num" style="color:var(--gold)">5</div>
+        <div class="lbl">Context<br>Blocks</div>
+      </div>
+      <div class="stat-pill">
+        <div class="num" style="color:var(--mint)">3</div>
+        <div class="lbl">Model<br>Tiers</div>
+      </div>
+      <div class="stat-pill">
+        <div class="num" style="color:var(--rose)">&lt;$0.25</div>
+        <div class="lbl">/user<br>/month</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ NAV ═══ -->
+  <nav class="nav-bar" id="navBar">
+    <button class="nav-link active" onclick="scrollToSection('pipeline')">Pipeline</button>
+    <button class="nav-link" onclick="scrollToSection('assembly')">Context Assembly</button>
+    <button class="nav-link" onclick="scrollToSection('budget')">Budget Map</button>
+    <button class="nav-link" onclick="scrollToSection('generators')">Generators</button>
+    <button class="nav-link" onclick="scrollToSection('fallback')">Fallback Flow</button>
+    <button class="nav-link" onclick="scrollToSection('e2e')">E2E Trace</button>
+  </nav>
+
+  <!-- ═══ S1: PIPELINE ═══ -->
+  <div class="section" id="pipeline">
+    <div class="section-head">
+      <span class="section-num">01</span>
+      <span class="section-title">BaseGenerator — 10-Step Pipeline</span>
+    </div>
+    <div class="section-desc">Every AI generation passes through this sealed pipeline. Context is built once, embedded into prompts, and never sent raw to the LLM.</div>
+
+    <div class="pipeline-wrapper">
+      <div class="pipeline">
+        <div class="pipe-node">
+          <div class="pipe-box pipe-entry">
+            <div class="step-label">tRPC</div>
+            <div class="step-detail">endpoint</div>
+          </div>
+        </div>
+        <div class="pipe-arrow glow"></div>
+        <div class="pipe-node">
+          <div class="pipe-box pipe-entry">
+            <div class="step-label">Service</div>
+            <div class="step-detail">validate + delegate</div>
+          </div>
+        </div>
+        <div class="pipe-arrow glow"></div>
+        <div class="pipe-node">
+          <div class="pipe-box" style="border-color:rgba(78,205,196,0.3); background:linear-gradient(135deg,rgba(78,205,196,0.10),transparent)">
+            <div class="step-num">STEP 1</div>
+            <div class="step-label" style="color:var(--cyan)">Context</div>
+            <div class="step-detail">build + budget filter</div>
+          </div>
+        </div>
+        <div class="pipe-arrow"></div>
+        <div class="pipe-node">
+          <div class="pipe-box pipe-safety">
+            <div class="step-num">STEP 1½</div>
+            <div class="step-label">Rate Limit</div>
+            <div class="step-detail">by subscription tier</div>
+          </div>
+        </div>
+        <div class="pipe-arrow"></div>
+        <div class="pipe-node">
+          <div class="pipe-box pipe-cache">
+            <div class="step-num">STEP 2</div>
+            <div class="step-label">Cache</div>
+            <div class="step-detail">lookup (hit → return)</div>
+          </div>
+        </div>
+        <div class="pipe-arrow"></div>
+        <div class="pipe-node">
+          <div class="pipe-box">
+            <div class="step-num">STEP 3</div>
+            <div class="step-label">Prompts</div>
+            <div class="step-detail">system + user</div>
+          </div>
+        </div>
+        <div class="pipe-arrow"></div>
+        <div class="pipe-node">
+          <div class="pipe-box pipe-safety">
+            <div class="step-num">STEP 4</div>
+            <div class="step-label">Safety In</div>
+            <div class="step-detail">filter input</div>
+          </div>
+        </div>
+        <div class="pipe-arrow glow"></div>
+        <div class="pipe-node">
+          <div class="pipe-box pipe-llm">
+            <div class="step-num">STEP 5</div>
+            <div class="step-label">⚡ LLM Call</div>
+            <div class="step-detail">tier → model select</div>
+          </div>
+        </div>
+        <div class="pipe-arrow glow"></div>
+        <div class="pipe-node">
+          <div class="pipe-box">
+            <div class="step-num">STEP 6</div>
+            <div class="step-label">Validate</div>
+            <div class="step-detail">JSON + Zod</div>
+          </div>
+        </div>
+        <div class="pipe-arrow"></div>
+        <div class="pipe-node">
+          <div class="pipe-box pipe-safety">
+            <div class="step-num">STEP 7</div>
+            <div class="step-label">Safety Out</div>
+            <div class="step-detail">filter output</div>
+          </div>
+        </div>
+        <div class="pipe-arrow"></div>
+        <div class="pipe-node">
+          <div class="pipe-box pipe-cache">
+            <div class="step-num">STEP 8</div>
+            <div class="step-label">Cache</div>
+            <div class="step-detail">write (fire&amp;forget)</div>
+          </div>
+        </div>
+        <div class="pipe-arrow"></div>
+        <div class="pipe-node">
+          <div class="pipe-box pipe-trace">
+            <div class="step-num">STEP 9</div>
+            <div class="step-label">Trace</div>
+            <div class="step-detail">tokens, cost, log</div>
+          </div>
+        </div>
+        <div class="pipe-arrow glow"></div>
+        <div class="pipe-node">
+          <div class="pipe-box pipe-exit">
+            <div class="step-num">STEP 10</div>
+            <div class="step-label">Return</div>
+            <div class="step-detail">TOutput</div>
+          </div>
+        </div>
+        <div class="pipe-arrow success"></div>
+        <div class="pipe-node">
+          <div class="pipe-box pipe-exit">
+            <div class="step-label">Client</div>
+            <div class="step-detail">Zustand → UI</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ S2: CONTEXT ASSEMBLY ═══ -->
+  <div class="section" id="assembly">
+    <div class="section-head">
+      <span class="section-num">02</span>
+      <span class="section-title">Context Assembly</span>
+    </div>
+    <div class="section-desc">ContextEnrichmentService.build() runs 6 parallel Prisma queries, assembles 5 typed context blocks, then applies a per-generator budget filter.</div>
+
+    <div class="assembly-grid">
+      <!-- Column 1: DB Queries -->
+      <div class="assembly-col">
+        <div class="assembly-col-title">⚡ 6 Parallel DB Queries</div>
+
+        <div class="query-card" id="q1">
+          <div class="query-tag">Q1</div>
+          <div class="query-table">
+            <div class="tbl-name">user</div>
+            <div class="field">id, locale, role</div>
+          </div>
+        </div>
+
+        <div class="query-card" id="q2">
+          <div class="query-tag">Q2</div>
+          <div class="query-table">
+            <div class="tbl-name">userProgression</div>
+            <div class="field">level, totalXp, subscriptionTier</div>
+          </div>
+        </div>
+
+        <div class="query-card" id="q3">
+          <div class="query-tag">Q3</div>
+          <div class="query-table">
+            <div class="tbl-name">character</div>
+            <div class="field">characterId, archetypeId, evolutionTier</div>
+            <div class="field">STR, INT, CHA, CON, DEX, WIS</div>
+          </div>
+        </div>
+
+        <div class="query-card" id="q4">
+          <div class="query-tag">Q4</div>
+          <div class="query-table">
+            <div class="tbl-name">streak</div>
+            <div class="field">currentStreak, longestStreak</div>
+          </div>
+        </div>
+
+        <div class="query-card" id="q5">
+          <div class="query-tag">Q5</div>
+          <div class="query-table">
+            <div class="tbl-name">skillElo</div>
+            <div class="field">skillDomain, elo</div>
+            <div class="field" style="color:var(--dim)">top 10 by Elo DESC</div>
+          </div>
+        </div>
+
+        <div class="query-card" id="q6">
+          <div class="query-tag">Q6</div>
+          <div class="query-table">
+            <div class="tbl-name">questCompletion</div>
+            <div class="field">questType, qualityScore, timeSpent</div>
+            <div class="field">task → estimatedMin, taskType, difficulty</div>
+            <div class="field" style="color:var(--dim)">last 30 days, max 50</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrows -->
+      <div class="arrows-col">
+        <svg width="40" height="460" style="overflow:visible">
+          <!-- Q1 → UserProfile -->
+          <path d="M 0 30 C 20 30, 20 38, 40 38" stroke="#4ECDC4" stroke-width="1.5" fill="none" opacity="0.4"/>
+          <!-- Q2 → UserProfile -->
+          <path d="M 0 100 C 20 100, 20 60, 40 60" stroke="#4ECDC4" stroke-width="1.5" fill="none" opacity="0.4"/>
+          <!-- Q3 → Character -->
+          <path d="M 0 180 C 20 180, 20 230, 40 230" stroke="#FFD166" stroke-width="1.5" fill="none" opacity="0.4"/>
+          <!-- Q4 → Learning -->
+          <path d="M 0 260 C 20 260, 20 130, 40 130" stroke="#4ECDC4" stroke-width="1.5" fill="none" opacity="0.4"/>
+          <!-- Q5 → Learning -->
+          <path d="M 0 320 C 20 320, 20 150, 40 150" stroke="#4ECDC4" stroke-width="1.5" fill="none" opacity="0.4"/>
+          <!-- Q6 → Learning + Perf -->
+          <path d="M 0 405 C 20 405, 20 160, 40 160" stroke="#4ECDC4" stroke-width="1.5" fill="none" opacity="0.4"/>
+          <path d="M 0 415 C 20 415, 20 330, 40 330" stroke="#F59E0B" stroke-width="1.5" fill="none" opacity="0.4"/>
+        </svg>
+      </div>
+
+      <!-- Column 2: Context Blocks -->
+      <div class="assembly-col">
+        <div class="assembly-col-title">5 Context Blocks</div>
+
+        <div class="ctx-block" id="ctx-user">
+          <div class="ctx-name">
+            UserProfileContext
+            <span class="ctx-badge ctx-always">always</span>
+          </div>
+          <div class="ctx-fields">
+            <div class="f">userId <span class="type">string</span></div>
+            <div class="f">level <span class="type">number</span></div>
+            <div class="f">totalXp <span class="type">number</span></div>
+            <div class="f">subscriptionTier <span class="type">free|pro|champion</span></div>
+            <div class="f">locale <span class="type">en|uk|pl</span></div>
+            <div class="f">archetypeId? <span class="type">string</span></div>
+            <div class="f">characterId? <span class="type">string</span></div>
+            <div class="f">evolutionTier? <span class="type">string</span></div>
+          </div>
+        </div>
+
+        <div class="ctx-block" id="ctx-learning">
+          <div class="ctx-name">
+            LearningContext
+            <span class="ctx-badge ctx-always">always</span>
+          </div>
+          <div class="ctx-fields">
+            <div class="f">currentStreak <span class="type">number</span></div>
+            <div class="f">longestStreak <span class="type">number</span></div>
+            <div class="f">recentCompletions <span class="type">number (30d)</span></div>
+            <div class="f">averageQualityScore <span class="type">0.0–1.0</span></div>
+            <div class="f">skillElos[] <span class="type">{domain, elo}[10]</span></div>
+          </div>
+        </div>
+
+        <div class="ctx-block" id="ctx-character">
+          <div class="ctx-name">
+            CharacterContext
+            <span class="ctx-badge ctx-optional">if exists</span>
+          </div>
+          <div class="ctx-fields">
+            <div class="f">characterId <span class="type">string</span></div>
+            <div class="f">archetypeId <span class="type">string</span></div>
+            <div class="f">evolutionTier <span class="type">string</span></div>
+            <div class="f">attributes <span class="type">{STR,INT,CHA,CON,DEX,WIS}</span></div>
+          </div>
+        </div>
+
+        <div class="ctx-block" id="ctx-performance">
+          <div class="ctx-name">
+            PerformanceContext
+            <span class="ctx-badge ctx-computed">computed</span>
+          </div>
+          <div class="ctx-fields">
+            <div class="f">averageTimeSpentRatio <span class="type">actual/estimated</span></div>
+            <div class="f">completionRate <span class="type">number</span></div>
+            <div class="f">preferredTaskTypes <span class="type">string[3]</span></div>
+            <div class="f">difficultyDistribution <span class="type">Record&lt;tier,count&gt;</span></div>
+          </div>
+        </div>
+
+        <div class="ctx-block" id="ctx-narrative">
+          <div class="ctx-name">
+            NarrativeContext
+            <span class="ctx-badge ctx-optional">if exists</span>
+          </div>
+          <div class="ctx-fields">
+            <div class="f">currentSeason <span class="type">number</span></div>
+            <div class="f">lastEpisodeNumber <span class="type">number</span></div>
+            <div class="f">narrativeMode <span class="type">full|minimal|off</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow to budget -->
+      <div class="arrows-col">
+        <svg width="40" height="460" style="overflow:visible">
+          <path d="M 0 230 L 40 230" stroke="#9D7AFF" stroke-width="2" fill="none" stroke-dasharray="4 3" opacity="0.5"/>
+          <polygon points="38,225 48,230 38,235" fill="#9D7AFF" opacity="0.5"/>
+        </svg>
+      </div>
+
+      <!-- Column 3: Budget Result -->
+      <div class="assembly-col" style="justify-content:center">
+        <div class="assembly-col-title">Budget-Filtered Output</div>
+        <div class="ctx-block" style="border-color:rgba(157,122,255,0.3); background:linear-gradient(135deg,rgba(157,122,255,0.08),transparent)">
+          <div class="ctx-name" style="color:var(--violet)">
+            GeneratorContext
+          </div>
+          <div style="font-size:11px; color:var(--muted); margin-bottom:8px">
+            Only budgeted blocks are included.<br>
+            Each generator declares its needs via<br>
+            <code style="font-family:var(--mono);color:var(--gold);font-size:10px">GENERATOR_CONTEXT_BUDGETS</code>
+          </div>
+          <div style="font-family:var(--mono);font-size:10px;color:#888; background:rgba(0,0,0,0.15); padding:8px 10px; border-radius:6px; line-height:1.7">
+            <span style="color:var(--dim)">// e.g. quest generator:</span><br>
+            <span style="color:var(--cyan)">quest</span>: [<br>
+            &nbsp;&nbsp;<span style="color:var(--blue)">'userProfile'</span>,<br>
+            &nbsp;&nbsp;<span style="color:var(--cyan)">'learningContext'</span>,<br>
+            &nbsp;&nbsp;<span style="color:var(--orange)">'performanceContext'</span><br>
+            ]
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ S3: BUDGET MAP ═══ -->
+  <div class="section" id="budget">
+    <div class="section-head">
+      <span class="section-num">03</span>
+      <span class="section-title">Budget Map</span>
+    </div>
+    <div class="section-desc">Which context blocks each generator receives. Click a row to jump to its detail card.</div>
+
+    <div class="budget-table-wrap">
+      <table class="budget-table">
+        <thead>
+          <tr>
+            <th>Generator</th>
+            <th>Model Tier</th>
+            <th>Cache</th>
+            <th style="color:#3B82F6">UserProfile</th>
+            <th style="color:var(--cyan)">Learning</th>
+            <th style="color:var(--gold)">Character</th>
+            <th style="color:var(--orange)">Performance</th>
+            <th style="color:var(--violet)">Narrative</th>
+          </tr>
+        </thead>
+        <tbody id="budgetBody">
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══ S4: GENERATOR CARDS ═══ -->
+  <div class="section" id="generators">
+    <div class="section-head">
+      <span class="section-num">04</span>
+      <span class="section-title">Generator Details</span>
+    </div>
+    <div class="section-desc">Per-generator configuration: model, temperature, tokens, context fields embedded in prompts, and cache key strategy.</div>
+    <div class="gen-cards" id="genCards"></div>
+  </div>
+
+  <!-- ═══ S5: FALLBACK FLOW ═══ -->
+  <div class="section" id="fallback">
+    <div class="section-head">
+      <span class="section-num">05</span>
+      <span class="section-title">Error &amp; Fallback Flow</span>
+    </div>
+    <div class="section-desc">When the LLM call fails, the pipeline attempts a locale-aware template fallback via TranslationService before re-throwing.</div>
+
+    <div class="pipeline-wrapper">
+      <div class="fallback-flow">
+        <!-- LLM Call -->
+        <div class="fb-node">
+          <div class="fb-box fb-llm-node">
+            <div class="fb-title">⚡ LLM Call</div>
+            <div class="fb-detail">llmClient.call()</div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:20px;margin-left:4px">
+          <!-- Success path -->
+          <div class="fb-branch-row">
+            <div class="fb-label fb-label-ok">✓ OK</div>
+            <div class="fb-arrow success"></div>
+            <div class="fb-box fb-success">
+              <div class="fb-title">Parse + Validate</div>
+              <div class="fb-detail">JSON → Zod → TOutput</div>
+            </div>
+            <div class="fb-arrow success"></div>
+            <div class="fb-box fb-success">
+              <div class="fb-title">Return Result</div>
+              <div class="fb-detail">cache + trace + return</div>
+            </div>
+          </div>
+
+          <!-- Error path -->
+          <div class="fb-branch-row">
+            <div class="fb-label fb-label-err">✗ ERR</div>
+            <div class="fb-arrow error"></div>
+            <div class="fb-box fb-error">
+              <div class="fb-title">Track Failure</div>
+              <div class="fb-detail">tracer.trackFailure()</div>
+            </div>
+            <div class="fb-arrow error"></div>
+            <div class="fb-box fb-template">
+              <div class="fb-title">TemplateService</div>
+              <div class="fb-detail">getFallback(type, input, locale)</div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:12px;margin-left:4px">
+              <div class="fb-branch-row">
+                <div class="fb-label fb-label-found">found</div>
+                <div class="fb-arrow gold"></div>
+                <div class="fb-box fb-template">
+                  <div class="fb-title">Return Template</div>
+                  <div class="fb-detail">track(model='template')</div>
+                </div>
+              </div>
+              <div class="fb-branch-row">
+                <div class="fb-label fb-label-null">null</div>
+                <div class="fb-arrow error"></div>
+                <div class="fb-box fb-error">
+                  <div class="fb-title">Re-throw</div>
+                  <div class="fb-detail">→ tRPC error</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Template Resolution -->
+    <div style="margin-top:16px; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px 20px;">
+      <div style="font-size:12px; font-weight:700; margin-bottom:10px; color:var(--gold)">Template Resolution via TranslationService</div>
+      <div style="font-family:var(--mono); font-size:10px; line-height:1.7; color:#aaa; background:rgba(0,0,0,0.15); padding:10px 12px; border-radius:6px;">
+        <span style="color:var(--dim)">// TemplateService uses TranslationService for locale-aware fallbacks</span><br>
+        <span style="color:var(--violet)">quest</span> templates → <span style="color:var(--gold)">tr('template.quest_review')</span>, <span style="color:var(--gold)">tr('template.quest_practice')</span>, ...<br>
+        <span style="color:var(--violet)">motivational</span> → <span style="color:var(--gold)">tr('template.motivational_1..5')</span><br>
+        <span style="color:var(--violet)">fun-fact</span> → <span style="color:var(--gold)">tr('template.funfact_1..5')</span><br><br>
+        <span style="color:var(--dim)">// All templates pass through:</span><br>
+        <span style="color:var(--cyan)">TranslationService</span>.get(<span style="color:var(--gold)">'ui'</span>, entityId, <span style="color:var(--gold)">'value'</span>, locale, fallback)
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ S6: E2E TRACE ═══ -->
+  <div class="section" id="e2e">
+    <div class="section-head">
+      <span class="section-num">06</span>
+      <span class="section-title">End-to-End Trace: Quest Generation</span>
+    </div>
+    <div class="section-desc">A complete walkthrough of a single quest generation with real data values at every step.</div>
+
+    <div class="trace-steps" id="traceSteps">
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Data ──
+const GENERATORS = [
+  {
+    id: 'roadmap', name: 'RoadmapGenerator', tier: 'QUALITY', temp: 0.7, tokens: 4096, cache: null,
+    budget: [true, true, true, false, false],
+    systemFields: [
+      { name: 'level', ctx: 'user' }, { name: 'totalXp', ctx: 'user' },
+      { name: 'streak', ctx: 'learn' }, { name: 'skillElos[5]', ctx: 'learn' },
+      { name: 'characterId', ctx: 'char' }, { name: 'attributes', ctx: 'char' },
+      { name: 'locale', ctx: 'user' },
+    ],
+    userPrompt: 'Maps skillElos to Bloom\'s level recommendations, adjusts difficulty by domain proficiency',
+    cacheKey: null,
+  },
+  {
+    id: 'narrative', name: 'NarrativeGenerator', tier: 'QUALITY', temp: 0.8, tokens: 2048, cache: null,
+    budget: [true, false, true, true, true],
+    systemFields: [
+      { name: 'currentSeason', ctx: 'narr' }, { name: 'lastEpisode', ctx: 'narr' },
+      { name: 'narrativeMode', ctx: 'narr' }, { name: 'archetypeId', ctx: 'char' },
+      { name: 'evolutionTier', ctx: 'char' }, { name: 'attributes', ctx: 'char' },
+      { name: 'locale', ctx: 'user' },
+    ],
+    userPrompt: 'Input only — storyBible, arcOutline, episode details (no context fields)',
+    cacheKey: null,
+  },
+  {
+    id: 'quest', name: 'QuestGenerator', tier: 'BALANCED', temp: 0.6, tokens: 2048, cache: '1h',
+    budget: [true, true, false, true, false],
+    systemFields: [
+      { name: 'level', ctx: 'user' }, { name: 'streak', ctx: 'learn' },
+      { name: 'qualityScore', ctx: 'learn' }, { name: 'skillElos[5]', ctx: 'learn' },
+      { name: 'preferredTypes', ctx: 'perf' }, { name: 'timeRatio', ctx: 'perf' },
+      { name: 'locale', ctx: 'user' },
+    ],
+    userPrompt: 'Looks up skillElo for input.domain → determines proficiency tier (beginner/intermediate/advanced/expert)',
+    cacheKey: 'sha256(userId : domain : YYYY-MM-DD)',
+  },
+  {
+    id: 'assessment', name: 'AssessmentGenerator', tier: 'BALANCED', temp: 0.4, tokens: 2048, cache: '24h',
+    budget: [true, true, false, false, false],
+    systemFields: [
+      { name: 'level', ctx: 'user' }, { name: 'skillElos[5]', ctx: 'learn' },
+      { name: 'locale', ctx: 'user' },
+    ],
+    userPrompt: 'Input only — skillDomain, experienceLevel, goal, questionCount',
+    cacheKey: 'sha256(domain : experience : count)',
+  },
+  {
+    id: 'code-challenge', name: 'CodeChallengeGenerator', tier: 'BALANCED', temp: 0.5, tokens: 2048, cache: '24h',
+    budget: [true, true, false, false, false],
+    systemFields: [
+      { name: 'level', ctx: 'user' }, { name: 'skillElos[5]', ctx: 'learn' },
+      { name: 'locale', ctx: 'user' },
+    ],
+    userPrompt: 'Input only — language, skillDomain, bloomLevel, difficulty',
+    cacheKey: 'sha256(lang : domain : bloom : difficulty)',
+  },
+  {
+    id: 'fun-fact', name: 'FunFactGenerator', tier: 'BUDGET', temp: 0.8, tokens: 512, cache: '24h',
+    budget: [true, false, false, false, false],
+    systemFields: [
+      { name: 'locale', ctx: 'user' },
+    ],
+    userPrompt: 'Input only — skillDomain, topic',
+    cacheKey: 'sha256(domain : topic)',
+  },
+  {
+    id: 'milestone-suggestion', name: 'MilestoneSuggestionGenerator', tier: 'BUDGET', temp: 0.6, tokens: 512, cache: '10m',
+    budget: [true, false, false, false, false],
+    systemFields: [
+      { name: 'locale', ctx: 'user' },
+    ],
+    userPrompt: 'Adapts guidance by skillLevel (beginner→fundamentals, advanced→mastery)',
+    cacheKey: 'sha256(dreamGoal : locale)',
+  },
+  {
+    id: 'motivational', name: 'MotivationalGenerator', tier: 'BUDGET', temp: 0.9, tokens: 512, cache: '1h',
+    budget: [true, false, true, false, false],
+    systemFields: [
+      { name: 'characterId', ctx: 'char' }, { name: 'archetypeId', ctx: 'char' },
+      { name: 'evolutionTier', ctx: 'char' }, { name: 'locale', ctx: 'user' },
+    ],
+    userPrompt: 'Input only — triggerType, level, streakDays',
+    cacheKey: 'sha256(trigger : level : streak)',
+  },
+  {
+    id: 'quiz', name: 'QuizGenerator', tier: 'BUDGET', temp: 0.3, tokens: 2048, cache: '24h',
+    budget: [true, true, false, false, false],
+    systemFields: [
+      { name: 'level', ctx: 'user' }, { name: 'skillElos[5]', ctx: 'learn' },
+      { name: 'locale', ctx: 'user' },
+    ],
+    userPrompt: 'Input only — skillDomain, questionCount, bloomLevel',
+    cacheKey: 'sha256(domain : count : bloom)',
+  },
+  {
+    id: 'recommendation', name: 'RecommendationGenerator', tier: 'BUDGET', temp: 0.5, tokens: 1024, cache: '1h',
+    budget: [true, true, false, false, false],
+    systemFields: [
+      { name: 'level', ctx: 'user' }, { name: 'totalXp', ctx: 'user' },
+      { name: 'streak', ctx: 'learn' }, { name: 'completions', ctx: 'learn' },
+      { name: 'locale', ctx: 'user' },
+    ],
+    userPrompt: 'Input only — completedSkillDomains, currentSkillDomains, userLevel',
+    cacheKey: 'sha256(domains.join : level)',
+  },
+  {
+    id: 'resource', name: 'ResourceGenerator', tier: 'BUDGET', temp: 0.3, tokens: 1024, cache: '24h',
+    budget: [true, false, false, false, false],
+    systemFields: [
+      { name: 'locale', ctx: 'user' },
+    ],
+    userPrompt: 'Input only — skillDomain, resourceType, count',
+    cacheKey: 'sha256(domain : type : count)',
+  },
+];
+
+const TIER_BADGE = {
+  QUALITY: '<span class="badge b-quality">QUALITY</span>',
+  BALANCED: '<span class="badge b-balanced">BALANCED</span>',
+  BUDGET: '<span class="badge b-budget">BUDGET</span>',
+};
+
+const TIER_CLASS = {
+  QUALITY: 'tier-quality',
+  BALANCED: 'tier-balanced',
+  BUDGET: 'tier-budget',
+};
+
+const CTX_CLASS = { user: 'ctx-user', learn: 'ctx-learn', char: 'ctx-char', perf: 'ctx-perf', narr: 'ctx-narr' };
+
+// ── Budget Table ──
+function renderBudgetTable() {
+  const body = document.getElementById('budgetBody');
+  body.innerHTML = GENERATORS.map(g => {
+    const checks = g.budget.map(b =>
+      `<td><span class="check ${b ? 'check-on' : 'check-off'}">${b ? '✓' : '·'}</span></td>`
+    ).join('');
+    const cacheHtml = g.cache
+      ? `<span class="b-cache">${g.cache}</span>`
+      : `<span class="b-no-cache">—</span>`;
+    return `<tr onclick="scrollToGen('${g.id}')" title="Click to see details">
+      <td><span class="gen-name">${g.id}</span></td>
+      <td>${TIER_BADGE[g.tier]}</td>
+      <td>${cacheHtml}</td>
+      ${checks}
+    </tr>`;
+  }).join('');
+}
+
+// ── Generator Cards ──
+function renderGenCards() {
+  const container = document.getElementById('genCards');
+  container.innerHTML = GENERATORS.map(g => {
+    const fields = g.systemFields.map(f =>
+      `<span class="field-tag ${CTX_CLASS[f.ctx]}">${f.name}</span>`
+    ).join('');
+    const cacheHtml = g.cacheKey
+      ? `<div class="cache-formula">${g.cacheKey}</div>`
+      : `<span style="font-family:var(--mono);font-size:10px;color:var(--dim)">No caching — unique per request</span>`;
+    return `<div class="gen-card ${TIER_CLASS[g.tier]}" id="gen-${g.id}">
+      <div class="gen-card-head">
+        <span class="gen-card-name">${g.id}</span>
+        <div class="gen-card-meta">
+          ${TIER_BADGE[g.tier]}
+          <span class="meta-chip">temp ${g.temp}</span>
+          <span class="meta-chip">${g.tokens} tok</span>
+          ${g.cache ? `<span class="b-cache">${g.cache} cache</span>` : ''}
+        </div>
+      </div>
+      <div class="gen-card-section">
+        <div class="gen-card-section-title">System Prompt Context Fields</div>
+        <div class="field-tags">${fields}</div>
+      </div>
+      <div class="gen-card-section">
+        <div class="gen-card-section-title">User Prompt Logic</div>
+        <div class="user-prompt-note">${g.userPrompt}</div>
+      </div>
+      <div class="gen-card-section">
+        <div class="gen-card-section-title">Cache Key</div>
+        ${cacheHtml}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── E2E Trace ──
+function renderTrace() {
+  const steps = [
+    {
+      num: '→', dot: 'active', title: 'tRPC Request',
+      titleColor: 'var(--blue)',
+      data: `<span class="c">// Client calls:</span>
+<span class="k">trpc.quest.generateDaily</span>.useMutation()
+<span class="k">input</span>: { <span class="v">skillDomain</span>: 'javascript', <span class="v">bloomLevel</span>: 'apply' }
+<span class="k">userId</span>: <span class="s">'usr_abc123'</span> <span class="c">// from JWT</span>`,
+    },
+    {
+      num: '1', dot: 'active', title: 'Context Assembly',
+      titleColor: 'var(--cyan)',
+      data: `<span class="c">// 6 parallel Prisma queries complete in ~15ms</span>
+<span class="k">Q1 user</span>        → { <span class="v">locale</span>: 'uk' }
+<span class="k">Q2 progression</span> → { <span class="v">level</span>: 12, <span class="v">totalXp</span>: 4200, <span class="v">tier</span>: 'free' }
+<span class="k">Q3 character</span>   → { <span class="v">id</span>: 'aria', <span class="v">archetype</span>: 'strategist', <span class="v">STR</span>:8 <span class="v">INT</span>:14 ... }
+<span class="k">Q4 streak</span>      → { <span class="v">current</span>: 7, <span class="v">longest</span>: 14 }
+<span class="k">Q5 skillElo</span>    → [ {<span class="v">javascript</span>: 1340}, {<span class="v">react</span>: 1180}, ... ]
+<span class="k">Q6 completions</span> → 23 items (30d), <span class="v">avgQuality</span>: 0.82
+
+<span class="c">// Budget filter for 'quest': [userProfile, learningContext, performanceContext]</span>
+<span class="c">// → characterContext EXCLUDED, narrativeContext EXCLUDED</span>`,
+    },
+    {
+      num: '1½', dot: '', title: 'Rate Limit Check',
+      titleColor: 'var(--rose)',
+      data: `<span class="k">rateLimitService</span>.check(<span class="s">'usr_abc123'</span>, <span class="s">'free'</span>) → <span class="s">✓ PASS</span>`,
+    },
+    {
+      num: '2', dot: 'gold', title: 'Cache Lookup',
+      titleColor: 'var(--gold)',
+      data: `<span class="k">getCacheKey</span>() → sha256(<span class="s">'usr_abc123:javascript:2026-03-05'</span>)
+                  → <span class="v">'quest:a1b2c3d4e5f6'</span>
+<span class="k">cacheService</span>.get(<span class="v">'quest:a1b2c3d4e5f6'</span>) → <span class="c">MISS</span>`,
+    },
+    {
+      num: '3', dot: 'violet', title: 'Build Prompts',
+      titleColor: 'var(--violet)',
+      data: `<span class="k">systemPrompt</span>:
+  <span class="s">"You are a quest designer for an RPG learning platform.</span>
+  <span class="s"> The hero is level 12 with a 7-day streak.</span>
+  <span class="s"> Average quality score: 82%.</span>
+  <span class="s"> Top skills: javascript (Elo 1340), react (Elo 1180) ...</span>
+  <span class="s"> Preferred task types: review, quiz, project.</span>
+  <span class="s"> Average pacing: 0.9x (slightly ahead of schedule).</span>
+  <span class="s"> Respond in Ukrainian (uk)."</span>
+
+<span class="k">userPrompt</span>:
+  <span class="s">"Generate a quest for domain: javascript, Bloom's: apply</span>
+  <span class="s"> User's javascript Elo: 1340 → intermediate/advanced tier"</span>`,
+    },
+    {
+      num: '4', dot: '', title: 'Safety Filter (Input)',
+      titleColor: 'var(--rose)',
+      data: `<span class="k">safetyService</span>.filterInput(userPrompt) → <span class="s">sanitized ✓</span>`,
+    },
+    {
+      num: '5', dot: 'violet', title: '⚡ LLM Call',
+      titleColor: 'var(--violet)',
+      data: `<span class="k">llmClient</span>.call({
+  <span class="v">tier</span>: <span class="s">BALANCED</span> → claude-haiku,
+  <span class="v">maxTokens</span>: 2048,
+  <span class="v">temperature</span>: 0.6
+})
+
+<span class="c">// Response in ~800ms</span>
+<span class="k">response</span>: {
+  <span class="v">text</span>: '{"title":"Рефакторинг callbacks","type":"review",...}',
+  <span class="v">model</span>: 'claude-haiku-4-5-20251001',
+  <span class="v">inputTokens</span>: 847,
+  <span class="v">outputTokens</span>: 312,
+  <span class="v">durationMs</span>: 823,
+  <span class="v">attempt</span>: 1
+}`,
+    },
+    {
+      num: '6', dot: '', title: 'Parse + Validate',
+      titleColor: 'var(--text)',
+      data: `<span class="k">JSON.parse</span>(response.text) → <span class="s">✓</span>
+<span class="k">outputSchema.safeParse</span>(parsed) → <span class="s">✓ QuestOutput</span>`,
+    },
+    {
+      num: '7', dot: '', title: 'Safety Filter (Output)',
+      titleColor: 'var(--rose)',
+      data: `<span class="k">safetyService</span>.filterOutput(validated) → <span class="s">clean ✓</span>`,
+    },
+    {
+      num: '8', dot: 'gold', title: 'Cache Write',
+      titleColor: 'var(--gold)',
+      data: `<span class="k">cacheService</span>.set(<span class="v">'quest:a1b2c3d4e5f6'</span>, result, <span class="v">3600</span>) <span class="c">// fire-and-forget, 1h TTL</span>`,
+    },
+    {
+      num: '9', dot: '', title: 'Trace',
+      titleColor: 'var(--orange)',
+      data: `<span class="k">tracer</span>.trackSuccess({
+  <span class="v">userId</span>: 'usr_abc123', <span class="v">generatorType</span>: 'quest',
+  <span class="v">model</span>: 'claude-haiku-4-5-20251001',
+  <span class="v">inputTokens</span>: 847, <span class="v">outputTokens</span>: 312,
+  <span class="v">durationMs</span>: 823, <span class="v">cost</span>: $0.0006
+})
+<span class="c">// → writes to llmUsage table (always)</span>
+<span class="c">// → writes to llmTrace table (if LLM_TRACE_FULL=true)</span>`,
+    },
+    {
+      num: '10', dot: 'mint', title: 'Return → Client',
+      titleColor: 'var(--mint)',
+      data: `<span class="k">return</span> {
+  <span class="v">title</span>: <span class="s">'Рефакторинг callbacks у Promises'</span>,
+  <span class="v">description</span>: <span class="s">'Перепиши callback-based модуль з використанням...'</span>,
+  <span class="v">type</span>: <span class="s">'review'</span>,
+  <span class="v">difficulty</span>: 3,
+  <span class="v">estimatedMinutes</span>: 25,
+  <span class="v">xpReward</span>: 45
+}
+
+<span class="c">// → QuestService stores in DB</span>
+<span class="c">// → tRPC returns to client</span>
+<span class="c">// → Zustand store updates → UI re-renders</span>`,
+    },
+  ];
+
+  const container = document.getElementById('traceSteps');
+  container.innerHTML = steps.map((s, i) => {
+    const isLast = i === steps.length - 1;
+    return `<div class="trace-step">
+      <div class="trace-num">${s.num}</div>
+      <div class="trace-line">
+        <div class="trace-dot ${s.dot}"></div>
+        ${!isLast ? '<div class="trace-connector"></div>' : ''}
+      </div>
+      <div class="trace-content">
+        <div class="trace-title" style="color:${s.titleColor}">${s.title}</div>
+        <div class="trace-data">${s.data}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Navigation ──
+function scrollToSection(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function scrollToGen(id) {
+  const el = document.getElementById('gen-' + id);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.style.boxShadow = '0 0 30px rgba(157,122,255,0.25)';
+    el.style.borderColor = 'var(--violet)';
+    setTimeout(() => {
+      el.style.boxShadow = '';
+      el.style.borderColor = '';
+    }, 2000);
+  }
+}
+
+// ── Active nav tracking ──
+const sectionIds = ['pipeline', 'assembly', 'budget', 'generators', 'fallback', 'e2e'];
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      document.querySelectorAll('.nav-link').forEach(btn => btn.classList.remove('active'));
+      const idx = sectionIds.indexOf(entry.target.id);
+      if (idx >= 0) {
+        document.querySelectorAll('.nav-link')[idx]?.classList.add('active');
+      }
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+
+// ── Init ──
+renderBudgetTable();
+renderGenCards();
+renderTrace();
+sectionIds.forEach(id => {
+  const el = document.getElementById(id);
+  if (el) observer.observe(el);
+});
+</script>
+</body>
+</html>

@@ -121,6 +121,112 @@ export class AuthService {
     throw new UnauthorizedException(`Unknown provider: ${provider}`);
   }
 
+  // ─── Dev-only methods (NODE_ENV=development) ───────────────────
+
+  private assertDev() {
+    if (process.env.NODE_ENV !== 'development') {
+      throw new UnauthorizedException('Dev endpoints are only available in development mode');
+    }
+  }
+
+  /** List all users with key info for dev login picker */
+  async devListUsers() {
+    this.assertDev();
+
+    const users = await this.prisma.user.findMany({
+      include: {
+        progression: {
+          select: { level: true, totalXp: true, subscriptionTier: true },
+        },
+        character: {
+          select: { characterId: true, archetypeId: true },
+        },
+        roadmaps: {
+          select: { id: true, goal: true, status: true },
+          take: 3,
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    return users.map((u) => ({
+      id: u.id,
+      displayName: u.displayName,
+      onboardingCompleted: u.onboardingCompleted,
+      subscriptionTier: u.progression?.subscriptionTier ?? 'free',
+      locale: u.locale,
+      level: u.progression?.level ?? 1,
+      totalXp: u.progression?.totalXp ?? 0,
+      character: u.character
+        ? { characterId: u.character.characterId, archetypeId: u.character.archetypeId }
+        : null,
+      roadmaps: u.roadmaps,
+      createdAt: u.createdAt,
+    }));
+  }
+
+  /** Login as any existing user by ID (dev only) */
+  async devLoginAs(userId: string) {
+    this.assertDev();
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
+      throw new UnauthorizedException(`User ${userId} not found`);
+    }
+
+    return this.generateTokens(user.id, user.displayName);
+  }
+
+  /** Delete a test user and all cascade data (dev only) */
+  async devDeleteUser(userId: string) {
+    this.assertDev();
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new UnauthorizedException(`User ${userId} not found`);
+    }
+
+    // Cascade delete handles all relations
+    await this.prisma.user.delete({ where: { id: userId } });
+    return { deleted: true, userId };
+  }
+
+  /** Create a fresh test user (dev only) */
+  async devCreateUser(displayName?: string) {
+    this.assertDev();
+
+    const name = displayName || `TestUser_${Math.random().toString(36).slice(2, 8)}`;
+    const user = await this.prisma.user.create({
+      data: {
+        displayName: name,
+        authProvider: 'google',
+        providerSubId: `dev_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        progression: {
+          create: {
+            totalXp: 0,
+            level: 1,
+            coins: 0,
+            energyCrystals: 3,
+            maxEnergyCrystals: 3,
+          },
+        },
+        streak: {
+          create: {
+            currentStreak: 0,
+            longestStreak: 0,
+            maxFreezes: 1,
+          },
+        },
+      },
+    });
+
+    return this.generateTokens(user.id, user.displayName);
+  }
+
   private async verifyAppleToken(idToken: string): Promise<string> {
     // TODO: Implement Apple Sign-In verification
     // https://developer.apple.com/documentation/sign_in_with_apple/sign_in_with_apple_rest_api/verifying_a_user

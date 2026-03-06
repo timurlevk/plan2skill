@@ -20,7 +20,7 @@ function ShimmerBox({ width, height, borderRadius = 8, style = {} }: {
       width, height, borderRadius,
       background: `linear-gradient(90deg, ${t.border} 0%, ${t.borderHover} 50%, ${t.border} 100%)`,
       backgroundSize: '200% 100%',
-      animation: 'shimmer 1.5s ease-in-out infinite',
+      animation: 'shimmer 1.5s linear infinite',
       ...style,
     }} />
   );
@@ -35,20 +35,21 @@ export function SkeletonLoader() {
         <ShimmerBox width={180} height={16} borderRadius={4} />
       </div>
 
-      {/* Stats row skeleton */}
+      {/* Stats row skeleton — staggered shimmer to avoid wall-of-shimmers (§5 MICRO_ANIMATION_GUIDELINES) */}
       <div className="grid grid-cols-2 md:grid-cols-4" style={{ gap: 12, marginBottom: 32 }}>
         {[0, 1, 2, 3].map(i => (
           <div key={i} style={{
             padding: 16, borderRadius: 16,
             background: t.bgCard, border: `1px solid ${t.border}`,
+            animationDelay: `${i * 0.05}s`,
           }}>
-            <ShimmerBox width={60} height={12} borderRadius={4} style={{ marginBottom: 10 }} />
-            <ShimmerBox width={80} height={22} borderRadius={4} />
+            <ShimmerBox width={60} height={12} borderRadius={4} style={{ marginBottom: 10, animationDelay: `${i * 0.05}s` }} />
+            <ShimmerBox width={80} height={22} borderRadius={4} style={{ animationDelay: `${i * 0.05}s` }} />
           </div>
         ))}
       </div>
 
-      {/* Active quests skeleton */}
+      {/* Active quests skeleton — staggered */}
       <div style={{ marginBottom: 32 }}>
         <ShimmerBox width={120} height={14} borderRadius={4} style={{ marginBottom: 14 }} />
         {[0, 1].map(i => (
@@ -56,20 +57,21 @@ export function SkeletonLoader() {
             padding: 20, borderRadius: 16,
             background: t.bgCard, border: `1px solid ${t.border}`,
             marginBottom: 12,
+            animationDelay: `${i * 0.05}s`,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-              <ShimmerBox width={40} height={40} borderRadius={12} />
+              <ShimmerBox width={40} height={40} borderRadius={12} style={{ animationDelay: `${i * 0.05}s` }} />
               <div style={{ flex: 1 }}>
-                <ShimmerBox width="70%" height={16} borderRadius={4} style={{ marginBottom: 6 }} />
-                <ShimmerBox width={100} height={12} borderRadius={4} />
+                <ShimmerBox width="70%" height={16} borderRadius={4} style={{ marginBottom: 6, animationDelay: `${i * 0.05}s` }} />
+                <ShimmerBox width={100} height={12} borderRadius={4} style={{ animationDelay: `${i * 0.05}s` }} />
               </div>
             </div>
-            <ShimmerBox width="100%" height={4} borderRadius={2} />
+            <ShimmerBox width="100%" height={4} borderRadius={2} style={{ animationDelay: `${i * 0.05}s` }} />
           </div>
         ))}
       </div>
 
-      {/* Daily quests skeleton */}
+      {/* Daily quests skeleton — staggered */}
       <div>
         <ShimmerBox width={120} height={14} borderRadius={4} style={{ marginBottom: 14 }} />
         {[0, 1, 2].map(i => (
@@ -78,13 +80,14 @@ export function SkeletonLoader() {
             padding: '12px 16px', borderRadius: 16,
             background: t.bgCard, border: `1px solid ${t.border}`,
             marginBottom: 8,
+            animationDelay: `${i * 0.05}s`,
           }}>
-            <ShimmerBox width={22} height={22} borderRadius={11} />
+            <ShimmerBox width={22} height={22} borderRadius={11} style={{ animationDelay: `${i * 0.05}s` }} />
             <div style={{ flex: 1 }}>
-              <ShimmerBox width="60%" height={14} borderRadius={4} style={{ marginBottom: 6 }} />
-              <ShimmerBox width={80} height={10} borderRadius={4} />
+              <ShimmerBox width="60%" height={14} borderRadius={4} style={{ marginBottom: 6, animationDelay: `${i * 0.05}s` }} />
+              <ShimmerBox width={80} height={10} borderRadius={4} style={{ animationDelay: `${i * 0.05}s` }} />
             </div>
-            <ShimmerBox width={50} height={14} borderRadius={4} />
+            <ShimmerBox width={50} height={14} borderRadius={4} style={{ animationDelay: `${i * 0.05}s` }} />
           </div>
         ))}
       </div>

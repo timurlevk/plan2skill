@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Milestone } from '@plan2skill/types';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
@@ -28,6 +28,16 @@ const TASK_TYPE_ICONS: Record<string, 'book' | 'code' | 'sparkle' | 'rocket' | '
 
 export function MilestoneDetail({ milestone, isActive }: MilestoneDetailProps) {
   const router = useRouter();
+
+  // SSR-safe reduced-motion hook (BLOCKER — Крок 9)
+  const [reducedMotion, setReducedMotion] = useState(false);
+  useEffect(() => {
+    setReducedMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }, []);
+
+  // Button press feedback
+  const [pressed, setPressed] = useState(false);
+
   const completedTasks = milestone.tasks.filter((task) => task.status === 'completed').length;
   const totalTasks = milestone.tasks.length;
 
@@ -37,7 +47,7 @@ export function MilestoneDetail({ milestone, isActive }: MilestoneDetailProps) {
         padding: 20, borderRadius: 16,
         background: t.bgCard,
         border: `1px solid ${isActive ? `${t.violet}40` : t.border}`,
-        animation: 'fadeUp 0.3s ease-out',
+        animation: reducedMotion ? 'none' : 'fadeUp 0.3s ease-out',
       }}
     >
       {/* Header */}
@@ -80,14 +90,16 @@ export function MilestoneDetail({ milestone, isActive }: MilestoneDetailProps) {
       {/* Progress bar */}
       <div style={{
         height: 4, borderRadius: 2,
-        background: '#252530', overflow: 'hidden',
+        background: t.border, overflow: 'hidden',
         marginBottom: 16,
       }}>
         <div style={{
-          width: `${Math.round(milestone.progress)}%`,
+          width: '100%',
+          transform: `scaleX(${Math.round(milestone.progress) / 100})`,
+          transformOrigin: 'left',
           height: '100%', borderRadius: 2,
           background: t.gradient,
-          transition: 'width 0.6s ease-out',
+          transition: 'transform 0.6s ease-out',
         }} />
       </div>
 
@@ -164,14 +176,18 @@ export function MilestoneDetail({ milestone, isActive }: MilestoneDetailProps) {
             gap: 8, width: '100%', marginTop: 16,
             padding: '12px 20px', borderRadius: 12,
             background: t.gradient, border: 'none',
-            cursor: 'pointer', transition: 'all 0.2s ease',
+            cursor: 'pointer',
+            transition: 'transform 0.2s ease',
+            transform: pressed ? 'scale(0.98)' : 'translateY(0)',
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+          onMouseEnter={(e) => { if (!pressed) e.currentTarget.style.transform = 'translateY(-1px)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; setPressed(false); }}
+          onMouseDown={() => setPressed(true)}
+          onMouseUp={() => setPressed(false)}
         >
-          <NeonIcon type="lightning" size={16} color="#FFF" />
+          <NeonIcon type="lightning" size={16} color={t.text} />
           <span style={{
-            fontFamily: t.display, fontSize: 14, fontWeight: 700, color: '#FFF',
+            fontFamily: t.display, fontSize: 14, fontWeight: 700, color: t.text,
           }}>
             Start Quest
           </span>

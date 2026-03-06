@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import type { AttributeKey } from '@plan2skill/types';
 
-const ATTRIBUTE_KEYS: AttributeKey[] = ['MAS', 'INS', 'INF', 'RES', 'VER', 'DIS'];
+const ATTRIBUTE_KEYS: AttributeKey[] = ['STR', 'INT', 'CHA', 'CON', 'DEX', 'WIS'];
 const VALID_SLOTS = ['weapon', 'shield', 'armor', 'helmet', 'boots', 'ring', 'companion'];
 
 @Injectable()
@@ -148,7 +148,6 @@ export class EquipmentService {
     const total: Record<string, number> = {};
 
     for (const key of ATTRIBUTE_KEYS) {
-      base[key] = 10;
       bonus[key] = 0;
     }
 
@@ -156,6 +155,20 @@ export class EquipmentService {
       where: { userId },
       include: { equipment: true },
     });
+
+    // Phase 5H FIX: Read base from Character model (not hardcoded 10)
+    if (character) {
+      base['STR'] = character.strength;
+      base['INT'] = character.intelligence;
+      base['CHA'] = character.charisma;
+      base['CON'] = character.constitution;
+      base['DEX'] = character.dexterity;
+      base['WIS'] = character.wisdom;
+    } else {
+      for (const key of ATTRIBUTE_KEYS) {
+        base[key] = 10;
+      }
+    }
 
     if (character) {
       const itemIds = character.equipment.map((e) => e.itemId);

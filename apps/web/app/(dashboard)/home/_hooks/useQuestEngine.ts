@@ -12,6 +12,12 @@ import type { LootDrop } from '@plan2skill/types';
 // Optimistic UI: local store updates instantly, tRPC syncs to server in background.
 // Handles XP, bonus rolls, streaks, achievements, loot drops, sound, and animations.
 
+// Phase 5H: attribute growth result from milestone completion
+export interface AttributeGrowthResult {
+  attribute: string;
+  amount: number;
+}
+
 export interface QuestEngineResult {
   completedQuests: Set<string>;
   bonusResults: Map<string, BonusResult>;
@@ -19,8 +25,10 @@ export interface QuestEngineResult {
   xpFloatAmount: number;
   newlyUnlockedAchievements: Achievement[];
   lastLootDrop: LootDrop | null;
+  lastAttributeGrowth: AttributeGrowthResult[] | null;
   dismissAchievement: () => void;
   dismissLootDrop: () => void;
+  dismissAttributeGrowth: () => void;
   completeQuest: (taskId: string, goalId: string, xp: number) => void;
   undoQuest: (taskId: string, xp: number) => void;
 }
@@ -36,6 +44,9 @@ export function useQuestEngine(): QuestEngineResult {
   const completeTaskMutation = trpc.progression.completeTask.useMutation();
 
   const unlockAchievementMutation = trpc.achievement.unlock.useMutation();
+
+  // Phase W1: review.create for spaced repetition after quest completion
+  const createReviewMutation = trpc.review.create.useMutation();
 
   // Initialize from persisted daily quests
   const [completedQuests, setCompletedQuests] = useState<Set<string>>(
@@ -54,6 +65,9 @@ export function useQuestEngine(): QuestEngineResult {
 
   // Phase 5F: loot drop from server
   const [lastLootDrop, setLastLootDrop] = useState<LootDrop | null>(null);
+
+  // Phase 5H: attribute growth from milestone completion
+  const [lastAttributeGrowth, setLastAttributeGrowth] = useState<AttributeGrowthResult[] | null>(null);
 
   // Check and reset daily on mount
   useEffect(() => {
@@ -153,7 +167,11 @@ export function useQuestEngine(): QuestEngineResult {
       completeTaskMutation.mutate(
         { taskId, validationResult: {}, timeSpentSeconds: undefined },
         {
-          onSuccess: (data: { lootDrop?: LootDrop | null }) => {
+          onSuccess: (data: { lootDrop?: LootDrop | null; attributeGrowth?: AttributeGrowthResult[] | null; evolutionTierChange?: string | null }) => {
+            // Phase 5H: handle attribute growth from milestone completion
+            if (data?.attributeGrowth && data.attributeGrowth.length > 0) {
+              setLastAttributeGrowth(data.attributeGrowth);
+            }
             // Phase 5F: handle loot drop from server response
             if (data?.lootDrop) {
               setLastLootDrop(data.lootDrop);
@@ -170,6 +188,17 @@ export function useQuestEngine(): QuestEngineResult {
                 attributeBonus: data.lootDrop.attributeBonus,
               });
             }
+
+            // Phase W1: create spaced repetition review item for skill tracking
+            // Uses goalId as skillId — the goalId param carries the skill domain
+            if (goalId) {
+              createReviewMutation.mutate(
+                { skillId: goalId, skillDomain: goalId },
+                { onError: (e: { message: string }) =>
+                  console.warn('[QuestEngine] review.create failed:', e.message),
+                },
+              );
+            }
           },
           onError: (err: { message: string }) => {
             // Server sync failed — local state is still valid
@@ -178,7 +207,7 @@ export function useQuestEngine(): QuestEngineResult {
         },
       );
     }
-  }, [checkAchievements, isAuthenticated, completeTaskMutation]);
+  }, [checkAchievements, isAuthenticated, completeTaskMutation, createReviewMutation]);
 
   const undoQuest = useCallback((taskId: string, xp: number) => {
     const s = storeRef.current;
@@ -208,6 +237,10 @@ export function useQuestEngine(): QuestEngineResult {
     setLastLootDrop(null);
   }, []);
 
+  const dismissAttributeGrowth = useCallback(() => {
+    setLastAttributeGrowth(null);
+  }, []);
+
   return {
     completedQuests,
     bonusResults,
@@ -215,8 +248,10 @@ export function useQuestEngine(): QuestEngineResult {
     xpFloatAmount,
     newlyUnlockedAchievements,
     lastLootDrop,
+    lastAttributeGrowth,
     dismissAchievement,
     dismissLootDrop,
+    dismissAttributeGrowth,
     completeQuest,
     undoQuest,
   };

@@ -208,7 +208,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // Auth: fetch user profile for role-based access control
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const { data: profile, isLoading: profileLoading } = trpc.user.profile.useQuery(undefined, {
+  const { data: profile, isLoading: profileLoading, isError: profileError } = trpc.user.profile.useQuery(undefined, {
     enabled: isAuthenticated,
     staleTime: 1000 * 60 * 5,
     retry: 1,
@@ -222,6 +222,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       router.push('/home');
     }
   }, [profileLoading, profile, userRole, router]);
+
+  if (profileError) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        gap: 12, height: '100vh', background: t.bg,
+      }}>
+        <div style={{ fontFamily: t.body, fontSize: 14, color: t.rose }}>
+          Access check failed
+        </div>
+        <a href="/home" style={{
+          fontFamily: t.body, fontSize: 13, color: t.violet, textDecoration: 'underline',
+        }}>
+          Return to app
+        </a>
+      </div>
+    );
+  }
 
   if (profileLoading || !profile) {
     return (

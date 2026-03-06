@@ -1,11 +1,10 @@
 import { useMemo, useCallback } from 'react';
 import type { QuestTask } from '../_utils/quest-templates';
-import type { GoalSelection } from '@plan2skill/types';
 
 // ─── Daily Progress Derived State ────────────────────────────────
 
 interface QuestGroup {
-  goal: GoalSelection;
+  goal: { id: string; label: string };
   goalData: any;
   tasks: QuestTask[];
 }

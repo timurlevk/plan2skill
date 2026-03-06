@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { TaskCompletionResult } from '@plan2skill/types';
+import type { TaskCompletionResult, SubscriptionTier } from '@plan2skill/types';
 import { computeLevel, getLevelInfo } from './level-utils';
 
 // ─── Quest Completion Record ─────────────────────────────────────
@@ -42,6 +42,9 @@ interface ProgressionState {
   // Spaced Repetition (Phase 5D) — synced from server
   masteredSkills: number;
   totalReviews: number;
+
+  // Subscription
+  subscriptionTier: SubscriptionTier;
 
   // UX toggles
   quietMode: boolean;
@@ -106,6 +109,7 @@ const initialState = {
   unlockedAchievements: [] as string[],
   masteredSkills: 0,
   totalReviews: 0,
+  subscriptionTier: 'free' as const,
   quietMode: false,
   xpAnimation: { amount: 0, active: false },
   levelUpAnimation: false,
@@ -160,7 +164,9 @@ export const useProgressionStore = create<ProgressionState>()(
           streakUpdated: false,
           currentStreak: s.currentStreak,
           milestoneCompleted: false,
+          milestoneId: goalId,
           roadmapProgress: 0,
+          roadmapCompleted: false,
         };
       },
 

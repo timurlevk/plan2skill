@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Milestone } from '@plan2skill/types';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
 import { t, rarity as rarityTokens } from '../../../(onboarding)/_components/tokens';
@@ -38,7 +38,7 @@ const BADGE_STYLES: Record<BadgeState, {
   bg: string; border: string; iconColor: string; opacity: number; animation: string;
 }> = {
   locked: {
-    bg: '#252530', border: '#35354A', iconColor: '#71717A',
+    bg: t.border, border: t.borderHover, iconColor: t.textMuted,
     opacity: 0.4, animation: 'none',
   },
   nearUnlock: {
@@ -51,7 +51,7 @@ const BADGE_STYLES: Record<BadgeState, {
   },
   legendary: {
     bg: `${t.gold}15`, border: t.gold, iconColor: t.gold,
-    opacity: 1, animation: 'glowPulse 3s ease-in-out infinite',
+    opacity: 1, animation: 'glowPulse 8s ease-in-out infinite',
   },
 };
 
@@ -65,6 +65,15 @@ const RARITY_ICONS: Record<string, string> = {
 };
 
 export function TrophyShelf({ milestones, unlockedAchievements }: TrophyShelfProps) {
+  // SSR-safe reduced-motion hook (BLOCKER — Крок 9)
+  const [reducedMotion, setReducedMotion] = useState(false);
+  useEffect(() => {
+    setReducedMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }, []);
+
+  // Trophy hover state
+  const [hoveredTrophy, setHoveredTrophy] = useState<number | null>(null);
+
   if (!milestones.length) return null;
 
   return (
@@ -91,11 +100,18 @@ export function TrophyShelf({ milestones, unlockedAchievements }: TrophyShelfPro
               background: style.bg,
               border: `1.5px solid ${style.border}`,
               opacity: style.opacity,
-              animation: style.animation,
-              transition: 'all 0.3s ease',
+              animation: reducedMotion
+                ? 'none'
+                : `${style.animation !== 'none' ? style.animation + ', ' : ''}fadeUp 0.4s ease-out both`,
+              animationDelay: reducedMotion ? '0s' : `${i * 0.08}s`,
+              transition: 'opacity 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease',
+              transform: hoveredTrophy === i ? 'scale(1.08)' : 'scale(1)',
               flexShrink: 0,
               position: 'relative',
+              cursor: 'default',
             }}
+            onMouseEnter={() => setHoveredTrophy(i)}
+            onMouseLeave={() => setHoveredTrophy(null)}
           >
             {isFinal ? (
               <NeonIcon type="crown" size={18} color={style.iconColor} />
@@ -113,7 +129,7 @@ export function TrophyShelf({ milestones, unlockedAchievements }: TrophyShelfPro
                 position: 'absolute', inset: -3,
                 borderRadius: 14,
                 border: `2px solid ${t.violet}30`,
-                animation: 'pulse 2s ease-in-out infinite',
+                animation: reducedMotion ? 'none' : 'pulse 2s ease-in-out infinite',
               }} />
             )}
           </div>

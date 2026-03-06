@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
 import { t, rarity } from '../../../(onboarding)/_components/tokens';
+import { useI18nStore } from '@plan2skill/store';
 import { CHARACTERS, charArtStrings, charPalettes } from '../../../(onboarding)/_components/characters';
 import { parseArt, PixelCanvas } from '../../../(onboarding)/_components/PixelEngine';
 import type { QuestTask } from '../_utils/quest-templates';
@@ -45,40 +46,40 @@ interface WelcomeConfig {
   showRefreshGoals: boolean;
 }
 
-function getWelcomeConfig(days: number, name: string, isFirstVisit: boolean): WelcomeConfig | null {
+function getWelcomeConfig(days: number, name: string, isFirstVisit: boolean, tr: (key: string, fallback?: string) => string): WelcomeConfig | null {
   // BL-001: First visit after onboarding — unique celebration (UX-R105: endowed progress)
   if (isFirstVisit) return {
-    greeting: `Your adventure begins, ${name}!`,
-    subtitle: 'Your first quest awaits, hero!',
+    greeting: `${tr('dashboard.welcome_new', 'Your adventure begins')}, ${name}!`,
+    subtitle: tr('welcome.subtitle_new', 'Your first quest awaits, hero!'),
     showWarmup: true,
     showBonus: false, // No bonus badge for first visit — no comparison baseline
     showRefreshGoals: false,
   };
   if (days < 1) return null; // Same day — no special greeting
   if (days <= 3) return {
-    greeting: `Ready for more, ${name}?`,
-    subtitle: 'Your quests await, hero!',
+    greeting: `${tr('dashboard.welcome_return', 'Ready for more')}, ${name}?`,
+    subtitle: tr('welcome.subtitle_return', 'Your quests await, hero!'),
     showWarmup: false,
     showBonus: false,
     showRefreshGoals: false,
   };
   if (days <= 7) return {
-    greeting: `We missed you, ${name}!`,
-    subtitle: 'Pick up where you left off with an easy quest.',
+    greeting: `${tr('dashboard.welcome_missed', 'We missed you')}, ${name}!`,
+    subtitle: tr('welcome.subtitle_missed', 'Pick up where you left off with an easy quest.'),
     showWarmup: true,
     showBonus: false,
     showRefreshGoals: false,
   };
   if (days <= 30) return {
-    greeting: `Let's refresh, ${name}!`,
-    subtitle: 'Start with something light to rebuild momentum.',
+    greeting: `${tr('dashboard.welcome_refresh', "Let's refresh")}, ${name}!`,
+    subtitle: tr('welcome.subtitle_refresh', 'Start with something light to rebuild momentum.'),
     showWarmup: true,
     showBonus: true,
     showRefreshGoals: false,
   };
   return {
-    greeting: `Welcome back, ${name}!`,
-    subtitle: 'Great to see you again! Ready for a fresh start?',
+    greeting: `${tr('dashboard.welcome', 'Welcome back')}, ${name}!`,
+    subtitle: tr('welcome.subtitle_longabsent', 'Great to see you again! Ready for a fresh start?'),
     showWarmup: true,
     showBonus: true,
     showRefreshGoals: true,
@@ -91,10 +92,19 @@ export function WelcomeBack({
   onStartQuest, onCompleteQuest, onChooseDifferent,
   daysAbsent, isFirstVisit = false,
 }: WelcomeBackProps) {
+  const tr = useI18nStore((s) => s.t);
   const [dismissed, setDismissed] = useState(false);
   const [justCompleted, setJustCompleted] = useState(false);
+
+  // Button press feedback (Micro tier: 150ms)
+  const [pressedBtn, setPressedBtn] = useState<string | null>(null);
+
+  // Card exit animation (MA-TR003: exit 250ms < enter 400ms)
+  const [exiting, setExiting] = useState(false);
+  const prefersReducedMotion = typeof window !== 'undefined'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const days = daysAbsent;
-  const config = getWelcomeConfig(days, characterName, isFirstVisit);
+  const config = getWelcomeConfig(days, characterName, isFirstVisit, tr);
 
   const charData = useMemo(() => {
     if (!characterId || !charArtStrings[characterId] || !charPalettes[characterId]) return null;
@@ -102,13 +112,20 @@ export function WelcomeBack({
   }, [characterId]);
   const charMeta = CHARACTERS.find(c => c.id === characterId);
 
-  // Auto-dismiss after inline completion (2s delay)
+  // Animated dismiss — exit animation then unmount
+  const dismissWithAnimation = useCallback(() => {
+    if (prefersReducedMotion) { setDismissed(true); return; }
+    setExiting(true);
+    setTimeout(() => setDismissed(true), 250);
+  }, [prefersReducedMotion]);
+
+  // Auto-dismiss after inline completion (2s delay → exit animation → unmount)
   useEffect(() => {
     if (justCompleted) {
-      const timer = setTimeout(() => setDismissed(true), 2000);
+      const timer = setTimeout(dismissWithAnimation, 2000);
       return () => clearTimeout(timer);
     }
-  }, [justCompleted]);
+  }, [justCompleted, dismissWithAnimation]);
 
   const handleInlineComplete = useCallback(() => {
     if (!warmupQuest || isQuestCompleted) return;
@@ -132,7 +149,9 @@ export function WelcomeBack({
         background: t.bgCard, border: `1px solid ${isFirstVisit ? `${t.violet}40` : `${t.violet}20`}`,
         boxShadow: isFirstVisit ? `0 0 30px ${t.violet}15, 0 0 60px ${t.cyan}08` : `0 0 20px ${t.violet}08`,
         marginBottom: 24,
-        animation: isFirstVisit ? 'celebratePop 0.6s ease-out' : 'fadeUp 0.5s ease-out',
+        animation: exiting
+          ? 'fadeUp 0.25s ease-in reverse forwards'
+          : isFirstVisit ? 'celebratePop 0.6s ease-out' : 'fadeUp 0.4s ease-out',
         position: 'relative',
       }}
     >
@@ -166,7 +185,7 @@ export function WelcomeBack({
 
         {/* Dismiss button — 44px touch target (UX-R153) */}
         <button
-          onClick={() => setDismissed(true)}
+          onClick={dismissWithAnimation}
           aria-label="Dismiss welcome message"
           style={{
             width: 28, height: 28, borderRadius: '50%',
@@ -188,7 +207,7 @@ export function WelcomeBack({
           padding: '12px 14px',
           borderRadius: 12,
           background: `${t.bgElevated}`,
-          border: `1px solid ${questDone ? `${t.cyan}30` : `${t.border}`}`,
+          border: `1px solid ${justCompleted ? t.cyan : questDone ? `${t.cyan}30` : `${t.border}`}`,
           transition: 'border-color 0.3s ease, background 0.3s ease',
         }}>
           {/* Quest info row */}
@@ -216,7 +235,7 @@ export function WelcomeBack({
                 lineHeight: 1.3,
                 transition: 'color 0.3s ease',
               }}>
-                {questDone ? 'Quest Complete!' : warmupQuest.title}
+                {questDone ? tr('quest.complete', 'Quest Complete!') : warmupQuest.title}
               </div>
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 8,
@@ -257,10 +276,13 @@ export function WelcomeBack({
             display: 'flex', alignItems: 'center', gap: 10,
             marginTop: 12,
           }}>
-            {/* Inline complete checkbox — 44px touch target (UX-R153) */}
+            {/* Inline complete checkbox — 44px touch target (UX-R153), press feedback */}
             <button
               onClick={handleInlineComplete}
               disabled={questDone}
+              onMouseDown={() => !questDone && setPressedBtn('complete')}
+              onMouseUp={() => setPressedBtn(null)}
+              onMouseLeave={() => setPressedBtn(null)}
               aria-label={questDone ? 'Quest completed' : `Complete quest: ${warmupQuest.title}`}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
@@ -271,8 +293,9 @@ export function WelcomeBack({
                 minHeight: 44, minWidth: 44,
                 fontFamily: t.body, fontSize: 12, fontWeight: 700,
                 color: questDone ? t.cyan : t.violet,
-                transition: 'all 0.2s ease',
+                transition: 'background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, transform 0.15s ease-out',
                 opacity: questDone ? 0.7 : 1,
+                transform: pressedBtn === 'complete' ? 'scale(0.98) translateY(1px)' : 'scale(1)',
               }}
             >
               <span style={{
@@ -280,17 +303,24 @@ export function WelcomeBack({
                 border: `2px solid ${questDone ? t.cyan : t.violet}60`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 background: questDone ? `${t.cyan}20` : 'transparent',
-                transition: 'all 0.2s ease',
+                transition: 'background 0.2s ease, border-color 0.2s ease',
               }}>
-                {questDone && <NeonIcon type="check" size={10} color="cyan" />}
+                {questDone && (
+                  <span style={{ animation: justCompleted ? 'bounceIn 0.3s cubic-bezier(0.34,1.56,0.64,1)' : undefined }}>
+                    <NeonIcon type="check" size={10} color="cyan" />
+                  </span>
+                )}
               </span>
-              {questDone ? 'Completed' : 'Complete'}
+              {questDone ? tr('welcome.completed', 'Completed') : tr('action.complete', 'Complete')}
             </button>
 
-            {/* Open quest details — Session Extension CTA (UX-R108) */}
+            {/* Open quest details — Session Extension CTA (UX-R108), press feedback */}
             {!questDone && (
               <button
                 onClick={() => onStartQuest(warmupQuest.id)}
+                onMouseDown={() => setPressedBtn('openQuest')}
+                onMouseUp={() => setPressedBtn(null)}
+                onMouseLeave={() => setPressedBtn(null)}
                 aria-label={`Open quest details: ${warmupQuest.title}`}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 4,
@@ -301,10 +331,11 @@ export function WelcomeBack({
                   minHeight: 44,
                   fontFamily: t.body, fontSize: 12, fontWeight: 600,
                   color: t.textSecondary,
-                  transition: 'all 0.2s ease',
+                  transition: 'background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, transform 0.15s ease-out',
+                  transform: pressedBtn === 'openQuest' ? 'scale(0.98) translateY(1px)' : 'scale(1)',
                 }}
               >
-                Open quest details
+                {tr('welcome.open_details', 'Open quest details')}
                 <NeonIcon type="compass" size={11} color="secondary" />
               </button>
             )}
@@ -316,13 +347,13 @@ export function WelcomeBack({
               display: 'inline-flex', alignItems: 'center', gap: 6,
               marginTop: 10, padding: '5px 12px', borderRadius: 10,
               background: `${t.gold}08`, border: `1px solid ${t.gold}18`,
-              animation: 'shimmer 2s ease-in-out infinite',
+              animation: 'shimmer 2s linear infinite',
             }}>
               <NeonIcon type="gift" size={12} color="gold" />
               <span style={{
                 fontFamily: t.body, fontSize: 11, fontWeight: 700, color: t.gold,
               }}>
-                Welcome back bonus: 2x XP!
+                {tr('dashboard.welcome_bonus', 'Welcome back bonus: 2x XP!')}
               </span>
             </div>
           )}
@@ -340,7 +371,7 @@ export function WelcomeBack({
                   minHeight: 44, display: 'inline-flex', alignItems: 'center',
                 }}
               >
-                Refresh goals?
+                {tr('welcome.refresh_goals', 'Refresh goals?')}
               </button>
             </div>
           )}
@@ -361,7 +392,7 @@ export function WelcomeBack({
               transition: 'color 0.2s ease',
             }}
           >
-            Choose a different quest
+            {tr('welcome.choose_different', 'Choose a different quest')}
           </button>
         </div>
       )}

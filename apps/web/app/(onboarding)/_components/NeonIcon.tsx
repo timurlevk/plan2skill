@@ -45,9 +45,11 @@ const ICON_PATHS: Record<string, (c: string) => React.ReactNode> = {
   ),
   target: (c) => (
     <>
-      <circle cx="12" cy="12" r="9" fill="none" stroke={c} strokeWidth="1.8" />
-      <circle cx="12" cy="12" r="5" fill="none" stroke={c} strokeWidth="1.5" />
-      <circle cx="12" cy="12" r="1.5" fill={c} />
+      {/* Crosshair scope — bold ring + inner glow ring + crosshairs + hot center */}
+      <circle cx="12" cy="12" r="10" fill="none" stroke={c} strokeWidth="2" />
+      <circle cx="12" cy="12" r="5" fill={c} opacity="0.12" stroke={c} strokeWidth="1.5" />
+      <path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke={c} strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="1.8" fill={c} />
     </>
   ),
   sparkle: (c) => (
@@ -108,8 +110,15 @@ const ICON_PATHS: Record<string, (c: string) => React.ReactNode> = {
   ),
   compass: (c) => (
     <>
+      {/* Compass — ring + 45° rotated needle (NE solid / SW ghost) + cardinal ticks */}
       <circle cx="12" cy="12" r="10" fill="none" stroke={c} strokeWidth="1.8" />
-      <polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88" fill={c} opacity="0.5" stroke={c} strokeWidth="1" />
+      <g transform="rotate(45 12 12)">
+        {/* North half — solid fill */}
+        <path d="M12 4l2.5 8H9.5L12 4z" fill={c} opacity="0.7" stroke={c} strokeWidth="1.2" strokeLinejoin="round" />
+        {/* South half — outline only */}
+        <path d="M12 20l-2.5-8h5L12 20z" fill="none" stroke={c} strokeWidth="1.2" strokeLinejoin="round" />
+      </g>
+      <circle cx="12" cy="12" r="1.5" fill={c} />
     </>
   ),
   map: (c) => (
@@ -272,6 +281,84 @@ const ICON_PATHS: Record<string, (c: string) => React.ReactNode> = {
     <>
       <circle cx="12" cy="12" r="3" fill="none" stroke={c} strokeWidth="1.8" />
       <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </>
+  ),
+  // ── Icon Audit: 12 new icons ──
+  hammer: (c) => (
+    <g transform="rotate(-45 12 12)">
+      <path d="M12 21V11" fill="none" stroke={c} strokeWidth="2.5" strokeLinecap="round" />
+      <rect x="5" y="3" width="14" height="8" rx="2" fill="none" stroke={c} strokeWidth="1.8" />
+      <path d="M12 3v8" stroke={c} strokeWidth="1" opacity="0.25" />
+    </g>
+  ),
+  backpack: (c) => (
+    <>
+      <path d="M6 10V20a2 2 0 002 2h8a2 2 0 002-2V10" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4 10h16a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2a1 1 0 011-1z" fill="none" stroke={c} strokeWidth="1.8" />
+      <path d="M8 10V6a4 4 0 018 0v4" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M10 16h4" stroke={c} strokeWidth="1.5" strokeLinecap="round" />
+    </>
+  ),
+  pricetag: (c) => (
+    <>
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="7" cy="7" r="1.5" fill={c} opacity="0.5" />
+    </>
+  ),
+  crystalFull: (c) => (
+    <path d="M12 2l7 10-7 10-7-10 7-10z" fill={c} stroke={c} strokeWidth="1.5" strokeLinejoin="round" />
+  ),
+  crystalEmpty: (c) => (
+    <path d="M12 2l7 10-7 10-7-10 7-10z" fill="none" stroke={c} strokeWidth="1.5" strokeLinejoin="round" opacity="0.4" />
+  ),
+  tierBronze: (c) => (
+    <>
+      <circle cx="12" cy="12" r="9" fill="none" stroke={c} strokeWidth="1.8" />
+      <path d="M12 7v6l3 2" stroke={c} strokeWidth="1.8" strokeLinecap="round" fill="none" />
+    </>
+  ),
+  tierSilver: (c) => (
+    <>
+      <path d="M12 2l8 4v5c0 5.25-3.38 10.17-8 12-4.62-1.83-8-6.75-8-12V6l8-4z" fill="none" stroke={c} strokeWidth="1.8" />
+      <path d="M8 12l4 4 4-4" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </>
+  ),
+  tierGold: (c) => (
+    <>
+      <path d="M12 2l8 4v5c0 5.25-3.38 10.17-8 12-4.62-1.83-8-6.75-8-12V6l8-4z" fill="none" stroke={c} strokeWidth="1.8" />
+      <path d="M12 8l1.5 3 3.5.5-2.5 2.5.5 3.5L12 16l-3 1.5.5-3.5L7 11.5l3.5-.5L12 8z" fill={c} opacity="0.4" stroke={c} strokeWidth="0.8" />
+    </>
+  ),
+  tierDiamond: (c) => (
+    <>
+      <path d="M6 3h12l4 6-10 13L2 9l4-6z" fill="none" stroke={c} strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M2 9h20M12 22l-4-13 4-6 4 6" fill="none" stroke={c} strokeWidth="1.2" strokeLinejoin="round" />
+      <circle cx="12" cy="11" r="1.5" fill={c} opacity="0.5" />
+    </>
+  ),
+  scroll: (c) => (
+    <>
+      <path d="M8 3C6.5 3 5 4 5 5.5V19a2 2 0 002 2h10a2 2 0 002-2V5.5C19 4 17.5 3 16 3" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M8 3c0 1.5 1.5 3 4 3s4-1.5 4-3" fill="none" stroke={c} strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M9 11h6M9 14h4" stroke={c} strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
+    </>
+  ),
+  hexWeb: (c) => (
+    <>
+      <path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9L12 3z" fill="none" stroke={c} strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M12 3v18M4.2 7.5L19.8 16.5M4.2 16.5L19.8 7.5" stroke={c} strokeWidth="1" opacity="0.3" />
+      <circle cx="12" cy="6" r="1.5" fill={c} opacity="0.5" />
+      <circle cx="17" cy="9" r="1.5" fill={c} opacity="0.5" />
+      <circle cx="17" cy="15" r="1.5" fill={c} opacity="0.5" />
+      <circle cx="12" cy="18" r="1.5" fill={c} opacity="0.5" />
+      <circle cx="7" cy="15" r="1.5" fill={c} opacity="0.5" />
+      <circle cx="7" cy="9" r="1.5" fill={c} opacity="0.5" />
+    </>
+  ),
+  blocked: (c) => (
+    <>
+      <path d="M12 2l8 4v5c0 5.25-3.38 10.17-8 12-4.62-1.83-8-6.75-8-12V6l8-4z" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9 9l6 6M15 9l-6 6" stroke={c} strokeWidth="2" strokeLinecap="round" />
     </>
   ),
 };

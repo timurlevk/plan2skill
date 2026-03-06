@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { t } from './tokens';
 import { parseArt, PixelCanvas } from './PixelEngine';
 import { charArtStrings, charPalettes, CHARACTERS } from './characters';
@@ -38,6 +38,16 @@ export function NPCInline({ characterId = 'sage', message, emotion = 'neutral' }
   const npcColor = charMeta?.color || (charId === 'sage' ? '#B8C4E0' : t.violet);
   const borderColor = emotionColors[emotion];
 
+  // prefers-reduced-motion
+  const [reducedMotion, setReducedMotion] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReducedMotion(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
   return (
     <div style={{
       padding: '10px 12px',
@@ -45,7 +55,7 @@ export function NPCInline({ characterId = 'sage', message, emotion = 'neutral' }
       border: `1px solid ${borderColor}40`,
       background: `${borderColor}06`,
       marginBottom: 12,
-      animation: 'fadeUp 0.3s ease-out',
+      animation: reducedMotion ? 'none' : 'fadeUp 0.3s ease-out',
       overflow: 'hidden',
     }}>
       {/* Float-left avatar */}
@@ -79,13 +89,23 @@ export function NPCBubble({ characterId = 'sage', message, emotion = 'neutral', 
   const npcColor = charMeta?.color || (charId === 'sage' ? '#B8C4E0' : t.violet);
   const borderColor = emotionColors[emotion];
 
+  // prefers-reduced-motion
+  const [reducedMotion, setReducedMotion] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReducedMotion(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
   return (
     <div style={{
       display: 'flex',
       alignItems: 'flex-start',
       gap: 12,
       marginBottom: 16,
-      animation: 'fadeUp 0.4s ease-out',
+      animation: reducedMotion ? 'none' : 'fadeUp 0.4s ease-out',
     }}>
       {/* Character pixel art + label */}
       <div style={{
@@ -96,7 +116,7 @@ export function NPCBubble({ characterId = 'sage', message, emotion = 'neutral', 
         gap: 4,
       }}>
         <div style={{
-          animation: 'npcBounce 2s ease-in-out infinite',
+          animation: reducedMotion ? 'none' : 'npcBounce 3s ease-in-out infinite',
           filter: `drop-shadow(0 0 8px ${npcColor}44)`,
         }}>
           <PixelCanvas data={artData} size={4} />
@@ -135,7 +155,7 @@ export function NPCBubble({ characterId = 'sage', message, emotion = 'neutral', 
                 height: 6,
                 borderRadius: '50%',
                 background: t.textMuted,
-                animation: `pulse 1s ease-in-out ${i * 0.2}s infinite`,
+                animation: reducedMotion ? 'none' : `pulse 1s ease-in-out ${i * 0.2}s infinite`,
               }} />
             ))}
           </div>

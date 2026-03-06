@@ -1,20 +1,30 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Anthropic from '@anthropic-ai/sdk';
-import { ModelTier, MODEL_TIER_DEFINITIONS } from './types';
+import { generateText } from 'ai';
+import { createAnthropic } from '@ai-sdk/anthropic';
+import { createOpenAI } from '@ai-sdk/openai';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import {
+  type LlmProvider,
+  ModelTier,
+  getModelTierDefinitions,
+} from './types';
 import { LlmError, type LlmErrorCode } from './errors';
 import type { ILlmClient, LlmCallOptions, LlmResponse } from './interfaces';
 
 @Injectable()
 export class LlmClient implements ILlmClient {
-  private readonly client: Anthropic;
+  private readonly provider: LlmProvider;
   private readonly maxRetries: number;
   private readonly timeoutMs: number;
 
+  // Vercel AI SDK provider instances (lazy-initialized)
+  private anthropicProvider?: ReturnType<typeof createAnthropic>;
+  private openaiProvider?: ReturnType<typeof createOpenAI>;
+  private googleProvider?: ReturnType<typeof createGoogleGenerativeAI>;
+
   constructor(private readonly config: ConfigService) {
-    this.client = new Anthropic({
-      apiKey: this.config.get<string>('ANTHROPIC_API_KEY'),
-    });
+    this.provider = (this.config.get<string>('LLM_PROVIDER', 'anthropic') as LlmProvider);
     this.maxRetries = this.config.get<number>('LLM_MAX_RETRIES', 2);
     this.timeoutMs = this.config.get<number>('LLM_TIMEOUT_MS', 30_000);
   }
@@ -28,7 +38,8 @@ export class LlmClient implements ILlmClient {
       );
     }
 
-    const tierDef = MODEL_TIER_DEFINITIONS[options.tier];
+    const tierDefs = getModelTierDefinitions(this.provider);
+    const tierDef = tierDefs[options.tier];
     const models = [tierDef.primary, ...tierDef.fallbacks];
 
     let lastError: LlmError | undefined;
@@ -42,7 +53,6 @@ export class LlmClient implements ILlmClient {
             ? err
             : new LlmError(String(err), 'UNKNOWN', false, model);
 
-        // If not retriable across models, stop immediately
         if (!lastError.retriable && models.indexOf(model) === 0) {
           throw lastError;
         }
@@ -67,26 +77,64 @@ export class LlmClient implements ILlmClient {
       const start = Date.now();
 
       try {
-        const response = await this.callWithTimeout(model, options);
+        const aiModel = this.resolveModel(model);
+        const isAnthropic = model.startsWith('claude-');
+
+        // Build messages with Anthropic prompt caching on system prompt
+        const systemMsg = options.systemPrompt ? {
+          role: 'system' as const,
+          content: options.systemPrompt,
+          ...(isAnthropic ? {
+            providerOptions: {
+              anthropic: { cacheControl: { type: 'ephemeral' } },
+            },
+          } : {}),
+        } : null;
+        const userMsg = { role: 'user' as const, content: options.userPrompt };
+
+        const result = await generateText({
+          model: aiModel,
+          messages: systemMsg ? [systemMsg, userMsg] : [userMsg],
+          maxOutputTokens: options.maxTokens,
+          temperature: options.temperature,
+          abortSignal: AbortSignal.timeout(this.timeoutMs),
+        });
+
         const durationMs = Date.now() - start;
 
-        const textBlock = response.content.find((b) => b.type === 'text');
-        if (!textBlock || textBlock.type !== 'text') {
+        if (!result.text) {
           throw new LlmError('No text response from AI', 'NO_RESPONSE', true, model);
         }
 
+        // Extract Anthropic cache metadata if available
+        const anthropicMeta = (result as any).providerMetadata?.anthropic;
+
         return {
-          text: this.stripMarkdownFences(textBlock.text),
+          text: this.stripMarkdownFences(result.text),
           model,
-          inputTokens: response.usage.input_tokens,
-          outputTokens: response.usage.output_tokens,
+          inputTokens: result.usage?.inputTokens ?? 0,
+          outputTokens: result.usage?.outputTokens ?? 0,
           durationMs,
           attempt,
+          cacheCreationInputTokens: anthropicMeta?.cacheCreationInputTokens,
+          cacheReadInputTokens: anthropicMeta?.cacheReadInputTokens,
         };
       } catch (err) {
         if (err instanceof LlmError) {
           if (!err.retriable || attempt > this.maxRetries) throw err;
-          // Exponential backoff: 1s, 2s, 4s...
+          await this.sleep(1000 * Math.pow(2, attempt - 1));
+          continue;
+        }
+
+        // Handle AbortSignal timeout
+        if (err instanceof DOMException && err.name === 'TimeoutError') {
+          const timeoutErr = new LlmError(
+            `Timeout after ${this.timeoutMs}ms`,
+            'TIMEOUT',
+            true,
+            model,
+          );
+          if (attempt > this.maxRetries) throw timeoutErr;
           await this.sleep(1000 * Math.pow(2, attempt - 1));
           continue;
         }
@@ -105,38 +153,45 @@ export class LlmClient implements ILlmClient {
     );
   }
 
-  private callWithTimeout(
-    model: string,
-    options: LlmCallOptions,
-  ): Promise<Anthropic.Message> {
-    let timer: ReturnType<typeof setTimeout>;
+  /** Resolve a model string to a Vercel AI SDK model instance */
+  private resolveModel(model: string) {
+    if (model.startsWith('claude-')) {
+      return this.getAnthropic()(model);
+    }
+    if (model.startsWith('gpt-')) {
+      return this.getOpenAI()(model);
+    }
+    if (model.startsWith('gemini-')) {
+      return this.getGoogle()(model);
+    }
+    throw new LlmError(`Unknown model: ${model}`, 'UNKNOWN', false, model);
+  }
 
-    const callPromise = this.client.messages.create({
-      model,
-      max_tokens: options.maxTokens,
-      temperature: options.temperature,
-      system: options.systemPrompt,
-      messages: [{ role: 'user', content: options.userPrompt }],
-    });
+  private getAnthropic() {
+    if (!this.anthropicProvider) {
+      this.anthropicProvider = createAnthropic({
+        apiKey: this.config.get<string>('ANTHROPIC_API_KEY'),
+      });
+    }
+    return this.anthropicProvider;
+  }
 
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timer = setTimeout(
-        () =>
-          reject(
-            new LlmError(
-              `Timeout after ${this.timeoutMs}ms`,
-              'TIMEOUT',
-              true,
-              model,
-            ),
-          ),
-        this.timeoutMs,
-      );
-    });
+  private getOpenAI() {
+    if (!this.openaiProvider) {
+      this.openaiProvider = createOpenAI({
+        apiKey: this.config.get<string>('OPENAI_API_KEY'),
+      });
+    }
+    return this.openaiProvider;
+  }
 
-    return Promise.race([callPromise, timeoutPromise]).finally(() =>
-      clearTimeout(timer),
-    );
+  private getGoogle() {
+    if (!this.googleProvider) {
+      this.googleProvider = createGoogleGenerativeAI({
+        apiKey: this.config.get<string>('GOOGLE_AI_API_KEY'),
+      });
+    }
+    return this.googleProvider;
   }
 
   private classifyError(err: unknown, model: string): LlmError {
@@ -174,11 +229,9 @@ export class LlmClient implements ILlmClient {
   private stripMarkdownFences(text: string): string {
     const trimmed = text.trim();
     if (trimmed.startsWith('```')) {
-      // Remove opening fence (```json or ```)
       const firstNewline = trimmed.indexOf('\n');
       if (firstNewline === -1) return trimmed;
       const withoutOpen = trimmed.slice(firstNewline + 1);
-      // Remove closing fence
       const lastFence = withoutOpen.lastIndexOf('```');
       if (lastFence === -1) return withoutOpen.trim();
       return withoutOpen.slice(0, lastFence).trim();

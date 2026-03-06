@@ -2,23 +2,28 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useOnboardingV2Store } from '@plan2skill/store';
-import type { CharacterId } from '@plan2skill/types';
+import { useOnboardingV2Store, useI18nStore } from '@plan2skill/store';
+import type { CharacterId, ArchetypeId } from '@plan2skill/types';
+import { trpc } from '@plan2skill/api-client';
 import { t } from '../_components/tokens';
 import { StepBarV2 } from '../_components/StepBarV2';
 import { BackButton, ContinueButton } from '../_components/ContinueButton';
 import { NPCBubble } from '../_components/NPCBubble';
 import { WizardShell } from '../_components/WizardShell';
-import { parseArt, PixelCanvas, AnimatedPixelCanvas } from '../_components/PixelEngine';
+import {
+  parseArt,
+  CanvasPixelRenderer, AnimatedCanvasRenderer,
+} from '../_components/PixelEngine';
 import { CHARACTERS, charArtStrings, charPalettes } from '../_components/characters';
+import { ARCHETYPES } from '../_data/archetypes';
 
 // ═══════════════════════════════════════════
 // CHARACTER — Step 4: Choose Your Hero
 // Two paths: pick preset OR create custom (default)
-// Archetype DEFERRED to post-onboarding
+// Archetype inferred from assessment, user can override
 // ═══════════════════════════════════════════
 
-// Precompute character data for carousel
+// Precompute character data for carousel — v1 art + Canvas renderers
 const gamifChars = CHARACTERS.map(c => ({
   id: c.id,
   artString: charArtStrings[c.id]!,
@@ -109,7 +114,7 @@ function Swatch({ color, selected, onClick, size = 32, label }: {
         background: color,
         border: selected ? '3px solid #FFF' : '2px solid #35354A',
         cursor: 'pointer',
-        transition: 'all 0.15s ease',
+        transition: 'transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease',
         boxShadow: selected ? `0 0 12px ${color}60` : 'none',
         transform: selected ? 'scale(1.15)' : 'scale(1)',
         flexShrink: 0,
@@ -121,9 +126,36 @@ function Swatch({ color, selected, onClick, size = 32, label }: {
 export default function CharacterPage() {
   const router = useRouter();
   const {
-    characterId,
-    setCharacter, addXP, completeOnboarding,
+    characterId, inferredArchetypeId, overrideArchetypeId, discoveryPath,
+    setCharacter, setOverrideArchetype, addXP, completeOnboarding,
   } = useOnboardingV2Store();
+  const locale = useI18nStore((s) => s.locale);
+  const tr = useI18nStore((s) => s.t);
+
+  const createCharacterMutation = trpc.character.create.useMutation();
+  const completeOnboardingMutation = trpc.user.completeOnboarding.useMutation();
+
+  // Fetch archetypes from API with mock fallback
+  const { data: apiArchetypes } = trpc.onboarding.archetypes.useQuery(
+    { locale },
+    { staleTime: 5 * 60 * 1000, retry: 1 },
+  );
+
+  const archetypeMap = useMemo(() => {
+    if (apiArchetypes && apiArchetypes.length > 0) {
+      const map: Record<string, typeof ARCHETYPES[string]> = {};
+      for (const a of apiArchetypes) {
+        map[a.id] = { icon: a.icon, name: a.name, color: a.color, tagline: a.tagline, bestFor: a.bestFor, stats: a.stats };
+      }
+      return map;
+    }
+    return ARCHETYPES;
+  }, [apiArchetypes]);
+
+  const finalArchetypeId = (overrideArchetypeId || inferredArchetypeId || 'explorer') as string;
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const activeArchetype = (archetypeMap[finalArchetypeId] ?? archetypeMap['explorer'] ?? ARCHETYPES['explorer'])!;
+  const [showArchetypePicker, setShowArchetypePicker] = useState(false);
 
   const [mode, setMode] = useState<'pick' | 'create'>('pick');
   const [avatarSelected, setAvatarSelected] = useState<string | null>(characterId || 'custom');
@@ -170,31 +202,151 @@ export default function CharacterPage() {
 
   // Custom character preview
   const customPalette = useMemo(() =>
-    buildCustomPalette(bodyShape, SKIN_TONES[skinIdx], HAIR_COLORS[hairIdx], SHIRT_COLORS[shirtIdx]),
+    buildCustomPalette(bodyShape, SKIN_TONES[skinIdx]!, HAIR_COLORS[hairIdx]!, SHIRT_COLORS[shirtIdx]!),
     [bodyShape, skinIdx, hairIdx, shirtIdx]
   );
+
+  const customArtString = charArtStrings[bodyShape]!;
   const customArt = useMemo(() =>
-    parseArt(charArtStrings[bodyShape]!, customPalette),
-    [bodyShape, customPalette]
+    parseArt(customArtString, customPalette),
+    [customArtString, customPalette]
   );
-  const customAccentColor = SHIRT_COLORS[shirtIdx].T;
+  const customAccentColor = SHIRT_COLORS[shirtIdx]!.T;
 
   const selectedCharMeta = CHARACTERS.find(c => c.id === avatarSelected);
 
-  const handleContinue = () => {
+  // Archetype badge + picker (shared between pick/create modes)
+  const archetypeBadge = (
+    <div style={{ marginTop: 16 }}>
+      <button
+        type="button"
+        onClick={() => setShowArchetypePicker(!showArchetypePicker)}
+        aria-expanded={showArchetypePicker}
+        aria-label={`Archetype: ${activeArchetype.name}. Click to change`}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          width: '100%',
+          padding: '10px 14px', borderRadius: 12,
+          background: `${activeArchetype.color}10`,
+          border: `1px solid ${activeArchetype.color}30`,
+          cursor: 'pointer',
+          transition: 'background 0.2s ease',
+          textAlign: 'left',
+        }}
+      >
+        <span style={{ fontSize: 18 }}>{activeArchetype.icon}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{
+            fontFamily: t.display, fontSize: 12, fontWeight: 700,
+            color: activeArchetype.color,
+          }}>
+            {activeArchetype.name}
+          </div>
+          <div style={{
+            fontFamily: t.body, fontSize: 11, color: t.textMuted,
+          }}>
+            {activeArchetype.tagline}
+          </div>
+        </div>
+        <span style={{
+          fontFamily: t.body, fontSize: 10, color: activeArchetype.color,
+          textDecoration: 'underline',
+          textUnderlineOffset: 2,
+          fontWeight: 600,
+        }}>
+          {tr('common.change')}
+        </span>
+      </button>
+
+      {/* Archetype picker overlay */}
+      {showArchetypePicker && (
+        <div style={{
+          display: 'flex', flexDirection: 'column', gap: 6,
+          marginTop: 8, padding: 8, borderRadius: 12,
+          background: t.bgCard, border: `1px solid ${t.border}`,
+        }}>
+          {Object.entries(archetypeMap).map(([id, arch]) => {
+            const isActive = id === finalArchetypeId;
+            return (
+              <button
+                key={id}
+                onClick={() => {
+                  setOverrideArchetype(id as ArchetypeId);
+                  setShowArchetypePicker(false);
+                }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '8px 12px', borderRadius: 10,
+                  background: isActive ? `${arch.color}15` : 'transparent',
+                  border: isActive ? `1px solid ${arch.color}30` : '1px solid transparent',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <span style={{ fontSize: 16 }}>{arch.icon}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    fontFamily: t.display, fontSize: 12, fontWeight: 600,
+                    color: isActive ? arch.color : t.text,
+                  }}>
+                    {arch.name}
+                  </div>
+                  <div style={{
+                    fontFamily: t.body, fontSize: 10, color: t.textMuted,
+                  }}>
+                    {arch.bestFor}
+                  </div>
+                </div>
+                {isActive && (
+                  <svg width="14" height="14" viewBox="0 0 12 12" fill="none">
+                    <path d="M2.5 6L5 8.5L9.5 3.5" stroke={arch.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleContinue = async () => {
     if (mode === 'pick' && avatarSelected === 'custom') {
-      // "Create custom" selected — go to constructor
       setMode('create');
       return;
     }
-    if (mode === 'pick' && avatarSelected) {
-      setCharacter(avatarSelected as CharacterId);
-    } else if (mode === 'create') {
-      setCharacter(bodyShape as CharacterId);
+
+    const finalCharacterId = (mode === 'pick' && avatarSelected)
+      ? avatarSelected as CharacterId
+      : bodyShape as CharacterId;
+
+    setIsSaving(true);
+
+    try {
+      // Save character to DB first
+      await createCharacterMutation.mutateAsync({
+        characterId: finalCharacterId,
+        archetypeId: finalArchetypeId as any,
+        companionId: null,
+      });
+
+      // Complete onboarding (fire-and-forget — non-critical)
+      completeOnboardingMutation.mutate(undefined, {
+        onError: (err) => console.warn('[user.completeOnboarding]', err.message),
+      });
+
+      // Update stores after DB confirms
+      setCharacter(finalCharacterId);
+      addXP(10);
+      completeOnboarding();
+
+      router.push('/home');
+    } catch (err) {
+      console.error('[character.create] failed:', err);
+      setIsSaving(false);
     }
-    addXP(10);
-    completeOnboarding();
-    router.push('/home');
   };
 
   // ─── CREATE MODE ───
@@ -203,14 +355,17 @@ export default function CharacterPage() {
       <WizardShell
         header={
           <>
-            <StepBarV2 current={3} />
-            <BackButton onClick={() => router.push('/assessment')} />
+            <StepBarV2 current={2} />
+            <BackButton onClick={() => {
+              if (discoveryPath === 'guided') router.push('/goal/guided');
+              else router.push('/assessment');
+            }} />
           </>
         }
         footer={
           <>
-            <ContinueButton onClick={handleContinue}>
-              Forge my hero
+            <ContinueButton onClick={handleContinue} disabled={isSaving}>
+              {isSaving ? tr('common.saving') : tr('onboarding.forge_hero')}
             </ContinueButton>
             <p style={{
               fontFamily: t.body,
@@ -219,14 +374,14 @@ export default function CharacterPage() {
               marginTop: 10,
               textAlign: 'center',
             }}>
-              Purely cosmetic — you can change anytime in Hero Settings
+              {tr('onboarding.cosmetic_note')}
             </p>
           </>
         }
       >
         <NPCBubble
           characterId="sage"
-          message="A custom hero! Craft your look — hair, skin, outfit. Make it uniquely you."
+          message={tr('npc.character_create')}
           emotion="impressed"
         />
 
@@ -248,10 +403,10 @@ export default function CharacterPage() {
             flexDirection: 'column',
             alignItems: 'center',
             gap: 8,
-            animation: reducedMotion ? 'none' : 'glowPulse 3s ease-in-out infinite',
+            animation: reducedMotion ? 'none' : 'glowPulse 8s ease-in-out infinite',
           }}>
             <div style={{ filter: `drop-shadow(0 0 10px ${customAccentColor}55)` }}>
-              <PixelCanvas data={customArt} size={7} />
+              <CanvasPixelRenderer data={customArt} size={6} />
             </div>
             <span style={{
               fontFamily: t.mono,
@@ -260,7 +415,7 @@ export default function CharacterPage() {
               textTransform: 'uppercase',
               letterSpacing: '0.05em',
             }}>
-              Live preview
+              {tr('onboarding.live_preview')}
             </span>
           </div>
         </div>
@@ -276,7 +431,7 @@ export default function CharacterPage() {
             textTransform: 'uppercase',
             letterSpacing: '0.05em',
           }}>
-            Hair style
+            {tr('onboarding.hair_style')}
           </h3>
           <div style={{
             display: 'flex',
@@ -287,7 +442,7 @@ export default function CharacterPage() {
           }}>
             {BODY_SHAPES.map((b) => {
               const isActive = bodyShape === b.id;
-              const previewPal = buildCustomPalette(b.id, SKIN_TONES[skinIdx], HAIR_COLORS[hairIdx], SHIRT_COLORS[shirtIdx]);
+              const previewPal = buildCustomPalette(b.id, SKIN_TONES[skinIdx]!, HAIR_COLORS[hairIdx]!, SHIRT_COLORS[shirtIdx]!);
               const previewArt = parseArt(charArtStrings[b.id]!, previewPal);
               return (
                 <button
@@ -306,10 +461,10 @@ export default function CharacterPage() {
                     cursor: 'pointer',
                     flexShrink: 0,
                     minWidth: 56,
-                    transition: 'all 0.15s ease',
+                    transition: 'border-color 0.15s ease, background 0.15s ease',
                   }}
                 >
-                  <PixelCanvas data={previewArt} size={4} />
+                  <CanvasPixelRenderer data={previewArt} size={3} />
                   <span style={{
                     fontFamily: t.body,
                     fontSize: 9,
@@ -335,7 +490,7 @@ export default function CharacterPage() {
             textTransform: 'uppercase',
             letterSpacing: '0.05em',
           }}>
-            Skin tone
+            {tr('onboarding.skin_tone')}
           </h3>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {SKIN_TONES.map((s, i) => (
@@ -361,7 +516,7 @@ export default function CharacterPage() {
             textTransform: 'uppercase',
             letterSpacing: '0.05em',
           }}>
-            Hair color
+            {tr('onboarding.hair_color')}
           </h3>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {HAIR_COLORS.map((hc, i) => (
@@ -387,7 +542,7 @@ export default function CharacterPage() {
             textTransform: 'uppercase',
             letterSpacing: '0.05em',
           }}>
-            Outfit color
+            {tr('onboarding.outfit_color')}
           </h3>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {SHIRT_COLORS.map((sc, i) => (
@@ -401,6 +556,9 @@ export default function CharacterPage() {
             ))}
           </div>
         </div>
+
+        {/* Archetype badge */}
+        {archetypeBadge}
       </WizardShell>
     );
   }
@@ -410,17 +568,20 @@ export default function CharacterPage() {
     <WizardShell
       header={
         <>
-          <StepBarV2 current={3} />
-          <BackButton onClick={() => router.push('/assessment')} />
+          <StepBarV2 current={2} />
+          <BackButton onClick={() => {
+              if (discoveryPath === 'guided') router.push('/goal/guided');
+              else router.push('/assessment');
+            }} />
         </>
       }
       footer={
         <>
           <ContinueButton
             onClick={handleContinue}
-            disabled={!avatarSelected}
+            disabled={!avatarSelected || isSaving}
           >
-            {avatarSelected === 'custom' ? 'Create my hero' : `Choose ${selectedCharMeta?.name || 'hero'}`}
+            {isSaving ? tr('common.saving') : avatarSelected === 'custom' ? tr('onboarding.create_custom') : tr('onboarding.choose_hero')}
           </ContinueButton>
           <p style={{
             fontFamily: t.body,
@@ -429,14 +590,14 @@ export default function CharacterPage() {
             marginTop: 10,
             textAlign: 'center',
           }}>
-            Purely cosmetic — you can change anytime in Hero Settings
+            {tr('onboarding.cosmetic_note')}
           </p>
         </>
       }
     >
       <NPCBubble
         characterId="sage"
-        message="Choose your hero, brave adventurer! Pick a preset or create your own."
+        message={tr('npc.character_intro')}
         emotion="happy"
       />
 
@@ -451,7 +612,7 @@ export default function CharacterPage() {
         marginBottom: 12,
         textAlign: 'center',
       }}>
-        Choose Your Hero
+        {tr('onboarding.choose_hero')}
       </h2>
 
       {/* Horizontal Carousel */}
@@ -471,7 +632,6 @@ export default function CharacterPage() {
         {CHARACTERS.slice(0, 4).map((char) => {
           const isSelected = avatarSelected === char.id;
           const gChar = gamifChars.find(g => g.id === char.id)!;
-          const pixSize = isSelected ? 8 : 6;
           return (
             <button
               key={char.id}
@@ -486,7 +646,7 @@ export default function CharacterPage() {
                 border: `2px solid ${isSelected ? char.color : t.border}`,
                 background: isSelected ? `${char.color}10` : t.bgCard,
                 cursor: 'pointer',
-                transition: 'all 0.25s ease',
+                transition: 'border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease, opacity 0.25s ease',
                 scrollSnapAlign: 'center',
                 flexShrink: 0,
                 minWidth: isSelected ? 110 : 90,
@@ -501,9 +661,9 @@ export default function CharacterPage() {
                 transition: 'filter 0.2s ease',
               }}>
                 {isSelected ? (
-                  <AnimatedPixelCanvas character={gChar} size={pixSize} glowColor={char.color} />
+                  <AnimatedCanvasRenderer character={gChar} size={6} glowColor={char.color} />
                 ) : (
-                  <PixelCanvas data={gChar.art} size={pixSize} />
+                  <CanvasPixelRenderer data={gChar.art} size={5} />
                 )}
               </div>
               <span style={{
@@ -511,7 +671,7 @@ export default function CharacterPage() {
                 fontSize: isSelected ? 13 : 11,
                 fontWeight: isSelected ? 700 : 600,
                 color: isSelected ? t.text : t.textMuted,
-                transition: 'all 0.2s ease',
+                transition: 'color 0.2s ease, font-size 0.2s ease',
               }}>
                 {char.name}
               </span>
@@ -552,7 +712,7 @@ export default function CharacterPage() {
                   : `2px dashed ${t.violet}50`,
                 background: isCustomSelected ? `${t.violet}12` : `${t.violet}08`,
                 cursor: 'pointer',
-                transition: 'all 0.25s ease',
+                transition: 'border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease, opacity 0.25s ease',
                 scrollSnapAlign: 'center',
                 flexShrink: 0,
                 minWidth: isCustomSelected ? 110 : 90,
@@ -582,8 +742,9 @@ export default function CharacterPage() {
                 color: t.violet,
                 textAlign: 'center',
                 lineHeight: 1.2,
+                transition: 'font-size 0.2s ease',
               }}>
-                Create{'\n'}custom
+                {tr('onboarding.create_custom')}
               </span>
               {isCustomSelected && (
                 <div style={{
@@ -605,7 +766,6 @@ export default function CharacterPage() {
         {CHARACTERS.slice(4).map((char) => {
           const isSelected = avatarSelected === char.id;
           const gChar = gamifChars.find(g => g.id === char.id)!;
-          const pixSize = isSelected ? 8 : 6;
           return (
             <button
               key={char.id}
@@ -620,7 +780,7 @@ export default function CharacterPage() {
                 border: `2px solid ${isSelected ? char.color : t.border}`,
                 background: isSelected ? `${char.color}10` : t.bgCard,
                 cursor: 'pointer',
-                transition: 'all 0.25s ease',
+                transition: 'border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease, opacity 0.25s ease',
                 scrollSnapAlign: 'center',
                 flexShrink: 0,
                 minWidth: isSelected ? 110 : 90,
@@ -635,9 +795,9 @@ export default function CharacterPage() {
                 transition: 'filter 0.2s ease',
               }}>
                 {isSelected ? (
-                  <AnimatedPixelCanvas character={gChar} size={pixSize} glowColor={char.color} />
+                  <AnimatedCanvasRenderer character={gChar} size={6} glowColor={char.color} />
                 ) : (
-                  <PixelCanvas data={gChar.art} size={pixSize} />
+                  <CanvasPixelRenderer data={gChar.art} size={5} />
                 )}
               </div>
               <span style={{
@@ -645,7 +805,7 @@ export default function CharacterPage() {
                 fontSize: isSelected ? 13 : 11,
                 fontWeight: isSelected ? 700 : 600,
                 color: isSelected ? t.text : t.textMuted,
-                transition: 'all 0.2s ease',
+                transition: 'color 0.2s ease, font-size 0.2s ease',
               }}>
                 {char.name}
               </span>
@@ -671,18 +831,23 @@ export default function CharacterPage() {
       <div style={{
         display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 8,
       }}>
-        {CHARACTERS.map((char) => (
-          <div
-            key={char.id}
-            style={{
-              width: avatarSelected === char.id ? 16 : 6,
-              height: 6,
-              borderRadius: 3,
-              background: avatarSelected === char.id ? char.color : '#35354A',
-              transition: 'all 0.3s ease',
-            }}
-          />
-        ))}
+        {CHARACTERS.map((char) => {
+          const isActive = avatarSelected === char.id;
+          return (
+            <div
+              key={char.id}
+              style={{
+                width: 16,
+                height: 6,
+                borderRadius: 3,
+                background: isActive ? char.color : '#35354A',
+                transform: isActive ? 'scaleX(1)' : 'scaleX(0.375)',
+                transformOrigin: 'center',
+                transition: reducedMotion ? 'none' : 'transform 0.3s ease, background 0.3s ease',
+              }}
+            />
+          );
+        })}
       </div>
 
       {/* Selected character info */}
@@ -696,6 +861,9 @@ export default function CharacterPage() {
           {selectedCharMeta.name} — {selectedCharMeta.desc}
         </p>
       )}
+
+      {/* Archetype badge */}
+      {archetypeBadge}
     </WizardShell>
   );
 }

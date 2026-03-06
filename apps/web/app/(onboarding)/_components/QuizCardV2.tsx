@@ -117,6 +117,9 @@ export function QuizCardV2({ question, options, onAnswer, disabled = false, stre
     return () => mq.removeEventListener('change', handler);
   }, []);
 
+  // Shake animation for incorrect answers
+  const [shaking, setShaking] = useState(false);
+
   const handleSelect = (opt: QuizOption) => {
     if (disabled || selected) return;
     setSelected(opt.id);
@@ -124,6 +127,9 @@ export function QuizCardV2({ question, options, onAnswer, disabled = false, stre
 
     if (opt.correct && !reducedMotion) {
       setShowBurst(true);
+    } else if (!opt.correct && !reducedMotion) {
+      setShaking(true);
+      setTimeout(() => setShaking(false), 400);
     }
 
     setTimeout(() => {
@@ -136,6 +142,18 @@ export function QuizCardV2({ question, options, onAnswer, disabled = false, stre
 
   return (
     <div style={{ position: 'relative' }}>
+      {/* Shake keyframe for incorrect answers — GPU-safe (transform only) */}
+      <style>{`
+        @keyframes quizShake {
+          0%, 100% { transform: translateX(0); }
+          15% { transform: translateX(-4px); }
+          30% { transform: translateX(4px); }
+          45% { transform: translateX(-3px); }
+          60% { transform: translateX(3px); }
+          75% { transform: translateX(-2px); }
+          90% { transform: translateX(1px); }
+        }
+      `}</style>
       {/* Streak multiplier badge */}
       {streak > 0 && (
         <div style={{
@@ -181,9 +199,9 @@ export function QuizCardV2({ question, options, onAnswer, disabled = false, stre
           const showResult = revealed && (isSelected || (isCorrect && selected));
           const isDimmed = selected !== null && !isSelected && !isCorrect;
 
-          let borderColor = t.border;
-          let bgColor = t.bgCard;
-          let bottomBorder = `4px solid #111118`;
+          let borderColor: string = t.border;
+          let bgColor: string = t.bgCard;
+          let bottomBorder: string = `4px solid #111118`;
 
           if (showResult && isSelected && isCorrect) {
             borderColor = t.cyan;
@@ -215,7 +233,9 @@ export function QuizCardV2({ question, options, onAnswer, disabled = false, stre
                 gap: 6,
                 padding: '10px 12px',
                 borderRadius: 12,
-                border: `2px solid ${borderColor}`,
+                borderTop: `2px solid ${borderColor}`,
+                borderLeft: `2px solid ${borderColor}`,
+                borderRight: `2px solid ${borderColor}`,
                 borderBottom: bottomBorder,
                 background: bgColor,
                 cursor: selected ? 'default' : 'pointer',
@@ -224,7 +244,9 @@ export function QuizCardV2({ question, options, onAnswer, disabled = false, stre
                 transform: isSelected ? 'scale(0.97) translateY(2px)' : 'scale(1)',
                 animation: reducedMotion
                   ? 'none'
-                  : `fadeUp 0.35s ease-out ${i * 0.06}s both`,
+                  : shaking && isSelected && !isCorrect
+                    ? 'quizShake 0.4s ease-out'
+                    : `fadeUp 0.35s ease-out ${i * 0.06}s both`,
                 opacity: isDimmed ? 0.4 : 1,
                 position: 'relative',
                 minHeight: 0,

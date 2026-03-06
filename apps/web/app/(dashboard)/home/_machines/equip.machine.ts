@@ -15,7 +15,8 @@ type EquipEvent =
   | { type: 'SUBMIT' }
   | { type: 'SUCCESS' }
   | { type: 'ERROR'; error: string }
-  | { type: 'RESET' };
+  | { type: 'RESET' }
+  | { type: 'SKIP' };
 
 export const equipMachine = setup({
   types: {
@@ -79,6 +80,10 @@ export const equipMachine = setup({
         },
       },
       on: {
+        SKIP: {
+          target: 'idle',
+          actions: 'clearAll',
+        },
         RESET: {
           target: 'idle',
           actions: 'clearAll',

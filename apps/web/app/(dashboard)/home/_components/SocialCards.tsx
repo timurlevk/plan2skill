@@ -3,27 +3,12 @@
 import React from 'react';
 import Link from 'next/link';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
-
-const t = {
-  display: '"Plus Jakarta Sans", system-ui, sans-serif',
-  body: '"Inter", system-ui, sans-serif',
-  mono: '"JetBrains Mono", monospace',
-  text: '#FFFFFF',
-  textSecondary: '#A1A1AA',
-  textMuted: '#71717A',
-  bgCard: '#18181F',
-  bgElevated: '#121218',
-  border: '#252530',
-  rose: '#FF6B8A',
-  gold: '#FFD166',
-};
-
-const rarity = {
-  epic: { color: '#9D7AFF', icon: '◈' },
-};
+import { t, rarity, LEAGUE_TIERS } from '../../../(onboarding)/_components/tokens';
+import { useI18nStore } from '@plan2skill/store';
 
 // UX-R162: Social features opt-in only. Shown only when quietMode is off.
 export function SocialCards() {
+  const tr = useI18nStore((s) => s.t);
   return (
     <div
       style={{
@@ -34,7 +19,10 @@ export function SocialCards() {
       }}
     >
       {/* Party Quest Card */}
-      <Link href="/league" style={{ textDecoration: 'none' }}>
+      <Link href="/league" style={{
+        textDecoration: 'none', outline: 'none', borderRadius: 16,
+        animation: 'fadeUp 0.3s ease-out both',
+      }}>
         <div
           aria-label="Party Quest: Procrastination Dragon boss fight — click to view details"
           style={{
@@ -42,7 +30,7 @@ export function SocialCards() {
             borderRadius: 16,
             background: t.bgCard,
             border: `1px solid ${t.border}`,
-            transition: 'border-color 0.2s ease, transform 0.2s ease',
+            transition: 'border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease',
             cursor: 'pointer',
             height: '100%',
           }}
@@ -53,7 +41,10 @@ export function SocialCards() {
           onMouseLeave={(e) => {
             e.currentTarget.style.borderColor = t.border;
             e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
           }}
+          onFocus={(e) => { e.currentTarget.style.boxShadow = `0 0 0 2px ${t.rose}60`; }}
+          onBlur={(e) => { e.currentTarget.style.boxShadow = 'none'; }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
             <NeonIcon type="lightning" size={16} color="rose" />
@@ -68,7 +59,7 @@ export function SocialCards() {
                 flex: 1,
               }}
             >
-              Party Quest
+              {tr('social.party_quest', 'Party Quest')}
             </span>
             <span
               style={{
@@ -130,15 +121,17 @@ export function SocialCards() {
               </span>
             </div>
             <div
-              style={{ height: 6, borderRadius: 3, background: '#252530', overflow: 'hidden' }}
+              style={{ height: 6, borderRadius: 3, background: t.border, overflow: 'hidden' }}
             >
               <div
                 style={{
-                  width: '70.6%',
+                  width: '100%',
                   height: '100%',
                   borderRadius: 3,
-                  background: `linear-gradient(90deg, ${t.rose}, #FF8FA3)`,
-                  transition: 'width 0.6s ease-out',
+                  background: `linear-gradient(90deg, ${t.rose}, ${t.rose}CC)`,
+                  transform: 'scaleX(0.706)',
+                  transformOrigin: 'left',
+                  transition: 'transform 0.6s ease-out',
                 }}
               />
             </div>
@@ -162,7 +155,10 @@ export function SocialCards() {
       </Link>
 
       {/* League Card */}
-      <Link href="/league" style={{ textDecoration: 'none' }}>
+      <Link href="/league" style={{
+        textDecoration: 'none', outline: 'none', borderRadius: 16,
+        animation: 'fadeUp 0.3s ease-out 0.08s both',
+      }}>
         <div
           aria-label="League: Bronze tier — click to join or view standings"
           style={{
@@ -170,7 +166,7 @@ export function SocialCards() {
             borderRadius: 16,
             background: t.bgCard,
             border: `1px solid ${t.border}`,
-            transition: 'border-color 0.2s ease, transform 0.2s ease',
+            transition: 'border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease',
             cursor: 'pointer',
             height: '100%',
             display: 'flex',
@@ -183,7 +179,10 @@ export function SocialCards() {
           onMouseLeave={(e) => {
             e.currentTarget.style.borderColor = t.border;
             e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
           }}
+          onFocus={(e) => { e.currentTarget.style.boxShadow = `0 0 0 2px ${t.gold}60`; }}
+          onBlur={(e) => { e.currentTarget.style.boxShadow = 'none'; }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
             <NeonIcon type="trophy" size={16} color="gold" />
@@ -198,18 +197,18 @@ export function SocialCards() {
                 flex: 1,
               }}
             >
-              Weekly League
+              {tr('social.weekly_league', 'Weekly League')}
             </span>
             <span
               style={{
                 fontFamily: t.mono,
                 fontSize: 9,
                 fontWeight: 700,
-                color: '#CD7F32',
+                color: LEAGUE_TIERS.bronze.color,
                 padding: '2px 8px',
                 borderRadius: 8,
-                background: 'rgba(205,127,50,0.10)',
-                border: '1px solid rgba(205,127,50,0.20)',
+                background: `${LEAGUE_TIERS.bronze.color}1A`,
+                border: `1px solid ${LEAGUE_TIERS.bronze.color}33`,
                 textTransform: 'uppercase',
               }}
             >

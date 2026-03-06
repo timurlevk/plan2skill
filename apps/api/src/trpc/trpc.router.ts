@@ -1,6 +1,7 @@
-import { Injectable, type OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import * as trpcExpress from '@trpc/server/adapters/express';
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { TrpcService } from './trpc.service';
 import { UserService } from '../user/user.service';
@@ -18,9 +19,18 @@ import { NarrativeService } from '../narrative/narrative.service';
 import { AdminAiService } from '../admin/admin-ai.service';
 import { AssessmentService } from '../assessment/assessment.service';
 import { SkillEloService } from '../skill-elo/skill-elo.service';
+import { TranslationService } from '../i18n/translation.service';
+import { OnboardingContentService } from '../onboarding/onboarding-content.service';
+import { FriendService } from '../social/friend.service';
+import { LeagueService } from '../social/league.service';
+import { PartyQuestService } from '../social/party-quest.service';
+import { QuestContentService } from '../quest/quest-content.service';
+import { ContentBudgetService } from '../ai/core/content-budget.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class TrpcRouter implements OnModuleInit {
+  private readonly logger = new Logger(TrpcRouter.name);
   appRouter!: ReturnType<typeof this.buildRouter>;
 
   constructor(
@@ -41,10 +51,30 @@ export class TrpcRouter implements OnModuleInit {
     private readonly adminAiService: AdminAiService,
     private readonly assessmentService: AssessmentService,
     private readonly skillEloService: SkillEloService,
+    private readonly translationService: TranslationService,
+    private readonly onboardingContentService: OnboardingContentService,
+    private readonly friendService: FriendService,
+    private readonly leagueService: LeagueService,
+    private readonly partyQuestService: PartyQuestService,
+    private readonly questContentService: QuestContentService,
+    private readonly contentBudgetService: ContentBudgetService,
+    private readonly prisma: PrismaService,
   ) {}
 
   private buildRouter() {
     const { router, protectedProcedure } = this.trpc;
+
+    // Admin procedure — extends protectedProcedure with role check
+    const adminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+      const user = await this.prisma.user.findUnique({
+        where: { id: ctx.userId },
+        select: { role: true },
+      });
+      if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
+      }
+      return next({ ctx });
+    });
 
     const userRouter = router({
       profile: protectedProcedure.query(({ ctx }) => {
@@ -178,13 +208,19 @@ export class TrpcRouter implements OnModuleInit {
             timeSpentSeconds: z.number().int().positive().optional(),
           }),
         )
-        .mutation(({ ctx, input }) => {
-          return this.progressionService.completeTask(
+        .mutation(async ({ ctx, input }) => {
+          const result = await this.progressionService.completeTask(
             ctx.userId,
             input.taskId,
             input.validationResult ?? {},
             input.timeSpentSeconds,
           );
+          // Fire-and-forget: prefetch next quest content
+          if (result.milestoneId) {
+            this.questContentService.prefetchNextQuests(ctx.userId, result.milestoneId)
+              .catch(() => {});
+          }
+          return result;
         }),
       rechargeEnergy: protectedProcedure.mutation(({ ctx }) => {
         return this.progressionService.rechargeEnergy(ctx.userId);
@@ -201,17 +237,144 @@ export class TrpcRouter implements OnModuleInit {
       validate: protectedProcedure
         .input(
           z.object({
+            taskId: z.string().uuid(),
             validationType: z.string().max(30),
             validationData: z.record(z.unknown()),
-            knowledgeCheck: z.unknown().optional(),
           }),
         )
-        .mutation(({ input }) => {
+        .mutation(async ({ input, ctx }) => {
+          const task = await this.prisma.task.findUnique({
+            where: { id: input.taskId },
+            select: {
+              knowledgeCheck: true,
+              validationType: true,
+              milestone: { select: { roadmap: { select: { userId: true } } } },
+            },
+          });
+          if (!task || task.milestone.roadmap.userId !== ctx.userId) {
+            throw new Error('Task not found or unauthorized');
+          }
           return this.questService.validateCompletion(
-            input.validationType,
+            task.validationType ?? input.validationType,
             input.validationData as Record<string, unknown>,
-            input.knowledgeCheck ?? null,
+            task.knowledgeCheck,
           );
+        }),
+      recordAttempt: protectedProcedure
+        .input(
+          z.object({
+            taskId: z.string().uuid(),
+            selectedIndex: z.number().int().min(0).max(3).optional(),
+            answerData: z.record(z.unknown()).optional(),
+            correct: z.boolean().optional(),
+            timeSpentSeconds: z.number().int().min(0).optional(),
+            hintsRequested: z.number().int().min(0).optional(),
+          }),
+        )
+        .mutation(async ({ ctx, input }) => {
+          const task = await this.prisma.task.findUnique({
+            where: { id: input.taskId },
+            select: { milestone: { select: { roadmap: { select: { userId: true } } } } },
+          });
+          if (!task || task.milestone.roadmap.userId !== ctx.userId) {
+            throw new TRPCError({ code: 'FORBIDDEN', message: 'Task not found or unauthorized' });
+          }
+          return this.questService.recordAttempt(ctx.userId, input.taskId, {
+            selectedIndex: input.selectedIndex,
+            answerData: input.answerData as Record<string, unknown> | undefined,
+            correct: input.correct,
+            timeSpentSeconds: input.timeSpentSeconds,
+            hintsRequested: input.hintsRequested,
+          });
+        }),
+      assist: protectedProcedure
+        .input(
+          z.object({
+            taskId: z.string().uuid(),
+            mode: z.enum(['hint', 'feedback', 'reattempt']),
+            userMessage: z.string().max(500).optional(),
+          }),
+        )
+        .mutation(async ({ ctx, input }) => {
+          const task = await this.prisma.task.findUnique({
+            where: { id: input.taskId },
+            select: { milestone: { select: { roadmap: { select: { userId: true } } } } },
+          });
+          if (!task || task.milestone.roadmap.userId !== ctx.userId) {
+            throw new TRPCError({ code: 'FORBIDDEN', message: 'Task not found or unauthorized' });
+          }
+          return this.questService.questAssist(
+            ctx.userId,
+            input.taskId,
+            input.mode,
+            input.userMessage,
+          );
+        }),
+      getContent: protectedProcedure
+        .input(z.object({ taskId: z.string().uuid() }))
+        .query(async ({ ctx, input }) => {
+          const task = await this.prisma.task.findUnique({
+            where: { id: input.taskId },
+            select: { milestone: { select: { roadmap: { select: { userId: true } } } } },
+          });
+          if (!task || task.milestone.roadmap.userId !== ctx.userId) {
+            throw new TRPCError({ code: 'FORBIDDEN', message: 'Task not found' });
+          }
+          return this.questContentService.assembleContent(input.taskId, ctx.userId);
+        }),
+      requestHint: protectedProcedure
+        .input(z.object({ taskId: z.string().uuid() }))
+        .mutation(async ({ ctx, input }) => {
+          const task = await this.prisma.task.findUnique({
+            where: { id: input.taskId },
+            select: { milestone: { select: { roadmap: { select: { userId: true } } } } },
+          });
+          if (!task || task.milestone.roadmap.userId !== ctx.userId) {
+            throw new TRPCError({ code: 'FORBIDDEN', message: 'Task not found or unauthorized' });
+          }
+          return this.questContentService.requestAiAssist(ctx.userId, input.taskId, 'hint');
+        }),
+      requestExplain: protectedProcedure
+        .input(z.object({ taskId: z.string().uuid() }))
+        .mutation(async ({ ctx, input }) => {
+          const task = await this.prisma.task.findUnique({
+            where: { id: input.taskId },
+            select: { milestone: { select: { roadmap: { select: { userId: true } } } } },
+          });
+          if (!task || task.milestone.roadmap.userId !== ctx.userId) {
+            throw new TRPCError({ code: 'FORBIDDEN', message: 'Task not found or unauthorized' });
+          }
+          return this.questContentService.requestAiAssist(ctx.userId, input.taskId, 'explain');
+        }),
+      requestTutor: protectedProcedure
+        .input(z.object({ taskId: z.string().uuid() }))
+        .mutation(async ({ ctx, input }) => {
+          const task = await this.prisma.task.findUnique({
+            where: { id: input.taskId },
+            select: { milestone: { select: { roadmap: { select: { userId: true } } } } },
+          });
+          if (!task || task.milestone.roadmap.userId !== ctx.userId) {
+            throw new TRPCError({ code: 'FORBIDDEN', message: 'Task not found or unauthorized' });
+          }
+          return this.questContentService.requestAiAssist(ctx.userId, input.taskId, 'tutor');
+        }),
+      unlockFeature: protectedProcedure
+        .input(z.object({
+          taskId: z.string().uuid(),
+          feature: z.enum(['code_challenge', 'resources', 'fun_facts']),
+        }))
+        .mutation(({ ctx, input }) => {
+          return this.questContentService.unlockFeature(ctx.userId, input.taskId, input.feature);
+        }),
+      motivational: protectedProcedure
+        .input(z.object({
+          triggerType: z.enum(['streak_milestone', 'level_up', 'comeback', 'daily_start', 'quest_complete']),
+          streakDays: z.number().int().min(0).optional(),
+          level: z.number().int().min(1).optional(),
+          characterId: z.string().max(20).optional(),
+        }))
+        .query(({ ctx, input }) => {
+          return this.questContentService.getMotivationalMessage(ctx.userId, input.triggerType, input);
         }),
     });
 
@@ -376,10 +539,10 @@ export class TrpcRouter implements OnModuleInit {
         return this.narrativeService.completeLegend(ctx.userId);
       }),
       // Admin endpoints
-      reviewQueue: protectedProcedure.query(() => {
+      reviewQueue: adminProcedure.query(() => {
         return this.narrativeService.getReviewQueue();
       }),
-      review: protectedProcedure
+      review: adminProcedure
         .input(z.object({
           episodeId: z.string().uuid(),
           action: z.enum(['approve', 'reject']),
@@ -394,7 +557,7 @@ export class TrpcRouter implements OnModuleInit {
             input.episodeId, input.action, input.edits,
           );
         }),
-      generateBatch: protectedProcedure
+      generateBatch: adminProcedure
         .input(z.object({
           seasonId: z.string().uuid(),
           count: z.number().int().min(1).max(7),
@@ -448,25 +611,25 @@ export class TrpcRouter implements OnModuleInit {
     // ─── Admin AI Observability (Phase H) ────────────────────
 
     const adminRouter = router({
-      llmCosts: protectedProcedure
+      llmCosts: adminProcedure
         .input(z.object({ days: z.number().int().min(1).max(90).default(30) }))
         .query(({ input }) => {
           return this.adminAiService.getCostSummary(input.days);
         }),
-      llmUsage: protectedProcedure
+      llmUsage: adminProcedure
         .input(z.object({ days: z.number().int().min(1).max(90).default(30) }))
         .query(({ input }) => {
           return this.adminAiService.getUsageStats(input.days);
         }),
-      llmErrors: protectedProcedure
+      llmErrors: adminProcedure
         .input(z.object({ limit: z.number().int().min(1).max(100).default(20) }))
         .query(({ input }) => {
           return this.adminAiService.getRecentErrors(input.limit);
         }),
-      llmCacheStats: protectedProcedure.query(() => {
+      llmCacheStats: adminProcedure.query(() => {
         return this.adminAiService.getCacheStats();
       }),
-      llmTopUsers: protectedProcedure
+      llmTopUsers: adminProcedure
         .input(z.object({
           days: z.number().int().min(1).max(90).default(30),
           limit: z.number().int().min(1).max(50).default(10),
@@ -489,6 +652,202 @@ export class TrpcRouter implements OnModuleInit {
         }),
     });
 
+    // ─── i18n (Translation Infrastructure) ──────────────────
+
+
+    const i18nRouter = router({
+      messages: this.trpc.procedure
+        .input(z.object({ locale: z.string().max(10) }))
+        .query(({ input }) => {
+          return this.translationService.getUiMessages(input.locale);
+        }),
+    });
+
+    // ─── Onboarding Content (API Migration) ─────────────────
+
+    // Shared schema for OnboardingContext — used by suggestMilestones & generateAssessmentQuestions
+    const onboardingContextSchema = z.discriminatedUnion('path', [
+      z.object({
+        path: z.literal('direct'),
+        intent: z.enum(['know', 'explore_guided', 'career', 'exploring']),
+        locale: z.string().max(10).default('en'),
+        dreamGoal: z.string().min(3).max(500),
+      }),
+      z.object({
+        path: z.literal('guided'),
+        intent: z.enum(['know', 'explore_guided', 'career', 'exploring']),
+        locale: z.string().max(10).default('en'),
+        dreamGoal: z.string().min(3).max(500),
+        selectedDomain: z.string().max(100),
+        selectedInterests: z.array(z.string().max(100)).max(10),
+        customInterests: z.array(z.string().max(100)).max(10),
+        skillLevel: z.enum(['beginner', 'familiar', 'intermediate', 'advanced']).nullable(),
+        customGoals: z.array(z.string().max(200)).max(5),
+        assessments: z.array(z.object({
+          domain: z.string(),
+          level: z.enum(['beginner', 'familiar', 'intermediate', 'advanced']),
+          method: z.enum(['quiz', 'self_assessment']),
+          score: z.number(),
+          confidence: z.number(),
+        })).max(10),
+      }),
+      z.object({
+        path: z.literal('career'),
+        intent: z.enum(['know', 'explore_guided', 'career', 'exploring']),
+        locale: z.string().max(10).default('en'),
+        dreamGoal: z.string().min(3).max(500),
+        careerCurrent: z.string().max(200),
+        careerPains: z.array(z.string().max(100)).max(5),
+        careerTarget: z.string().max(100).nullable(),
+      }),
+    ]);
+
+    const onboardingRouter = router({
+      intents: this.trpc.procedure
+        .input(z.object({ locale: z.string().max(10).default('en') }))
+        .query(({ input }) => {
+          return this.onboardingContentService.getIntents(input.locale);
+        }),
+      domains: this.trpc.procedure
+        .input(z.object({ locale: z.string().max(10).default('en') }))
+        .query(({ input }) => {
+          return this.onboardingContentService.getDomains(input.locale);
+        }),
+      careerData: this.trpc.procedure
+        .input(z.object({ locale: z.string().max(10).default('en') }))
+        .query(({ input }) => {
+          return this.onboardingContentService.getCareerData(input.locale);
+        }),
+      archetypes: this.trpc.procedure
+        .input(z.object({ locale: z.string().max(10).default('en') }))
+        .query(({ input }) => {
+          return this.onboardingContentService.getArchetypes(input.locale);
+        }),
+      assessmentQuestions: this.trpc.procedure
+        .input(z.object({
+          domain: z.string().max(50),
+          locale: z.string().max(10).default('en'),
+        }))
+        .query(({ input }) => {
+          return this.onboardingContentService.getAssessmentQuestions(input.domain, input.locale);
+        }),
+      submitAssessment: protectedProcedure
+        .input(z.object({
+          assessments: z.array(z.object({
+            domain: z.string().max(50),
+            level: z.string().max(20),
+            method: z.string().max(20),
+            score: z.number().int().min(0),
+            confidence: z.number().min(0).max(1),
+          })),
+        }))
+        .mutation(({ ctx, input }) => {
+          return this.onboardingContentService.submitAssessment(ctx.userId, input);
+        }),
+      submitGoal: protectedProcedure
+        .input(z.object({
+          intent: z.string().max(30),
+          path: z.string().max(30),
+          dreamGoal: z.string().max(500).optional(),
+          domain: z.string().max(50).optional(),
+          interests: z.array(z.string().max(50)).max(10).optional(),
+          careerTarget: z.string().max(50).optional(),
+          pains: z.array(z.string().max(50)).max(5).optional(),
+          milestones: z.array(z.object({
+            id: z.string(),
+            text: z.string(),
+          })).max(10).optional(),
+          locale: z.string().max(10).optional(),
+          skillLevel: z.enum(['beginner', 'familiar', 'intermediate', 'advanced']).optional(),
+          customGoals: z.array(z.string().max(200)).max(5).optional(),
+        }))
+        .mutation(({ ctx, input }) => {
+          return this.onboardingContentService.submitGoal(ctx.userId, input);
+        }),
+      suggestMilestones: protectedProcedure
+        .input(onboardingContextSchema)
+        .mutation(({ ctx, input }) => {
+          return this.onboardingContentService.suggestMilestones(ctx.userId, input);
+        }),
+      generateAssessmentQuestions: protectedProcedure
+        .input(onboardingContextSchema)
+        .mutation(({ ctx, input }) => {
+          this.logger.log(`[generateAssessmentQuestions] userId=${ctx.userId} path=${input.path}`);
+          return this.onboardingContentService.generateAssessmentQuestions(ctx.userId, input);
+        }),
+      suggestInterests: protectedProcedure
+        .input(z.object({
+          domain: z.string().min(1).max(100),
+          dreamGoal: z.string().max(500).default(''),
+          locale: z.string().max(10).default('en'),
+        }))
+        .mutation(({ ctx, input }) => {
+          return this.onboardingContentService.suggestInterests(ctx.userId, input);
+        }),
+    });
+
+    // ─── Social (Phase S — Guild Arena) ──────────────────────
+
+    const socialRouter = router({
+      // Friends
+      getFriends: protectedProcedure.query(({ ctx }) => {
+        return this.friendService.getFriends(ctx.userId);
+      }),
+      getPendingRequests: protectedProcedure.query(({ ctx }) => {
+        return this.friendService.getPendingRequests(ctx.userId);
+      }),
+      sendFriendRequest: protectedProcedure
+        .input(z.object({ publicId: z.string().min(1).max(16) }))
+        .mutation(({ ctx, input }) => {
+          return this.friendService.sendRequest(ctx.userId, input.publicId);
+        }),
+      acceptRequest: protectedProcedure
+        .input(z.object({ friendshipId: z.string().uuid() }))
+        .mutation(({ ctx, input }) => {
+          return this.friendService.acceptRequest(ctx.userId, input.friendshipId);
+        }),
+      rejectRequest: protectedProcedure
+        .input(z.object({ friendshipId: z.string().uuid() }))
+        .mutation(({ ctx, input }) => {
+          return this.friendService.rejectRequest(ctx.userId, input.friendshipId);
+        }),
+      removeFriend: protectedProcedure
+        .input(z.object({ friendId: z.string() }))
+        .mutation(({ ctx, input }) => {
+          return this.friendService.removeFriend(ctx.userId, input.friendId);
+        }),
+
+      // League
+      myLeague: protectedProcedure.query(({ ctx }) => {
+        return this.leagueService.getOrCreateWeeklyLeague(ctx.userId);
+      }),
+      leagueInfo: protectedProcedure.query(({ ctx }) => {
+        return this.leagueService.getMyLeagueInfo(ctx.userId);
+      }),
+
+      // Party Quest
+      activePartyQuest: protectedProcedure.query(({ ctx }) => {
+        return this.partyQuestService.getActivePartyQuest(ctx.userId);
+      }),
+      joinPartyQuest: protectedProcedure.mutation(({ ctx }) => {
+        return this.partyQuestService.joinOrCreatePartyQuest(ctx.userId);
+      }),
+      partyHistory: protectedProcedure.query(({ ctx }) => {
+        return this.partyQuestService.getWeeklyPartyHistory(ctx.userId);
+      }),
+    });
+
+    // ─── Budget (Content Pipeline) ────────────────────────────
+
+    const budgetRouter = router({
+      getBalance: protectedProcedure.query(({ ctx }) => {
+        return this.contentBudgetService.getBalance(ctx.userId);
+      }),
+      spendCrystal: protectedProcedure.mutation(({ ctx }) => {
+        return this.contentBudgetService.spendCrystal(ctx.userId);
+      }),
+    });
+
     return this.trpc.mergeRouters(
       router({
         user: userRouter,
@@ -505,6 +864,10 @@ export class TrpcRouter implements OnModuleInit {
         assessment: assessmentRouter,
         admin: adminRouter,
         skillElo: skillEloRouter,
+        i18n: i18nRouter,
+        onboarding: onboardingRouter,
+        social: socialRouter,
+        budget: budgetRouter,
       }),
     );
   }

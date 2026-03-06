@@ -1,6 +1,7 @@
 'use client';
 
 import { LocalePicker } from './_components/LocalePicker';
+import { useLoadTranslations } from '../hooks/useLoadTranslations';
 
 // ═══════════════════════════════════════════
 // ONBOARDING — Viewport-Locked Wizard Layout
@@ -9,6 +10,9 @@ import { LocalePicker } from './_components/LocalePicker';
 // ═══════════════════════════════════════════
 
 export default function OnboardingLayout({ children }: { children: React.ReactNode }) {
+  // Load UI translations from backend for current locale
+  useLoadTranslations();
+
   return (
     <>
       <style>{`
@@ -125,6 +129,13 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
         .wizard-footer {
           padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
         }
+        @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+          }
+        }
       `}</style>
       <main style={{
         background: '#0C0C10',
@@ -132,7 +143,7 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
         overflow: 'hidden',
       }}>
         {/* Ambient glow — top left (violet) */}
-        <div style={{
+        <div aria-hidden="true" style={{
           position: 'fixed',
           top: '-20%',
           left: '-10%',
@@ -144,7 +155,7 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
           zIndex: 0,
         }} />
         {/* Ambient glow — bottom right (cyan) */}
-        <div style={{
+        <div aria-hidden="true" style={{
           position: 'fixed',
           bottom: '-20%',
           right: '-10%',

@@ -75,9 +75,12 @@ export interface TaskCompletionResult {
   streakUpdated: boolean;
   currentStreak: number;
   milestoneCompleted: boolean;
+  milestoneId: string;
   roadmapProgress: number;
   roadmapCompleted: boolean;
   lootDrop?: LootDrop | null;
+  attributeGrowth?: { attribute: string; amount: number }[] | null;
+  evolutionTierChange?: string | null;
 }
 
 // ─── Daily Summary ───────────────────────────────────────────────

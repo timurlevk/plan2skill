@@ -22,6 +22,10 @@ export interface LlmResponse {
   outputTokens: number;
   durationMs: number;
   attempt: number;
+  /** Anthropic: tokens written to prompt cache on this call */
+  cacheCreationInputTokens?: number;
+  /** Anthropic: tokens read from prompt cache on this call */
+  cacheReadInputTokens?: number;
 }
 
 // ─── ILlmClient ─────────────────────────────────────────────────
