@@ -1069,6 +1069,19 @@ const UI_TRANSLATIONS: UiTranslationRow[] = [
   { entityId: 'tier.silver', en: 'Silver', uk: 'Срібло', pl: 'Srebro' },
   { entityId: 'tier.bronze', en: 'Bronze', uk: 'Бронза', pl: 'Brąz' },
 
+  // ── Roadmap archive/history ──
+  { entityId: 'roadmap.tab_active', en: 'Active', uk: 'Активні', pl: 'Aktywne' },
+  { entityId: 'roadmap.tab_history', en: 'History', uk: 'Історія', pl: 'Historia' },
+  { entityId: 'roadmap.archive_confirm_title', en: 'Deactivate Quest Line?', uk: 'Деактивувати квест-лінію?', pl: 'Dezaktywować linię questów?' },
+  { entityId: 'roadmap.archive_confirm_body', en: 'You can restore it from History. All progress is saved.', uk: 'Ви можете відновити її з Історії. Весь прогрес збережено.', pl: 'Możesz przywrócić ją z Historii. Cały postęp jest zapisany.' },
+  { entityId: 'roadmap.archived_banner', en: 'This Quest Line is archived', uk: 'Ця квест-лінія архівована', pl: 'Ta linia questów jest zarchiwizowana' },
+  { entityId: 'roadmap.reactivate', en: 'Reactivate', uk: 'Відновити', pl: 'Przywróć' },
+  { entityId: 'roadmap.reactivate_tier_blocked', en: 'Upgrade your tier to reactivate more quest lines', uk: 'Оновіть тір, щоб відновити більше квест-ліній', pl: 'Ulepsz swój poziom, aby przywrócić więcej linii questów' },
+  { entityId: 'roadmap.quest_history', en: 'Quest History', uk: 'Історія квестів', pl: 'Historia questów' },
+  { entityId: 'roadmap.completed_on', en: 'Completed on', uk: 'Завершено', pl: 'Ukończono' },
+  { entityId: 'roadmap.xp_earned', en: 'XP earned', uk: 'Отримано XP', pl: 'Zdobyte XP' },
+  { entityId: 'roadmap.history_empty', en: 'No archived or completed quest lines yet', uk: 'Ще немає архівованих або завершених квест-ліній', pl: 'Brak zarchiwizowanych ani ukończonych linii questów' },
+
   // Dashboard Redesign — Phase 3
   { entityId: 'dashboard.training_grounds', en: 'Training Grounds', uk: 'Тренувальні поля', pl: 'Poligon treningowy' },
   { entityId: 'dashboard.reviews_due', en: 'reviews due', uk: 'повторень заплановано', pl: 'powtórek zaplanowanych' },
