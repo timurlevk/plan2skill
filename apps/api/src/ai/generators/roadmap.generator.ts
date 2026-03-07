@@ -86,7 +86,7 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
 **Rules:**
 - Create 4-12 milestones spanning 90 days
 - Each milestone has 5-20 tasks
-- Mix task types: video, article, quiz, project, review, boss
+- Mix task types: article, quiz, project, review, boss, reflection
 - First milestone should be beginner-friendly with Bloom's "remember" and "understand" levels
 - Include at least 1 boss-type task per milestone — bosses must be "epic" or "legendary" rarity
 - Every task MUST have a skillDomain — the specific skill topic it covers

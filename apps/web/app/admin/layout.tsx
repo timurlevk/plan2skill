@@ -47,6 +47,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: '/admin/equipment', label: 'Equipment Catalog' },
           { href: '/admin/content', label: 'Quest Moderation' },
           { href: '/admin/characters', label: 'Characters' },
+          { href: '/admin/character-lab', label: 'Character Lab' },
           { href: '/admin/narrative', label: 'Narrative Episodes' },
         ],
       },

@@ -380,6 +380,27 @@ export function RightSidebar() {
         </SidebarCard>
       )}
 
+      {/* ─── Admin Link (dev only) ─── */}
+      <Link href="/admin" style={{ textDecoration: 'none' }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '10px 14px', borderRadius: 12,
+          background: `${t.rose}08`, border: `1px solid ${t.rose}15`,
+          cursor: 'pointer', transition: 'border-color 0.2s ease',
+        }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = `${t.rose}40`; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = `${t.rose}15`; }}
+        >
+          <NeonIcon type="lightning" size={14} color="rose" />
+          <span style={{
+            fontFamily: t.display, fontSize: 11, fontWeight: 700,
+            color: t.rose,
+          }}>
+            {tr('sidebar.admin', 'Admin Panel')}
+          </span>
+        </div>
+      </Link>
+
       {/* ─── Empty state ─── */}
       {!hasContent && quietMode && (
         <SidebarCard style={{ textAlign: 'center' as const, padding: 24 }}>

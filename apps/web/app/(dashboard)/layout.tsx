@@ -886,7 +886,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               borderLeft: `1px solid ${t.border}`,
               paddingLeft: 20,
               paddingRight: 20,
-              height: '100%',
+              position: 'sticky',
+              top: 0,
+              alignSelf: 'flex-start',
+              maxHeight: '100vh',
               overflowY: 'auto',
             }}
           >

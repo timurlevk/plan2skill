@@ -4,11 +4,12 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  const corsOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',')
+    : ['http://localhost:3500', 'exp://localhost:8081'];
+
   app.enableCors({
-    origin: [
-      'http://localhost:3500', // Next.js web
-      'exp://localhost:8081', // Expo dev
-    ],
+    origin: corsOrigins,
     credentials: true,
   });
 
