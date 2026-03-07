@@ -127,14 +127,14 @@ export abstract class BaseGenerator<TInput, TOutput> {
     }
 
     // Step 3: Build prompts — try DB template first, fall back to hardcoded
+    // User prompts always use dynamic buildUserPrompt() because they contain
+    // complex conditional logic (switch/case on input fields) that static
+    // DB templates cannot express. DB templates override system prompts only.
     const dbSystem = this.promptTemplateService?.getTemplate(this.generatorType, 'system');
-    const dbUser = this.promptTemplateService?.getTemplate(this.generatorType, 'user');
     const systemPrompt = dbSystem
       ? this.hydrateTemplate(dbSystem, input, context)
       : this.buildSystemPrompt(context);
-    const rawUserPrompt = dbUser
-      ? this.hydrateTemplate(dbUser, input, context)
-      : this.buildUserPrompt(input, context);
+    const rawUserPrompt = this.buildUserPrompt(input, context);
 
     // Step 4: Filter input
     const userPrompt = this.safetyService.filterInput(rawUserPrompt);
@@ -290,7 +290,7 @@ export abstract class BaseGenerator<TInput, TOutput> {
    */
   protected hydrateTemplate(
     template: string,
-    _input: TInput,
+    input: TInput,
     context: GeneratorContext,
   ): string {
     const { learnerProfile, domainModel } = context;
@@ -324,10 +324,25 @@ export abstract class BaseGenerator<TInput, TOutput> {
       '{CTX:missingDataGuidance}': missingDataGuidance(),
     };
 
+    // Hydrate {INPUT:key} tokens from the generator's input object
+    const inputObj = input as Record<string, unknown>;
+    for (const [key, value] of Object.entries(inputObj)) {
+      const token = `{INPUT:${key}}`;
+      if (template.includes(token)) {
+        const strValue = Array.isArray(value)
+          ? value.join(', ')
+          : String(value ?? '');
+        replacements[token] = strValue;
+      }
+    }
+
     let result = template;
     for (const [token, value] of Object.entries(replacements)) {
       result = result.split(token).join(value);
     }
+
+    // Strip any remaining unresolved placeholders
+    result = result.replace(/\{INPUT:\w+\}/g, '');
 
     return result;
   }
