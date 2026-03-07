@@ -126,14 +126,10 @@ export abstract class BaseGenerator<TInput, TOutput> {
       }
     }
 
-    // Step 3: Build prompts — try DB template first, fall back to hardcoded
-    // User prompts always use dynamic buildUserPrompt() because they contain
-    // complex conditional logic (switch/case on input fields) that static
-    // DB templates cannot express. DB templates override system prompts only.
-    const dbSystem = this.promptTemplateService?.getTemplate(this.generatorType, 'system');
-    const systemPrompt = dbSystem
-      ? this.hydrateTemplate(dbSystem, input, context)
-      : this.buildSystemPrompt(context);
+    // Step 3: Build prompts — always use dynamic buildSystemPrompt/buildUserPrompt.
+    // DB templates (PromptTemplateService) store versioned snapshots for audit/A-B testing
+    // but are NOT used for prompt generation — generators own their prompt logic entirely.
+    const systemPrompt = this.buildSystemPrompt(context);
     const rawUserPrompt = this.buildUserPrompt(input, context);
 
     // Step 4: Filter input
