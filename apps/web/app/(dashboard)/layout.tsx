@@ -899,7 +899,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* ═══ Main Content + Right Sidebar ═══ */}
-        <div style={{ flex: 1, position: 'relative', zIndex: 1, height: '100%', overflowY: 'auto', display: 'flex' }}>
+        <div style={{ flex: 1, position: 'relative', zIndex: 1, display: 'flex', overflowY: 'auto' }}>
           <main style={{ flex: 1, minWidth: 0 }}>
             {/* Mobile top padding for sticky header */}
             <div className="md:hidden" style={{ height: 56 }} />
@@ -913,13 +913,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             className="dashboard-right-sidebar"
             style={{
               borderLeft: `1px solid ${t.border}`,
-              paddingLeft: 20,
-              paddingRight: 20,
-              height: '100%',
-              overflowY: 'auto',
             }}
           >
-            <RightSidebar />
+            <div style={{
+              position: 'sticky',
+              top: 0,
+              maxHeight: '100vh',
+              overflowY: 'auto',
+              paddingLeft: 20,
+              paddingRight: 20,
+            }}>
+              <RightSidebar />
+            </div>
           </aside>
         </div>
 

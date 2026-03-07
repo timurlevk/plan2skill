@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useProgressionStore, useCharacterStore, useI18nStore } from '@plan2skill/store';
+import { useProgressionStore, useCharacterStore, useI18nStore, useAuthStore } from '@plan2skill/store';
 import { t, rarity as rarityTokens, LEAGUE_TIERS } from '../../(onboarding)/_components/tokens';
 import { NeonIcon } from '../../(onboarding)/_components/NeonIcon';
 import type { NeonIconType } from '../../(onboarding)/_components/NeonIcon';
@@ -11,6 +11,7 @@ import { MasteryRing } from '../home/_components/MasteryRing';
 import { useWeeklyChallenges } from '../home/_hooks/useWeeklyChallenges';
 import { useSpacedRepetition } from '../home/_hooks/useSpacedRepetition';
 import { AttributeWidget } from '../home/_components/AttributeWidget';
+import { trpc } from '@plan2skill/api-client';
 
 // ═══════════════════════════════════════════
 // RIGHT SIDEBAR — Refactored (UI/UX overhaul)
@@ -86,12 +87,20 @@ const SLOT_ICONS: Record<string, { icon: NeonIconType; label: string; labelKey: 
 // Main Component
 // ═══════════════════════════════════════════
 
+const ADMIN_ROLES = ['admin', 'moderator', 'superadmin'];
+
 export function RightSidebar() {
   const tr = useI18nStore((s) => s.t);
   const { quietMode } = useProgressionStore();
   const { equipment, inventory, computedAttributes } = useCharacterStore();
   const weekly = useWeeklyChallenges();
   const mastery = useSpacedRepetition();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const { data: userProfile } = trpc.user.profile.useQuery(undefined, {
+    enabled: isAuthenticated,
+    staleTime: 1000 * 60 * 5,
+  });
+  const isAdmin = !!userProfile?.role && ADMIN_ROLES.includes(userProfile.role as string);
 
   const hasWeekly = weekly.challenges.length > 0;
   const hasMastery = mastery.skills.length > 0;
@@ -396,6 +405,37 @@ export function RightSidebar() {
             {tr('sidebar.empty_desc', 'Complete quests to unlock weekly challenges, mastery rings, and equipment drops.')}
           </div>
         </SidebarCard>
+      )}
+
+      {/* ─── Admin Panel Link (admin/moderator/superadmin only) ─── */}
+      {isAdmin && (
+        <Link href="/admin" style={{ textDecoration: 'none', marginTop: 'auto' }}>
+          <div
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '10px 14px', borderRadius: 12,
+              background: `${t.rose}08`, border: `1px solid ${t.rose}15`,
+              cursor: 'pointer', transition: 'background 0.2s ease, border-color 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = `${t.rose}15`;
+              e.currentTarget.style.borderColor = `${t.rose}30`;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = `${t.rose}08`;
+              e.currentTarget.style.borderColor = `${t.rose}15`;
+            }}
+          >
+            <NeonIcon type="gear" size={14} color="rose" />
+            <span style={{
+              fontFamily: t.mono, fontSize: 10, fontWeight: 700,
+              color: t.rose, textTransform: 'uppercase' as const,
+              letterSpacing: '0.06em',
+            }}>
+              {tr('sidebar.admin_panel', 'Admin Panel')}
+            </span>
+          </div>
+        </Link>
       )}
     </div>
   );
