@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useAuthStore, useProgressionStore, useCharacterStore, useRoadmapStore, useSkillStore, useSocialStore } from '@plan2skill/store';
+import { useAuthStore, useProgressionStore, useCharacterStore, useRoadmapStore, useSkillStore, useSocialStore, useOnboardingV2Store } from '@plan2skill/store';
 import { trpc } from '@plan2skill/api-client';
 import type { SubscriptionTier } from '@plan2skill/types';
 
@@ -144,6 +144,14 @@ export function useServerHydration() {
         attributes: character.attributes as any,
         equipment: character.equipment as any,
       });
+    }
+
+    // Restore onboarding completion from server (survives localStorage clear)
+    if (userProfile?.onboardingCompleted) {
+      const v2 = useOnboardingV2Store.getState();
+      if (!v2.onboardingCompletedAt) {
+        useOnboardingV2Store.setState({ onboardingCompletedAt: Date.now() });
+      }
     }
 
     // Phase S: Hydrate social data (Guild Arena)

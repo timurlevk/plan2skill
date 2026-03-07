@@ -3,10 +3,11 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useOnboardingStore, useOnboardingV2Store, useProgressionStore, useCharacterStore, useSocialStore, isOnboardingV1Hydrated, isOnboardingV2Hydrated, getLevelInfo } from '@plan2skill/store';
+import { useOnboardingStore, useOnboardingV2Store, useProgressionStore, useCharacterStore, useSocialStore, useAuthStore, isOnboardingV1Hydrated, isOnboardingV2Hydrated, getLevelInfo } from '@plan2skill/store';
 import { NeonIcon } from '../(onboarding)/_components/NeonIcon';
 import { t } from '../(onboarding)/_components/tokens';
 import { useI18nStore } from '@plan2skill/store';
+import { trpc } from '@plan2skill/api-client';
 import { useLoadTranslations } from '../hooks/useLoadTranslations';
 import { CHARACTERS, charArtStrings, charPalettes } from '../(onboarding)/_components/characters';
 import { parseArt, PixelCanvas, AnimatedPixelCanvas } from '../(onboarding)/_components/PixelEngine';
@@ -294,13 +295,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [hydrated]);
 
   // Guard: if onboarding not complete, redirect to v2 onboarding
-  // Backward-compatible: accept either v1 (forgeComplete) or v2 (onboardingCompletedAt)
-  const onboardingDone = forgeComplete || !!onboardingCompletedAt;
+  // Check localStorage first, then server as fallback (survives localStorage clear)
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const { data: serverProfile, isLoading: profileLoading } = trpc.user.profile.useQuery(
+    undefined,
+    { enabled: isAuthenticated, staleTime: 1000 * 60 * 5, retry: 1 },
+  );
+
+  // Restore onboarding state from server if localStorage was cleared
   useEffect(() => {
-    if (hydrated && !onboardingDone) {
+    if (serverProfile?.onboardingCompleted && !onboardingCompletedAt) {
+      useOnboardingV2Store.setState({ onboardingCompletedAt: Date.now() });
+    }
+  }, [serverProfile, onboardingCompletedAt]);
+
+  const onboardingDone = forgeComplete || !!onboardingCompletedAt || !!serverProfile?.onboardingCompleted;
+  useEffect(() => {
+    // Wait for both localStorage hydration AND server response before redirecting
+    if (hydrated && !profileLoading && !onboardingDone) {
       router.replace('/intent');
     }
-  }, [hydrated, onboardingDone, router]);
+  }, [hydrated, profileLoading, onboardingDone, router]);
 
   const charMeta = CHARACTERS.find(c => c.id === characterId);
   const archetype = archetypeId ? ARCHETYPES[archetypeId] : null;

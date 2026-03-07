@@ -34,6 +34,7 @@ export class UserService {
       id: user.id,
       displayName: user.displayName,
       role: user.role,
+      onboardingCompleted: user.onboardingCompleted,
       subscriptionTier: user.progression?.subscriptionTier ?? 'free',
       totalXp: user.progression?.totalXp ?? 0,
       level: user.progression?.level ?? 1,
