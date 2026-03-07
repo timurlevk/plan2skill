@@ -456,18 +456,15 @@ const ARCHETYPE_TRANSLATIONS: TranslationRow[] = [
 // ─── Self-Assessment Translations ────────────────────────────────
 
 const SELF_ASSESSMENT_TRANSLATIONS: TranslationRow[] = [
-  // beginner
-  { entityType: 'self_assessment', entityId: 'beginner', field: 'label', en: 'Complete Beginner', uk: 'Повний початківець', pl: 'Całkowity początkujący' },
-  { entityType: 'self_assessment', entityId: 'beginner', field: 'description', en: 'I\'ve never explored this area', uk: 'Я ніколи не досліджував цю сферу', pl: 'Nigdy nie eksplorowałem tego obszaru' },
-  // familiar
-  { entityType: 'self_assessment', entityId: 'familiar', field: 'label', en: 'Somewhat Familiar', uk: 'Трохи знайомий', pl: 'Nieco zaznajomiony' },
-  { entityType: 'self_assessment', entityId: 'familiar', field: 'description', en: 'I know the basics but haven\'t practiced much', uk: 'Знаю основи, але мало практикував', pl: 'Znam podstawy, ale mało ćwiczyłem' },
-  // intermediate
-  { entityType: 'self_assessment', entityId: 'intermediate', field: 'label', en: 'Intermediate', uk: 'Середній рівень', pl: 'Średniozaawansowany' },
-  { entityType: 'self_assessment', entityId: 'intermediate', field: 'description', en: 'I\'ve done projects and can work independently', uk: 'Робив проекти та можу працювати самостійно', pl: 'Realizowałem projekty i mogę pracować samodzielnie' },
-  // advanced
-  { entityType: 'self_assessment', entityId: 'advanced', field: 'label', en: 'Advanced', uk: 'Просунутий', pl: 'Zaawansowany' },
-  { entityType: 'self_assessment', entityId: 'advanced', field: 'description', en: 'I can teach others and solve hard problems', uk: 'Можу навчати інших та вирішувати складні задачі', pl: 'Mogę uczyć innych i rozwiązywać trudne problemy' },
+  // Stored as 'ui' entityType so getUiMessages() serves them to the frontend
+  { entityType: 'ui', entityId: 'self_assessment.beginner_label', field: 'label', en: 'Complete Beginner', uk: 'Повний початківець', pl: 'Całkowity początkujący' },
+  { entityType: 'ui', entityId: 'self_assessment.beginner_desc', field: 'label', en: 'I\'ve never explored this area', uk: 'Я ніколи не досліджував цю сферу', pl: 'Nigdy nie eksplorowałem tego obszaru' },
+  { entityType: 'ui', entityId: 'self_assessment.familiar_label', field: 'label', en: 'Somewhat Familiar', uk: 'Трохи знайомий', pl: 'Nieco zaznajomiony' },
+  { entityType: 'ui', entityId: 'self_assessment.familiar_desc', field: 'label', en: 'I know the basics but haven\'t practiced much', uk: 'Знаю основи, але мало практикував', pl: 'Znam podstawy, ale mało ćwiczyłem' },
+  { entityType: 'ui', entityId: 'self_assessment.intermediate_label', field: 'label', en: 'Intermediate', uk: 'Середній рівень', pl: 'Średniozaawansowany' },
+  { entityType: 'ui', entityId: 'self_assessment.intermediate_desc', field: 'label', en: 'I\'ve done projects and can work independently', uk: 'Робив проекти та можу працювати самостійно', pl: 'Realizowałem projekty i mogę pracować samodzielnie' },
+  { entityType: 'ui', entityId: 'self_assessment.advanced_label', field: 'label', en: 'Advanced', uk: 'Просунутий', pl: 'Zaawansowany' },
+  { entityType: 'ui', entityId: 'self_assessment.advanced_desc', field: 'label', en: 'I can teach others and solve hard problems', uk: 'Можу навчати інших та вирішувати складні задачі', pl: 'Mogę uczyć innych i rozwiązywać trudne problemy' },
 ];
 
 // ─── Assessment Questions (compact trilingual format) ────────────
@@ -1048,6 +1045,45 @@ const UI_TRANSLATIONS: UiTranslationRow[] = [
   { entityId: 'dashboard.episode_read', en: '✓ Read', uk: '✓ Прочитано', pl: '✓ Przeczytano' },
   { entityId: 'dashboard.episode_dismiss', en: 'Dismiss', uk: 'Закрити', pl: 'Zamknij' },
 
+  // Dashboard Redesign — Phase 1
+  { entityId: 'dashboard.next_quest', en: 'Next Quest', uk: 'Наступний квест', pl: 'Następna misja' },
+  { entityId: 'dashboard.begin_quest', en: 'Begin Quest', uk: 'Розпочати квест', pl: 'Rozpocznij misję' },
+  { entityId: 'dashboard.all_done', en: 'All quests completed!', uk: 'Всі квести виконано!', pl: 'Wszystkie misje ukończone!' },
+  { entityId: 'dashboard.all_done_sub', en: 'Amazing work today, hero! Come back tomorrow for new quests.', uk: 'Чудова робота сьогодні, герою! Повертайся завтра за новими квестами.', pl: 'Świetna robota, bohaterze! Wróć jutro po nowe misje.' },
+  { entityId: 'dashboard.quests_done', en: 'quests conquered', uk: 'квестів пройдено', pl: 'misji ukończonych' },
+  { entityId: 'dashboard.completed_today', en: 'Completed ({n})', uk: 'Виконано ({n})', pl: 'Ukończone ({n})' },
+
+  // Dashboard Redesign — Phase 2
+  { entityId: 'dashboard.roadmaps', en: 'Roadmaps', uk: 'Роадмапи', pl: 'Mapy drogowe' },
+  { entityId: 'dashboard.manage', en: 'Manage...', uk: 'Керувати...', pl: 'Zarządzaj...' },
+  { entityId: 'dashboard.filter_all', en: 'All', uk: 'Всі', pl: 'Wszystkie' },
+  { entityId: 'welcome.subtitle_new', en: 'Your first quest awaits, hero!', uk: 'Твій перший квест чекає, герою!', pl: 'Twoja pierwsza misja czeka, bohaterze!' },
+  { entityId: 'welcome.subtitle_missed', en: 'Pick up where you left off with an easy quest.', uk: 'Продовж звідки зупинився з легкого квесту.', pl: 'Wróć tam, gdzie skończyłeś, od łatwej misji.' },
+  { entityId: 'welcome.subtitle_refresh', en: 'Start with something light to rebuild momentum.', uk: 'Почни з чогось легкого, щоб набрати темп.', pl: 'Zacznij od czegoś lekkiego, aby odbudować tempo.' },
+  { entityId: 'welcome.subtitle_longabsent', en: 'Great to see you again! Ready for a fresh start?', uk: 'Раді бачити знову! Готовий до нового старту?', pl: 'Miło cię znów widzieć! Gotowy na nowy start?' },
+  { entityId: 'quest.close_review', en: 'Close Review', uk: 'Закрити огляд', pl: 'Zamknij przegląd' },
+  { entityId: 'quest.review', en: 'Review', uk: 'Огляд', pl: 'Przegląd' },
+  { entityId: 'quest.phase.review', en: 'Review', uk: 'Огляд', pl: 'Przegląd' },
+  { entityId: 'tier.diamond', en: 'Diamond', uk: 'Діамант', pl: 'Diament' },
+  { entityId: 'tier.gold', en: 'Gold', uk: 'Золото', pl: 'Złoto' },
+  { entityId: 'tier.silver', en: 'Silver', uk: 'Срібло', pl: 'Srebro' },
+  { entityId: 'tier.bronze', en: 'Bronze', uk: 'Бронза', pl: 'Brąz' },
+
+  // Dashboard Redesign — Phase 3
+  { entityId: 'dashboard.training_grounds', en: 'Training Grounds', uk: 'Тренувальні поля', pl: 'Poligon treningowy' },
+  { entityId: 'dashboard.reviews_due', en: 'reviews due', uk: 'повторень заплановано', pl: 'powtórek zaplanowanych' },
+  { entityId: 'dashboard.overall_mastery', en: 'Overall Mastery', uk: 'Загальна майстерність', pl: 'Ogólne opanowanie' },
+  { entityId: 'dashboard.knowledge_codex', en: 'Knowledge Codex ({n} skills)', uk: 'Кодекс знань ({n} навичок)', pl: 'Kodeks wiedzy ({n} umiejętności)' },
+  { entityId: 'mastery.review_now', en: 'Review now to maintain mastery', uk: 'Повторіть зараз, щоб зберегти рівень', pl: 'Powtórz teraz, aby utrzymać poziom' },
+  { entityId: 'review.how_well', en: 'How well do you remember this topic?', uk: 'Наскільки добре ви пам\'ятаєте цю тему?', pl: 'Jak dobrze pamiętasz ten temat?' },
+  { entityId: 'review.forgot', en: 'Forgot', uk: 'Забув', pl: 'Zapomniałem' },
+  { entityId: 'review.hard', en: 'Hard', uk: 'Важко', pl: 'Trudne' },
+  { entityId: 'review.ok', en: 'OK', uk: 'Ок', pl: 'OK' },
+  { entityId: 'review.easy', en: 'Easy', uk: 'Легко', pl: 'Łatwe' },
+  { entityId: 'review.perfect', en: 'Perfect', uk: 'Ідеально', pl: 'Idealnie' },
+  { entityId: 'review.submit', en: 'Submit Review', uk: 'Надіслати відгук', pl: 'Wyślij ocenę' },
+  { entityId: 'review.submitting', en: 'Submitting...', uk: 'Надсилається...', pl: 'Wysyłanie...' },
+
   // ══════════════════════════════════════════════════════════════════
   // NEW: Quest Map Screen
   // ══════════════════════════════════════════════════════════════════
@@ -1343,12 +1379,8 @@ const UI_TRANSLATIONS: UiTranslationRow[] = [
   { entityId: 'stats.aria_streak', en: '{n} day streak', uk: 'Серія {n} днів', pl: 'Seria {n} dni' },
   { entityId: 'stats.recharge_hint', en: ', click to recharge', uk: ', натисніть для перезарядки', pl: ', kliknij, aby naładować' },
 
-  // ── welcome.* — WelcomeBack component ──
-  { entityId: 'welcome.subtitle_new', en: 'Your first quest awaits, hero!', uk: 'Твій перший квест чекає, герою!', pl: 'Twój pierwszy quest czeka, bohaterze!' },
-  { entityId: 'welcome.subtitle_return', en: 'Your quests await, hero!', uk: 'Твої квести чекають, герою!', pl: 'Twoje questy czekają, bohaterze!' },
-  { entityId: 'welcome.subtitle_missed', en: 'Pick up where you left off with an easy quest.', uk: 'Продовж звідки зупинився з легким квестом.', pl: 'Wróć do miejsca, w którym skończyłeś, z łatwym questem.' },
-  { entityId: 'welcome.subtitle_refresh', en: 'Start with something light to rebuild momentum.', uk: 'Почни з чогось легкого, щоб набрати темп.', pl: 'Zacznij od czegoś lekkiego, aby nabrać tempa.' },
-  { entityId: 'welcome.subtitle_longabsent', en: 'Great to see you again! Ready for a fresh start?', uk: 'Раді бачити тебе знову! Готовий до нового старту?', pl: 'Miło cię znów widzieć! Gotowy na nowy start?' },
+  // ── welcome.* — ContinueQuestHero component ──
+  // NOTE: welcome.subtitle_new/missed/refresh/longabsent moved to Phase 2 block above
   { entityId: 'welcome.open_details', en: 'Open quest details', uk: 'Відкрити деталі квесту', pl: 'Otwórz szczegóły questu' },
   { entityId: 'welcome.refresh_goals', en: 'Refresh goals?', uk: 'Оновити цілі?', pl: 'Odświeżyć cele?' },
   { entityId: 'welcome.choose_different', en: 'Choose a different quest', uk: 'Обрати інший квест', pl: 'Wybierz inny quest' },
@@ -1386,6 +1418,50 @@ const UI_TRANSLATIONS: UiTranslationRow[] = [
   { entityId: 'quest.restart_btn', en: 'Restart Quest', uk: 'Перезапустити квест', pl: 'Powtórz quest' },
   { entityId: 'quest.not_now', en: 'Not now', uk: 'Не зараз', pl: 'Nie teraz' },
   { entityId: 'quest.tap_continue', en: 'Tap to continue', uk: 'Натисни, щоб продовжити', pl: 'Kliknij, aby kontynuować' },
+
+  // ── quest journey — multi-screen modal ──
+  { entityId: 'quest.briefing_title', en: 'Quest Briefing', uk: 'Брифінг квесту', pl: 'Briefing questa' },
+  { entityId: 'quest.begin_quest', en: 'Begin Quest', uk: 'Почати квест', pl: 'Rozpocznij quest' },
+  { entityId: 'quest.preparing', en: 'Preparing quest...', uk: 'Готую квест...', pl: 'Przygotowuję quest...' },
+  { entityId: 'quest.content_title', en: 'Study Material', uk: 'Навчальний матеріал', pl: 'Materiał do nauki' },
+  { entityId: 'quest.content.progress', en: '{read} of {total} scrolls', uk: '{read} з {total} сувоїв', pl: '{read} z {total} zwojów' },
+  { entityId: 'quest.content.continue_trial', en: 'Continue to Trial', uk: 'Перейти до випробування', pl: 'Przejdź do próby' },
+  { entityId: 'quest.content.read_more', en: 'Read at least 80% of the material to continue', uk: 'Прочитай щонайменше 80% матеріалу', pl: 'Przeczytaj co najmniej 80% materiału' },
+  { entityId: 'quest.content.midpoint', en: 'Great progress, hero! You\'re halfway through. Keep going!', uk: 'Чудовий прогрес, герою! Ти вже на половині. Продовжуй!', pl: 'Świetny postęp, bohaterze! Jesteś w połowie. Kontynuuj!' },
+  { entityId: 'quest.content.no_content', en: 'Content is being prepared...', uk: 'Контент готується...', pl: 'Treść jest przygotowywana...' },
+  { entityId: 'quest.trial_title', en: 'Trial by Fire', uk: 'Випробування вогнем', pl: 'Próba ognia' },
+  { entityId: 'quest.trial.exercise_of', en: 'Exercise {current} of {total}', uk: 'Вправа {current} з {total}', pl: 'Ćwiczenie {current} z {total}' },
+  { entityId: 'quest.trial.submit', en: 'Submit Answer', uk: 'Відповісти', pl: 'Zatwierdź odpowiedź' },
+  { entityId: 'quest.trial.no_exercises', en: 'No exercises available for this quest.', uk: 'Вправи для цього квесту відсутні.', pl: 'Brak ćwiczeń dla tego questa.' },
+  { entityId: 'quest.trial.skip', en: 'Continue', uk: 'Продовжити', pl: 'Kontynuuj' },
+  { entityId: 'quest.trial.difficulty', en: 'Difficulty', uk: 'Складність', pl: 'Trudność' },
+  { entityId: 'quest.trial.crystals', en: 'crystals', uk: 'кристали', pl: 'kryształy' },
+  { entityId: 'quest.score_display', en: '{score}/{total} correct', uk: '{score}/{total} правильних', pl: '{score}/{total} poprawnych' },
+  { entityId: 'quest.flawless', en: 'Flawless Victory!', uk: 'Бездоганна перемога!', pl: 'Bezbłędne zwycięstwo!' },
+  { entityId: 'quest.retry_trial', en: 'Retry Trial', uk: 'Спробувати знову', pl: 'Powtórz próbę' },
+  { entityId: 'quest.review_material', en: 'Review Material', uk: 'Переглянути матеріал', pl: 'Przejrzyj materiał' },
+  { entityId: 'quest.return_cc', en: 'Return to Command Center', uk: 'Повернутися до Центру Командування', pl: 'Wróć do Centrum Dowodzenia' },
+  { entityId: 'quest.next_quest', en: 'Next Quest', uk: 'Наступний квест', pl: 'Następny quest' },
+  { entityId: 'quest.need_pass', en: 'You need 60% to pass', uk: 'Потрібно 60% для проходження', pl: 'Potrzebujesz 60% aby zdać' },
+
+  // ── exercise.* — exercise components ──
+  { entityId: 'exercise.true', en: 'True', uk: 'Правда', pl: 'Prawda' },
+  { entityId: 'exercise.false', en: 'False', uk: 'Хибно', pl: 'Fałsz' },
+  { entityId: 'exercise.submit', en: 'Submit', uk: 'Відповісти', pl: 'Zatwierdź' },
+  { entityId: 'exercise.check', en: 'Check', uk: 'Перевірити', pl: 'Sprawdź' },
+  { entityId: 'exercise.skip', en: 'Skip', uk: 'Пропустити', pl: 'Pomiń' },
+  { entityId: 'exercise.continue', en: 'Continue', uk: 'Продовжити', pl: 'Kontynuuj' },
+  { entityId: 'exercise.correct', en: 'Correct!', uk: 'Правильно!', pl: 'Poprawnie!' },
+  { entityId: 'exercise.incorrect', en: 'Incorrect', uk: 'Неправильно', pl: 'Niepoprawnie' },
+  { entityId: 'exercise.partial', en: 'Almost there!', uk: 'Майже!', pl: 'Prawie!' },
+  { entityId: 'exercise.points', en: '{n} pts', uk: '{n} бал.', pl: '{n} pkt' },
+
+  // ── hint.* — hint drawer ──
+  { entityId: 'hint.ask_sage', en: 'Ask the Sage', uk: 'Запитати Мудреця', pl: 'Zapytaj Mędrca' },
+  { entityId: 'hint.consult_oracle', en: 'Consult the Oracle', uk: 'Консультація Оракула', pl: 'Zapytaj Wyrocznię' },
+  { entityId: 'hint.reveal_scroll', en: 'Reveal Answer Scroll', uk: 'Відкрити Сувій Відповіді', pl: 'Odsłoń Zwój Odpowiedzi' },
+  { entityId: 'hint.costs_crystal', en: 'Costs 1 crystal', uk: 'Коштує 1 кристал', pl: 'Kosztuje 1 kryształ' },
+  { entityId: 'hint.needs_attempt', en: 'Attempt first', uk: 'Спочатку спробуй', pl: 'Najpierw spróbuj' },
 
   // ── weekly.* — WeeklyChallenges component ──
   { entityId: 'weekly.title', en: 'Weekly Quests', uk: 'Тижневі квести', pl: 'Tygodniowe questy' },

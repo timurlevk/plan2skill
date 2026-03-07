@@ -31,7 +31,7 @@ export class ArticleBodyGenerator extends BaseGenerator<
   protected readonly generatorType = 'article-body';
   protected readonly modelTier = ModelTier.BALANCED;
   protected readonly temperature = 0.5;
-  protected readonly maxTokens = 2048;
+  protected readonly maxTokens = 4096;
   protected readonly outputSchema = ArticleBodySchema;
   protected readonly cacheTtlSeconds = 86400;
 
@@ -64,13 +64,34 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
 
 **Output JSON schema:**
 {
-  "articleBody": "string (100-10000 chars) — markdown-formatted educational article"
+  "articleBody": "string (100-10000 chars) — markdown-formatted educational article",
+  "blocks": [
+    // 3-10 structured content blocks. Each block has a "type" discriminator.
+    // Block types:
+    //   { "type": "text", "heading": "optional heading", "body": "paragraph text" }
+    //   { "type": "code", "language": "js", "code": "code snippet", "caption": "optional" }
+    //   { "type": "callout", "variant": "tip"|"warning"|"info"|"lore", "title": "...", "body": "..." }
+    //   { "type": "interactive", "prompt": "question for learner", "answer": "correct answer", "hint": "optional" }
+    //   { "type": "deep_lore", "title": "...", "body": "expanded background / history" }
+  ]
 }
 
-**Rules:**
+**Rules for articleBody:**
 - Write 200-1500 words of educational content
 - Use markdown formatting: headings (##, ###), bullet points, bold for key terms
 - Structure: Introduction → Core Concepts → Examples → Summary
+
+**Rules for blocks:**
+- Provide 3-10 blocks that represent the same content in structured form
+- Start with a "text" block introducing the topic
+- Include at least 1 "callout" block (tip, info, or lore variant)
+- Include at least 1 "interactive" block with a quick comprehension check
+- For coding domains: include at least 1 "code" block with a practical snippet
+- For non-coding domains: do NOT include "code" blocks
+- Optionally add a "deep_lore" block with fun background / historical context
+- Blocks should follow a logical learning flow, not just repeat the article
+
+**General rules:**
 - Match the Bloom's taxonomy level of the content:
   - remember/understand: focus on definitions, explanations, analogies
   - apply/analyze: include practical examples, step-by-step guides
@@ -114,7 +135,7 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
     input: ArticleBodyInput,
     _context: GeneratorContext,
   ): string {
-    let prompt = `Write an educational article for the task: "${input.taskTitle}"
+    let prompt = `Write an educational article AND structured content blocks for the task: "${input.taskTitle}"
 
 **Parameters:**
 - Skill domain: ${input.skillDomain}
@@ -126,12 +147,13 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
     }
 
     if (input.hasCodingComponent) {
-      prompt += `\n- This domain involves coding — you may include code examples`;
+      prompt += `\n- This domain involves coding — you may include code examples and "code" blocks`;
     } else {
-      prompt += `\n- This is a non-coding domain — do NOT include code blocks`;
+      prompt += `\n- This is a non-coding domain — do NOT include code blocks or "code" type blocks`;
     }
 
-    prompt += `\n\nReturn ONLY the JSON. No markdown fences, no explanation.`;
+    prompt += `\n\nReturn both "articleBody" (markdown article) and "blocks" (3-10 structured content blocks).`;
+    prompt += `\nReturn ONLY the JSON. No markdown fences, no explanation.`;
 
     return prompt;
   }

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useProgressionStore, useAuthStore, useCharacterStore } from '@plan2skill/store';
+import { useProgressionStore, useAuthStore, useCharacterStore, useRoadmapStore } from '@plan2skill/store';
 import { trpc } from '@plan2skill/api-client';
 import { rollBonusXP } from '../_utils/xp-utils';
 import type { BonusResult } from '../_utils/xp-utils';
@@ -41,6 +41,7 @@ export function useQuestEngine(): QuestEngineResult {
   // tRPC mutations for server-side sync (background, non-blocking)
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
+  const utils = trpc.useUtils();
   const completeTaskMutation = trpc.progression.completeTask.useMutation();
 
   const unlockAchievementMutation = trpc.achievement.unlock.useMutation();
@@ -199,6 +200,15 @@ export function useQuestEngine(): QuestEngineResult {
                 },
               );
             }
+
+            // Refresh roadmap store so Quest Lines widget updates
+            (utils.roadmap.list.fetch() as Promise<unknown>).then((fresh) => {
+              if (fresh && Array.isArray(fresh)) {
+                useRoadmapStore.getState().setRoadmaps(fresh as any);
+                const active = (fresh as any[]).find((r: any) => r.status === 'active');
+                useRoadmapStore.getState().setActiveRoadmap(active ?? null);
+              }
+            }).catch((err) => console.warn('[QuestEngine] roadmap refresh failed:', err));
           },
           onError: (err: { message: string }) => {
             // Server sync failed — local state is still valid

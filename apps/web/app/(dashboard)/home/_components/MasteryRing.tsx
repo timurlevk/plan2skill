@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
+import { useReducedMotion } from '../_hooks/useReducedMotion';
 import { t } from '../../../(onboarding)/_components/tokens';
 import { useI18nStore } from '@plan2skill/store';
 
@@ -60,10 +61,7 @@ export function MasteryRing({
   const [isHovered, setIsHovered] = useState(false);
 
   // prefers-reduced-motion guard
-  const prefersReduced = useRef(false);
-  useEffect(() => {
-    prefersReduced.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  }, []);
+  const prefersReduced = useReducedMotion();
 
   const isMastered = masteryLevel === 5;
 
@@ -130,7 +128,26 @@ export function MasteryRing({
               strokeDasharray={circumference}
               strokeDashoffset={dashOffset}
               transform={`rotate(-90 ${dim.size / 2} ${dim.size / 2})`}
-              style={{ transition: 'stroke-dashoffset 0.8s ease-out, stroke 0.4s ease' }}
+              style={{
+                transition: 'stroke-dashoffset 0.8s ease-out, stroke 0.4s ease, opacity 0.3s ease',
+                opacity: isOverdue ? 0.5 : 1,
+              }}
+            />
+          )}
+
+          {/* Decay overlay — dashed rose ring when overdue */}
+          {isOverdue && (token?.ring ?? 0) > 0 && (
+            <circle
+              cx={dim.size / 2}
+              cy={dim.size / 2}
+              r={dim.radius}
+              fill="none"
+              stroke={t.rose}
+              strokeWidth={dim.stroke * 0.5}
+              strokeDasharray={`${dim.stroke * 1.5} ${dim.stroke * 2.5}`}
+              strokeDashoffset={dashOffset}
+              transform={`rotate(-90 ${dim.size / 2} ${dim.size / 2})`}
+              style={{ opacity: 0.6, transition: 'opacity 0.3s ease' }}
             />
           )}
 

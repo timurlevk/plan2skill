@@ -19,6 +19,7 @@ export interface CodeChallengeGeneratorInput {
   skillDomain: string;
   bloomLevel: string;
   difficulty: 'easy' | 'medium' | 'hard';
+  taskTitle?: string;
 }
 
 @Injectable()
@@ -131,15 +132,19 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
     input: CodeChallengeGeneratorInput,
     _context: GeneratorContext,
   ): string {
-    const prompt = `Create a coding challenge.
+    let prompt = `Create a coding challenge.
 
 **Parameters:**
 - Programming language: ${input.language}
 - Skill domain: ${input.skillDomain}
 - Bloom's taxonomy level: ${input.bloomLevel}
-- Difficulty: ${input.difficulty}
+- Difficulty: ${input.difficulty}`;
 
-Return ONLY the JSON. No markdown fences, no explanation.`;
+    if (input.taskTitle) {
+      prompt += `\n- Task context: ${input.taskTitle}`;
+    }
+
+    prompt += `\n\nReturn ONLY the JSON. No markdown fences, no explanation.`;
 
     return prompt;
   }

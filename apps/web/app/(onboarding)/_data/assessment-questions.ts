@@ -548,9 +548,10 @@ export const QUESTIONS: AssessmentQuestion[] = [
 
 // ─── Self-Assessment Fallback Options ───
 // Icons reference NeonIcon component types from the style guide
+// label/description are i18n keys — resolve via tr() at render time
 export const SELF_ASSESSMENT_OPTIONS = [
-  { id: 'beginner', label: 'Complete Beginner', description: 'I\'ve never explored this area', level: 'beginner' as const, icon: 'compass', color: '#71717A' },
-  { id: 'familiar', label: 'Somewhat Familiar', description: 'I know the basics but haven\'t practiced much', level: 'familiar' as const, icon: 'book', color: '#6EE7B7' },
-  { id: 'intermediate', label: 'Intermediate', description: 'I\'ve done projects and can work independently', level: 'intermediate' as const, icon: 'shield', color: '#9D7AFF' },
-  { id: 'advanced', label: 'Advanced', description: 'I can teach others and solve hard problems', level: 'advanced' as const, icon: 'crown', color: '#FFD166' },
+  { id: 'beginner', labelKey: 'self_assessment.beginner_label', descKey: 'self_assessment.beginner_desc', label: 'Complete Beginner', description: 'I\'ve never explored this area', level: 'beginner' as const, icon: 'compass', color: '#71717A' },
+  { id: 'familiar', labelKey: 'self_assessment.familiar_label', descKey: 'self_assessment.familiar_desc', label: 'Somewhat Familiar', description: 'I know the basics but haven\'t practiced much', level: 'familiar' as const, icon: 'book', color: '#6EE7B7' },
+  { id: 'intermediate', labelKey: 'self_assessment.intermediate_label', descKey: 'self_assessment.intermediate_desc', label: 'Intermediate', description: 'I\'ve done projects and can work independently', level: 'intermediate' as const, icon: 'shield', color: '#9D7AFF' },
+  { id: 'advanced', labelKey: 'self_assessment.advanced_label', descKey: 'self_assessment.advanced_desc', label: 'Advanced', description: 'I can teach others and solve hard problems', level: 'advanced' as const, icon: 'crown', color: '#FFD166' },
 ];

@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { ContentRouterService } from '../ai/core/content-router.service';
 import { ContentBudgetService } from '../ai/core/content-budget.service';
 import type { AiFeature } from '../ai/core/content-budget.service';
 import { QuizGenerator } from '../ai/generators/quiz.generator';
@@ -9,15 +8,19 @@ import { FunFactGenerator } from '../ai/generators/fun-fact.generator';
 import { ArticleBodyGenerator } from '../ai/generators/article-body.generator';
 import { CodeChallengeGenerator } from '../ai/generators/code-challenge.generator';
 import { MotivationalGenerator } from '../ai/generators/motivational.generator';
+import { ExerciseGenerator } from '../ai/generators/exercise.generator';
+import { selectExerciseTypes } from '../ai/core/exercise-selector';
 import { validateGeneratedContent } from '../ai/core/content-validator';
 import { QuestService } from './quest.service';
 import type { DomainClassification } from '../ai/core/domain-capability';
 import type { AiQuestAssistantResult } from '../ai/schemas/quest-assistant.schema';
 import type { AiMotivationalResult } from '../ai/schemas/motivational.schema';
+import type { ContentBlock, Exercise } from '@plan2skill/types';
 import type {
   QuestContentPackage,
   CodeChallengeContent,
   QuizQuestion,
+  QuizDistractorType,
   ResourceItem,
   FunFactItem,
   LockedFeature,
@@ -29,7 +32,6 @@ export class QuestContentService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly contentRouter: ContentRouterService,
     private readonly contentBudget: ContentBudgetService,
     private readonly quizGenerator: QuizGenerator,
     private readonly resourceGenerator: ResourceGenerator,
@@ -37,6 +39,7 @@ export class QuestContentService {
     private readonly articleBodyGenerator: ArticleBodyGenerator,
     private readonly codeChallengeGenerator: CodeChallengeGenerator,
     private readonly motivationalGenerator: MotivationalGenerator,
+    private readonly exerciseGenerator: ExerciseGenerator,
     private readonly questService: QuestService,
   ) {}
 
@@ -98,24 +101,36 @@ export class QuestContentService {
     const skillDomain = task.skillDomain ?? task.milestone.roadmap.domainCategories?.[0] ?? 'general';
     const bloomLevel = task.bloomLevel ?? 'understand';
 
-    // 5. Dispatch generators in parallel
-    const [articleResult, quizResult, resourceResult, funFactResult, codeChallengeResult] = await Promise.allSettled([
-      // Article — always generated
-      this.articleBodyGenerator.generate(userId, {
-        skillDomain,
-        taskTitle: task.title,
-        bloomLevel,
-        taskDescription: task.description ?? '',
-        domainCategory: primaryCategory,
-        hasCodingComponent,
-      }),
+    // 5. Select exercise types based on bloom level & domain
+    const selectedTypes = selectExerciseTypes(bloomLevel, hasCodingComponent);
+
+    // 6a. Generate article FIRST (exercises need article context)
+    const articleResult = await this.articleBodyGenerator.generate(userId, {
+      skillDomain,
+      taskTitle: task.title,
+      bloomLevel,
+      taskDescription: task.description ?? '',
+      domainCategory: primaryCategory,
+      hasCodingComponent,
+    }).catch((err) => {
+      this.logger.warn(`[article-body] Generator failed: ${(err as Error).message}`);
+      return null;
+    });
+
+    // Extract article context for exercise generation
+    const articleContextSnippet = articleResult?.articleBody
+      ? articleResult.articleBody.slice(0, 1500)
+      : `Task: ${task.title}. Domain: ${skillDomain}. Description: ${task.description ?? ''}`;
+
+    // 6b. Dispatch remaining generators in parallel (exercises now have article context)
+    const [quizResult, resourceResult, funFactResult, codeChallengeResult, exerciseResult] = await Promise.allSettled([
       // Quiz — Pro+ only (Free uses existing knowledgeCheck)
       tier !== 'free'
         ? this.quizGenerator.generate(userId, {
             skillDomain,
             bloomLevel,
             questionCount: 5,
-            context: task.title,
+            context: `${task.title}. ${task.description ?? ''}`,
           })
         : Promise.resolve(null),
       // Resources — Pro+ only
@@ -140,19 +155,32 @@ export class QuestContentService {
             skillDomain,
             bloomLevel,
             difficulty: this.mapBloomToDifficulty(bloomLevel),
+            taskTitle: task.title,
           })
         : Promise.resolve(null),
+      // Exercises — always generated, with article context
+      this.exerciseGenerator.generate(userId, {
+        skillDomain,
+        taskTitle: task.title,
+        bloomLevel,
+        domainCategory: primaryCategory,
+        hasCodingComponent,
+        selectedTypes,
+        articleContext: articleContextSnippet,
+      }),
     ]);
 
-    // 6. Extract results, validate
-    const articleBody = this.extractSettled(articleResult, 'article-body');
+    // 7. Extract results, validate
+    const articleBody = articleResult;
     const quiz = this.extractSettled(quizResult, 'quiz');
     const resources = this.extractSettled(resourceResult, 'resource');
     const funFacts = this.extractSettled(funFactResult, 'fun-fact');
     const codeChallenge = this.extractSettled(codeChallengeResult, 'code-challenge');
+    const exerciseSet = this.extractSettled(exerciseResult, 'exercise');
 
     // Validate article body
     let validatedArticle: string | null = null;
+    let contentBlocks: ContentBlock[] | null = null;
     if (articleBody?.articleBody) {
       const classification: DomainClassification = domainMeta ?? {
         categories: [primaryCategory],
@@ -170,13 +198,23 @@ export class QuestContentService {
         this.logger.warn(`Article validation failed: ${validation.errors.join(', ')}`);
         validatedArticle = articleBody.articleBody; // still save, validation is advisory
       }
+      // Extract structured content blocks from article generation
+      if (articleBody.blocks && articleBody.blocks.length > 0) {
+        contentBlocks = articleBody.blocks as ContentBlock[];
+      }
+    }
+
+    // Extract exercises
+    let exercises: Exercise[] | null = null;
+    if (exerciseSet?.exercises && exerciseSet.exercises.length > 0) {
+      exercises = exerciseSet.exercises as Exercise[];
     }
 
     // Determine final status
     const hasArticle = validatedArticle !== null;
     const finalStatus = hasArticle ? 'ready' : 'failed';
 
-    // 7. Save to QuestContent
+    // 8. Save to QuestContent
     await this.prisma.questContent.update({
       where: { taskId },
       data: {
@@ -186,6 +224,8 @@ export class QuestContentService {
         resources: resources?.resources ? (resources.resources as any) : undefined,
         funFacts: funFacts?.facts ? (funFacts.facts as any) : undefined,
         codeChallenge: codeChallenge ? (codeChallenge as any) : undefined,
+        contentBlocks: contentBlocks ? (contentBlocks as any) : undefined,
+        exercises: exercises ? (exercises as any) : undefined,
         contentFormat: 'article',
         generatedAt: new Date(),
         generatorMeta: {
@@ -195,11 +235,13 @@ export class QuestContentService {
           resourcesGenerated: resources?.resources != null,
           funFactsGenerated: funFacts?.facts != null,
           codeChallengeGenerated: codeChallenge != null,
+          contentBlocksGenerated: contentBlocks != null,
+          exercisesGenerated: exercises != null,
         },
       },
     });
 
-    // 8. Build and return package with tier gating
+    // 9. Build and return package with tier gating
     const saved = await this.prisma.questContent.findUnique({ where: { taskId } });
     if (!saved) {
       return this.emptyPackage(taskId, 'failed');
@@ -348,7 +390,7 @@ export class QuestContentService {
     // Map feature → quest-assistant mode
     const mode = feature === 'hint' ? 'hint' as const
       : feature === 'explain' ? 'feedback' as const
-      : 'reattempt' as const;
+      : 'tutor' as const;
 
     const result = await this.questService.questAssist(userId, taskId, mode);
 
@@ -402,6 +444,8 @@ export class QuestContentService {
       resources: unknown;
       funFacts: unknown;
       codeChallenge?: unknown;
+      contentBlocks?: unknown;
+      exercises?: unknown;
     },
     task: { knowledgeCheck: unknown },
   ): Promise<QuestContentPackage> {
@@ -424,6 +468,8 @@ export class QuestContentService {
     const fullResources = record.resources as ResourceItem[] | null;
     const fullFunFacts = record.funFacts as FunFactItem[] | null;
     const fullCodeChallenge = (record.codeChallenge as CodeChallengeContent | null) ?? null;
+    const fullContentBlocks = (record.contentBlocks as ContentBlock[] | null) ?? null;
+    const fullExercises = (record.exercises as Exercise[] | null) ?? null;
 
     return this.applyTierGating(
       {
@@ -435,6 +481,8 @@ export class QuestContentService {
         resources: fullResources,
         funFacts: fullFunFacts,
         codeChallenge: fullCodeChallenge,
+        contentBlocks: fullContentBlocks,
+        exercises: fullExercises,
         aiHintsRemaining: Math.max(0, balance.limits.dailyHints - balance.aiHintsToday),
         aiTutorAvailable: tier !== 'free',
         lockedFeatures: [],
@@ -468,6 +516,8 @@ export class QuestContentService {
           options: (kc.options as string[]) ?? [],
           correctIndex: (kc.correctIndex as number) ?? 0,
           explanation: (kc.explanation as string) ?? '',
+          bloomLevel: (kc.bloomLevel as string) ?? 'remember',
+          distractorTypes: (kc.distractorTypes as QuizDistractorType[]) ?? ['plausible-wrong'],
         }];
       } else {
         content.quizQuestions = null;
@@ -488,6 +538,12 @@ export class QuestContentService {
       // Free: gate code challenges unless coin-unlocked
       if (!unlockedFeatures.has('code_challenge')) {
         content.codeChallenge = null;
+      }
+
+      // Free: limit exercises to 1 MCQ only
+      if (content.exercises && content.exercises.length > 0) {
+        const mcqExercise = content.exercises.find((e) => e.type === 'mcq');
+        content.exercises = mcqExercise ? [mcqExercise] : content.exercises.slice(0, 1);
       }
 
       // Build locked features, excluding already-unlocked ones
@@ -546,6 +602,8 @@ export class QuestContentService {
       resources: null,
       funFacts: null,
       codeChallenge: null,
+      contentBlocks: null,
+      exercises: null,
       aiHintsRemaining: 0,
       aiTutorAvailable: false,
       lockedFeatures: [],

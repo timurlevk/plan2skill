@@ -13,7 +13,6 @@ import { parseArt, PixelCanvas, AnimatedPixelCanvas } from '../(onboarding)/_com
 import { XPBar } from '../(onboarding)/_components/XPBar';
 import { ARCHETYPES } from '../(onboarding)/_data/archetypes';
 import { RightSidebar } from './_components/RightSidebar';
-import { useServerHydration } from './home/_hooks/useServerHydration';
 
 // ═══════════════════════════════════════════
 // DASHBOARD LAYOUT — Gamified Command Center
@@ -279,8 +278,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const displayName = useSocialStore((s) => s.displayName);
   const tr = useI18nStore((s) => s.t);
   useLoadTranslations();
-  useServerHydration();
-
   // Hydration guard — wait for Zustand persist to rehydrate from localStorage
   // Uses onRehydrateStorage callback (best practice, not generic useEffect)
   const [hydrated, setHydrated] = useState(() => isOnboardingV1Hydrated() && isOnboardingV2Hydrated());
@@ -440,6 +437,77 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         @keyframes shineSweep {
           0%, 85%  { transform: translateX(-120%) rotate(25deg); }
           100%     { transform: translateX(120%) rotate(25deg); }
+        }
+        @keyframes ctaAmbient {
+          0%, 100% { box-shadow: 0 0 30px rgba(157,122,255,0.08), 0 0 60px rgba(78,205,196,0.04); border-color: rgba(157,122,255,0.15); }
+          50% { box-shadow: 0 0 50px rgba(157,122,255,0.18), 0 0 90px rgba(78,205,196,0.08), 0 0 120px rgba(157,122,255,0.04); border-color: rgba(157,122,255,0.35); }
+        }
+        @keyframes particleDrift1 {
+          0% { opacity: 0.2; transform: translateY(0); }
+          50% { opacity: 1; transform: translateY(-6px); }
+          100% { opacity: 0.2; transform: translateY(0); }
+        }
+        @keyframes particleDrift2 {
+          0% { opacity: 0.4; transform: translateY(0); }
+          50% { opacity: 0.8; transform: translateY(-8px); }
+          100% { opacity: 0.4; transform: translateY(0); }
+        }
+        @keyframes mistDrift {
+          0%   { background-position: 0% 50%, 100% 0%, 50% 100%; }
+          50%  { background-position: 100% 50%, 0% 100%, 50% 0%; }
+          100% { background-position: 0% 50%, 100% 0%, 50% 100%; }
+        }
+        @keyframes btnGlow {
+          0%, 100% { box-shadow: 0 0 16px rgba(157,122,255,0.15), 0 2px 8px rgba(0,0,0,0.3); }
+          50%      { box-shadow: 0 0 24px rgba(157,122,255,0.3), 0 2px 12px rgba(0,0,0,0.3); }
+        }
+        @keyframes completedGlow {
+          0%, 100% { box-shadow: 0 0 8px rgba(255,215,0,0.15), inset 0 0 6px rgba(255,215,0,0.08); }
+          50%      { box-shadow: 0 0 16px rgba(255,215,0,0.3), inset 0 0 10px rgba(255,215,0,0.15); }
+        }
+        @keyframes activeBreath {
+          0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(157,122,255,0.25), 0 0 40px rgba(157,122,255,0.12), 0 0 60px rgba(78,205,196,0.06); }
+          50%      { transform: scale(1.06); box-shadow: 0 0 28px rgba(157,122,255,0.4), 0 0 56px rgba(157,122,255,0.2), 0 0 80px rgba(78,205,196,0.1); }
+        }
+        @keyframes activeRingPulse {
+          0%   { transform: scale(1); opacity: 0.6; }
+          100% { transform: scale(1.8); opacity: 0; }
+        }
+        @keyframes lockedTease {
+          0%, 100% { box-shadow: 0 0 6px rgba(157,122,255,0.08); border-color: rgba(157,122,255,0.2); }
+          50%      { box-shadow: 0 0 18px rgba(157,122,255,0.2); border-color: rgba(157,122,255,0.45); }
+        }
+        @keyframes lockedTrophyTease {
+          0%, 100% { box-shadow: 0 0 8px rgba(255,215,0,0.08); border-color: rgba(255,215,0,0.2); }
+          50%      { box-shadow: 0 0 22px rgba(255,215,0,0.2); border-color: rgba(255,215,0,0.45); }
+        }
+        @keyframes trackShimmer {
+          0%, 85% { transform: translateX(-120%); }
+          100%    { transform: translateX(120%); }
+        }
+        @keyframes cardBreath {
+          0%, 100% { box-shadow: 0 0 14px rgba(157,122,255,0.1); }
+          50%      { box-shadow: 0 0 44px rgba(157,122,255,0.25); }
+        }
+        @keyframes barShimmer {
+          0%, 75% { transform: translateX(-100%); }
+          100%    { transform: translateX(200%); }
+        }
+        @keyframes doneGlow {
+          0%, 100% { box-shadow: 0 0 20px rgba(78,205,196,0.1); }
+          50%      { box-shadow: 0 0 40px rgba(78,205,196,0.25); }
+        }
+        @keyframes celebrateBounce {
+          0%, 100% { transform: translateY(0); }
+          50%      { transform: translateY(-8px); }
+        }
+        @keyframes sparkleFloat {
+          0%, 100% { transform: translateY(0) scale(1); opacity: 0.5; }
+          50%      { transform: translateY(-10px) scale(1.2); opacity: 1; }
+        }
+        @keyframes trophyShine {
+          0%, 100% { filter: brightness(1); }
+          50%      { filter: brightness(1.2); }
         }
         @media (prefers-reduced-motion: reduce) {
           *, *::before, *::after {

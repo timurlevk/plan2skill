@@ -6,16 +6,20 @@ import { trpc } from '@plan2skill/api-client';
 import { t } from '../../(onboarding)/_components/tokens';
 import { CHARACTERS } from '../../(onboarding)/_components/characters';
 import { ARCHETYPES } from '../../(onboarding)/_data/archetypes';
+import type { QuestTask } from './_utils/quest-templates';
 import { useQuestEngine } from './_hooks/useQuestEngine';
 import { useQuestSystem } from './_hooks/useQuestSystem';
 import { useDailyProgress } from './_hooks/useDailyProgress';
 import { useServerHydration } from './_hooks/useServerHydration';
-import { QuestCardModal } from './_components/QuestCardModal';
+import { QuestJourneyModal } from './_components/quest-journey/QuestJourneyModal';
 import { StatsRow } from './_components/StatsRow';
-import { ActiveQuests } from './_components/ActiveQuests';
+import { QuestLines } from './_components/QuestLines';
+import { RoadmapCards } from './_components/RoadmapCards';
 import { DailyQuests } from './_components/DailyQuests';
+import { TrainingGrounds } from './_components/TrainingGrounds';
+import { ReviewModal } from './_components/ReviewModal';
+import { ContinueQuestHero, getDaysSince } from './_components/ContinueQuestHero';
 import { AchievementToast } from './_components/AchievementToast';
-import { WelcomeBack, getDaysSince } from './_components/WelcomeBack';
 import { SkeletonLoader } from './_components/SkeletonLoader';
 import { SocialCards } from './_components/SocialCards';
 import { WeeklyChallenges } from './_components/WeeklyChallenges';
@@ -120,13 +124,6 @@ function LevelUpCelebration({ newLevel, onDismiss }: { newLevel: number; onDismi
 // Milestones: 7, 30, 100, 365
 // ═══════════════════════════════════════════
 
-const STREAK_MILESTONES: Record<number, string> = {
-  7: '7-Day Streak!',
-  30: '30-Day Legend!',
-  100: '100-Day Master!',
-  365: '365-Day Immortal!',
-};
-
 function StreakMilestoneCelebration({ streak, onDismiss }: { streak: number; onDismiss: () => void }) {
   const tr = useI18nStore((s) => s.t);
   const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -213,6 +210,69 @@ function StreakMilestoneCelebration({ streak, onDismiss }: { streak: number; onD
 }
 
 // ═══════════════════════════════════════════
+// QUEST MODAL BRIDGE — Renders Journey modal for rich
+// Always uses QuestJourneyModal (backward-compatible with articleBody/quizQuestions)
+// ═══════════════════════════════════════════
+
+function QuestModalBridge({
+  openTask,
+  openQuestId,
+  engine,
+  getNextQuest,
+  setOpenQuestId,
+  characterId,
+  dailyCompleted,
+  dailyTotal,
+  currentStreak,
+  energyCrystals,
+  consumeCrystal,
+  reviewMode = false,
+}: {
+  openTask: QuestTask;
+  openQuestId: string | null;
+  engine: ReturnType<typeof useQuestEngine>;
+  getNextQuest: (currentId: string | null) => string | null;
+  setOpenQuestId: (id: string | null) => void;
+  characterId: string | null;
+  dailyCompleted: number;
+  dailyTotal: number;
+  currentStreak: number;
+  energyCrystals: number;
+  consumeCrystal: () => void;
+  reviewMode?: boolean;
+}) {
+  return (
+    <QuestJourneyModal
+      key={openTask.id}
+      task={openTask}
+      done={engine.completedQuests.has(openTask.id)}
+      reviewMode={reviewMode}
+      onClose={() => setOpenQuestId(null)}
+      onToggle={() => {
+        if (engine.completedQuests.has(openTask.id)) {
+          engine.undoQuest(openTask.id, openTask.xp);
+        } else {
+          engine.completeQuest(openTask.id, openTask.goalLabel, openTask.xp);
+        }
+      }}
+      onOpenNext={(() => {
+        const nextId = getNextQuest(openQuestId);
+        if (!nextId) return null;
+        return () => setOpenQuestId(nextId);
+      })()}
+      characterId={characterId}
+      dailyCompleted={dailyCompleted}
+      dailyTotal={dailyTotal}
+      bonusResult={engine.bonusResults.get(openTask.id) || null}
+      currentStreak={currentStreak}
+      energyCrystals={energyCrystals}
+      onConsumeCrystal={consumeCrystal}
+      attributeGrowth={engine.lastAttributeGrowth}
+    />
+  );
+}
+
+// ═══════════════════════════════════════════
 // COMMAND CENTER — Dashboard home page orchestrator
 // ═══════════════════════════════════════════
 
@@ -261,10 +321,20 @@ export default function HomePage() {
   const questSystem = useQuestSystem();
   const roadmaps = useRoadmapStore((s) => s.roadmaps);
 
+  // tRPC utils for manual refetch
+  const utils = trpc.useUtils();
+
   // SSE-based roadmap generation progress (real-time updates from backend)
   const roadmapProgress = useRoadmapProgress(() => {
-    // On generation complete → refetch quests
+    // On generation complete → refetch quests + roadmaps
     questSystem.refetchQuests();
+    (utils.roadmap.list.fetch() as Promise<unknown>).then((fresh) => {
+      if (fresh && Array.isArray(fresh)) {
+        useRoadmapStore.getState().setRoadmaps(fresh as any);
+        const active = (fresh as any[]).find((r: any) => r.status === 'active');
+        useRoadmapStore.getState().setActiveRoadmap(active ?? null);
+      }
+    }).catch((err) => console.warn('[Dashboard] roadmap refresh failed:', err));
   });
   const isRoadmapGenerating = roadmapProgress.isGenerating || roadmaps.some((r) => r.status === 'generating');
 
@@ -317,7 +387,19 @@ export default function HomePage() {
 
   // Modal state
   const [openQuestId, setOpenQuestId] = useState<string | null>(null);
+  const [questReviewMode, setQuestReviewMode] = useState(false);
   const openTask = openQuestId ? allTasks.get(openQuestId) : null;
+
+  // Review modal state (Training Grounds)
+  const [reviewSkillId, setReviewSkillId] = useState<string | null>(null);
+  const handleStartReview = useCallback((skillId: string) => {
+    setReviewSkillId(skillId);
+  }, []);
+  const handleSubmitReview = useCallback(async (quality: number) => {
+    if (!reviewSkillId) return;
+    await mastery.submitReview(reviewSkillId, quality);
+    setReviewSkillId(null);
+  }, [reviewSkillId, mastery]);
 
   // ─── Level-up celebration detection ───
   const prevLevelRef = useRef<number | null>(null);
@@ -369,34 +451,38 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Quest Card Modal */}
+      {/* Quest Modal — Journey modal for rich content, legacy for plain quests */}
       {openTask && (
-        <QuestCardModal
-          task={openTask}
-          done={engine.completedQuests.has(openTask.id)}
-          onClose={() => setOpenQuestId(null)}
-          onToggle={() => {
-            if (engine.completedQuests.has(openTask.id)) {
-              engine.undoQuest(openTask.id, openTask.xp);
-            } else {
-              engine.completeQuest(openTask.id, openTask.goalLabel, openTask.xp);
-            }
-          }}
-          onOpenNext={(() => {
-            const nextId = getNextQuest(openQuestId);
-            if (!nextId) return null;
-            return () => setOpenQuestId(nextId);
-          })()}
+        <QuestModalBridge
+          openTask={openTask}
+          openQuestId={openQuestId}
+          engine={engine}
+          getNextQuest={getNextQuest}
+          setOpenQuestId={(id) => { setOpenQuestId(id); if (!id) setQuestReviewMode(false); }}
           characterId={characterId}
           dailyCompleted={dailyCompleted}
           dailyTotal={dailyTotal}
-          bonusResult={engine.bonusResults.get(openTask.id) || null}
           currentStreak={currentStreak}
           energyCrystals={energyCrystals}
-          onConsumeCrystal={consumeCrystal}
-          attributeGrowth={engine.lastAttributeGrowth}
+          consumeCrystal={consumeCrystal}
+          reviewMode={questReviewMode}
         />
       )}
+
+      {/* Review Modal (Training Grounds) */}
+      {reviewSkillId && (() => {
+        const skill = mastery.skills.find((s: { skillId: string }) => s.skillId === reviewSkillId);
+        if (!skill) return null;
+        return (
+          <ReviewModal
+            skillDomain={skill.skillDomain}
+            masteryLevel={skill.masteryLevel}
+            onSubmit={handleSubmitReview}
+            onClose={() => setReviewSkillId(null)}
+            isSubmitting={mastery.isSubmitting}
+          />
+        );
+      })()}
 
       {/* Achievement Toast */}
       <AchievementToast
@@ -419,23 +505,6 @@ export default function HomePage() {
           onDismiss={() => setStreakMilestoneDisplay(null)}
         />
       )}
-
-      {/* Welcome Back greeting + warm-up quest (UX-R102, UX-R100) */}
-      <WelcomeBack
-        lastActivityDate={lastActivityDate}
-        characterId={characterId}
-        characterName={displayName || charMeta?.name || 'Hero'}
-        warmupQuest={warmupQuest}
-        isQuestCompleted={warmupQuest ? engine.completedQuests.has(warmupQuest.id) : false}
-        onStartQuest={setOpenQuestId}
-        onCompleteQuest={(taskId, xp) => {
-          const task = allTasks.get(taskId);
-          engine.completeQuest(taskId, task?.goalLabel || '', xp);
-        }}
-        onChooseDifferent={scrollToDailyQuests}
-        daysAbsent={daysAbsent}
-        isFirstVisit={isFirstVisit}
-      />
 
       {/* Greeting */}
       <div style={{ marginBottom: 32 }}>
@@ -478,6 +547,25 @@ export default function HomePage() {
       <div className="sidebar-content-inline" style={{ marginBottom: 16 }}>
         <AttributeWidget />
       </div>
+
+      {/* Zone 1: Continue Quest Hero CTA */}
+      {!isRoadmapGenerating && questGroups.length > 0 && (
+        <ContinueQuestHero
+          nextQuest={warmupQuest}
+          allDone={dailyCompleted >= dailyTotal && dailyTotal > 0}
+          dailyCompleted={dailyCompleted}
+          dailyTotal={dailyTotal}
+          onStartQuest={setOpenQuestId}
+          daysAbsent={daysAbsent}
+          isFirstVisit={isFirstVisit}
+        />
+      )}
+
+      {/* Zone 2: Roadmap Cards — horizontal summary */}
+      <RoadmapCards
+        selectedGoals={selectedGoals}
+        skillAssessments={skillAssessments}
+      />
 
       {/* Daily Episode — narrative system (Phase P) */}
       <DailyEpisodeCard />
@@ -650,13 +738,27 @@ export default function HomePage() {
             engine.undoQuest(taskId, task?.xp || 0);
           }}
           onOpenQuest={setOpenQuestId}
+          onOpenQuestReview={(taskId) => {
+            setQuestReviewMode(true);
+            setOpenQuestId(taskId);
+          }}
         />
       )}
 
-      {/* Active Quests — BL-004: moved after daily quests */}
-      <ActiveQuests
+      {/* Zone 4: Quest Lines — detailed milestone progress */}
+      <QuestLines
         selectedGoals={selectedGoals}
         skillAssessments={skillAssessments}
+      />
+
+      {/* Zone 5: Training Grounds — review & mastery */}
+      <TrainingGrounds
+        skills={mastery.skills}
+        overallMastery={mastery.overallMastery}
+        dueCount={mastery.dueCount}
+        dueItems={mastery.dueItems}
+        onStartReview={handleStartReview}
+        isSubmitting={mastery.isSubmitting}
       />
 
       {/* ═══ Sidebar content inline — visible only when right sidebar is hidden (<1200px) ═══ */}

@@ -1,5 +1,6 @@
 import type { NeonIconType } from '../../../(onboarding)/_components/NeonIcon';
 import { rarity } from '../../../(onboarding)/_components/tokens';
+import type { RoadmapTier } from '../../../(onboarding)/_components/tokens';
 
 // ─── Quest Task Interface ────────────────────────────────────────
 
@@ -19,6 +20,9 @@ export interface QuestTask {
   checkCorrect: number;
   goalLabel: string;
   goalIcon: string;
+  roadmapId?: string;
+  roadmapTitle?: string;
+  roadmapTier?: RoadmapTier;
 }
 
 // ─── Mock Task Templates ─────────────────────────────────────────

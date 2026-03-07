@@ -6,6 +6,7 @@ import { QuestAssistantGenerator } from '../ai/generators/quest-assistant.genera
 import { ArticleBodyGenerator } from '../ai/generators/article-body.generator';
 import { CodeChallengeGenerator } from '../ai/generators/code-challenge.generator';
 import { MotivationalGenerator } from '../ai/generators/motivational.generator';
+import { ExerciseGenerator } from '../ai/generators/exercise.generator';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AiModule } from '../ai/ai.module';
 
@@ -19,6 +20,7 @@ import { AiModule } from '../ai/ai.module';
     ArticleBodyGenerator,
     CodeChallengeGenerator,
     MotivationalGenerator,
+    ExerciseGenerator,
   ],
   exports: [QuestService, QuestContentService],
 })

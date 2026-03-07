@@ -9,3 +9,5 @@ export * from './enums';
 export * from './narrative';
 export * from './onboarding';
 export * from './quest-content';
+export * from './content-blocks';
+export * from './exercises';

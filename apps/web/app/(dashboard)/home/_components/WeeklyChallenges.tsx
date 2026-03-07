@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
+import { useReducedMotion } from '../_hooks/useReducedMotion';
 import type { NeonIconType } from '../../../(onboarding)/_components/NeonIcon';
 import { t } from '../../../(onboarding)/_components/tokens';
 import { useI18nStore } from '@plan2skill/store';
@@ -123,11 +124,7 @@ export function WeeklyChallenges({
   // MA-LL002: init ref as null, not store value — avoids hydration false-positive
   const prevCompletedRef = useRef<Set<string> | null>(null);
   const celebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const prefersReduced = useRef(false);
-
-  useEffect(() => {
-    prefersReduced.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  }, []);
+  const prefersReduced = useReducedMotion();
 
   useEffect(() => {
     if (prefersReduced.current) return;

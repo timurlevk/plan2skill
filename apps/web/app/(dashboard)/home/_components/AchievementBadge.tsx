@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
+import { useReducedMotion } from '../_hooks/useReducedMotion';
 import { t } from '../../../(onboarding)/_components/tokens';
 import type { AchievementRarity } from '../_data/achievements';
 
@@ -80,10 +81,7 @@ export function AchievementBadge({
   const [isHovered, setIsHovered] = useState(false);
 
   // prefers-reduced-motion guard
-  const prefersReduced = useRef(false);
-  useEffect(() => {
-    prefersReduced.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  }, []);
+  const prefersReduced = useReducedMotion();
 
   // Near-unlock tease: Zeigarnik effect — "almost there!" (§1 MICRO_ANIMATION_GUIDELINES)
   const isNearUnlock = (progress ?? 0) > 0.8 && state !== 'unlocked' && state !== 'equipped';

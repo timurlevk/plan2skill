@@ -39,6 +39,7 @@ export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
 
 // ─── Roadmap & Task Status ───────────────────────────────────────
 export type RoadmapStatus = 'generating' | 'active' | 'paused' | 'completed' | 'archived';
+export type RoadmapTier = 'diamond' | 'gold' | 'silver' | 'bronze';
 export type MilestoneStatus = 'locked' | 'active' | 'completed' | 'boss';
 export type TaskStatus = 'locked' | 'available' | 'in_progress' | 'completed' | 'skipped';
 export type TaskType = 'video' | 'article' | 'quiz' | 'project' | 'review' | 'boss';

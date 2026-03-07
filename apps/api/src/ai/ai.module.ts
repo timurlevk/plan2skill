@@ -16,6 +16,7 @@ import { ResourceGenerator } from './generators/resource.generator';
 import { MotivationalGenerator } from './generators/motivational.generator';
 import { DomainClassifierService } from './generators/domain-classifier.service';
 import { ArticleBodyGenerator } from './generators/article-body.generator';
+import { ExerciseGenerator } from './generators/exercise.generator';
 import { ContentRouterService } from './core/content-router.service';
 import { ContentBudgetService } from './core/content-budget.service';
 
@@ -38,6 +39,7 @@ import { ContentBudgetService } from './core/content-budget.service';
     MotivationalGenerator,
     DomainClassifierService,
     ArticleBodyGenerator,
+    ExerciseGenerator,
     ContentRouterService,
     ContentBudgetService,
   ],
@@ -59,6 +61,7 @@ import { ContentBudgetService } from './core/content-budget.service';
     MotivationalGenerator,
     DomainClassifierService,
     ArticleBodyGenerator,
+    ExerciseGenerator,
     ContentRouterService,
     ContentBudgetService,
   ],

@@ -1,5 +1,8 @@
 // ─── Quest Content Pipeline Types ──────────────────────────────
 
+import type { ContentBlock } from './content-blocks';
+import type { Exercise } from './exercises';
+
 export interface QuestContentPackage {
   taskId: string;
   status: 'pending' | 'generating' | 'ready' | 'failed';
@@ -9,6 +12,8 @@ export interface QuestContentPackage {
   resources: ResourceItem[] | null;
   funFacts: FunFactItem[] | null;
   codeChallenge: CodeChallengeContent | null;
+  contentBlocks: ContentBlock[] | null;
+  exercises: Exercise[] | null;
   aiHintsRemaining: number;
   aiTutorAvailable: boolean;
   lockedFeatures: LockedFeature[];
@@ -23,12 +28,15 @@ export interface CodeChallengeContent {
   solutionExplanation: string;
 }
 
+export type QuizDistractorType = 'plausible-wrong' | 'common-misconception' | 'partial-truth' | 'off-topic';
+
 export interface QuizQuestion {
   question: string;
   options: string[];
   correctIndex: number;
   explanation: string;
   bloomLevel?: string;
+  distractorTypes?: QuizDistractorType[];
 }
 
 export interface ResourceItem {

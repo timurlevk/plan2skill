@@ -1,0 +1,1996 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plan2Skill — Dashboard Redesign Prototype</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800;900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════
+   DESIGN TOKENS — matches tokens.ts v8
+   ═══════════════════════════════════════════ */
+:root {
+  --violet: #9D7AFF;
+  --cyan: #4ECDC4;
+  --rose: #FF6B8A;
+  --gold: #FFD166;
+  --mint: #6EE7B7;
+  --indigo: #818CF8;
+
+  --bg: #0C0C10;
+  --bg-card: #18181F;
+  --bg-elevated: #121218;
+  --border: #252530;
+  --border-hover: #35354A;
+
+  --text: #FFFFFF;
+  --text-secondary: #A1A1AA;
+  --text-muted: #71717A;
+
+  --gradient: linear-gradient(135deg, #9D7AFF 0%, #4ECDC4 100%);
+
+  --display: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --body: 'Inter', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ═══════════════════════════════════════════
+   LAYOUT
+   ═══════════════════════════════════════════ */
+.dashboard {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 20px 16px 80px;
+}
+
+.proto-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: rgba(157,122,255,0.1);
+  border: 1px solid rgba(157,122,255,0.25);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--violet);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 24px;
+}
+
+/* ═══════════════════════════════════════════
+   ZONE 2: CONTINUE QUEST HERO CTA
+   ═══════════════════════════════════════════ */
+/* ── CTA: dramatic ambient glow — slow, mysterious ── */
+.continue-hero {
+  padding: 22px 20px;
+  border-radius: 18px;
+  background: var(--bg-card);
+  border: 1px solid rgba(157,122,255,0.15);
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s, border-color 0.3s;
+  animation: ctaAmbient 6s ease-in-out infinite;
+}
+
+@keyframes ctaAmbient {
+  0%, 100% {
+    box-shadow: 0 0 30px rgba(157,122,255,0.08), 0 0 60px rgba(78,205,196,0.04);
+    border-color: rgba(157,122,255,0.15);
+  }
+  50% {
+    box-shadow: 0 0 50px rgba(157,122,255,0.18), 0 0 90px rgba(78,205,196,0.08), 0 0 120px rgba(157,122,255,0.04);
+    border-color: rgba(157,122,255,0.35);
+  }
+}
+
+.continue-hero:hover {
+  transform: translateY(-2px);
+}
+
+/* ── CTA: mystical particle field ── */
+.continue-hero-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Star layer 1 — bright scattered particles */
+.continue-hero-glow::before {
+  content: '';
+  position: absolute;
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.8);
+  top: 22%; left: 8%;
+  box-shadow:
+    45px 8px 0 0 rgba(157,122,255,0.8),
+    90px -12px 0 0 rgba(78,205,196,0.7),
+    135px 15px 0 0 rgba(255,209,102,0.6),
+    180px -5px 0 0 rgba(157,122,255,0.5),
+    225px 10px 0 0 rgba(78,205,196,0.7),
+    35px 45px 0 0 rgba(255,255,255,0.5),
+    75px 50px 0 0 rgba(157,122,255,0.6),
+    115px 40px 0 0 rgba(78,205,196,0.5),
+    155px 55px 0 0 rgba(255,209,102,0.7),
+    195px 42px 0 0 rgba(157,122,255,0.4),
+    260px 20px 0 0 rgba(78,205,196,0.5),
+    300px 48px 0 0 rgba(255,209,102,0.4);
+  animation: particleFloat1 9s ease-in-out infinite;
+}
+
+/* Star layer 2 — dim secondary, staggered timing */
+.continue-hero-glow::after {
+  content: '';
+  position: absolute;
+  width: 2px; height: 2px;
+  border-radius: 50%;
+  background: rgba(78,205,196,0.6);
+  top: 38%; left: 15%;
+  box-shadow:
+    55px -18px 0 0 rgba(255,209,102,0.5),
+    105px 12px 0 0 rgba(157,122,255,0.6),
+    145px -10px 0 0 rgba(78,205,196,0.6),
+    185px 8px 0 0 rgba(255,255,255,0.4),
+    25px 25px 0 0 rgba(157,122,255,0.7),
+    65px 30px 0 0 rgba(255,209,102,0.5),
+    205px 20px 0 0 rgba(78,205,196,0.4),
+    240px -8px 0 0 rgba(157,122,255,0.3),
+    280px 15px 0 0 rgba(255,209,102,0.4);
+  animation: particleFloat2 13s ease-in-out infinite;
+}
+
+/* ── CTA: mystical fog drifting beneath content ── */
+.continue-hero::before {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  border-radius: 24px;
+  background:
+    radial-gradient(ellipse 180px 90px at 25% 40%, rgba(157,122,255,0.12), transparent),
+    radial-gradient(ellipse 140px 70px at 75% 55%, rgba(78,205,196,0.08), transparent),
+    radial-gradient(ellipse 120px 60px at 50% 80%, rgba(255,209,102,0.06), transparent);
+  animation: mistDrift 16s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── CTA: slow dramatic light beam ── */
+.continue-hero::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -80%;
+  width: 35%;
+  height: 200%;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgba(157,122,255,0.03) 42%,
+    rgba(255,255,255,0.05) 50%,
+    rgba(78,205,196,0.03) 58%,
+    transparent 62%
+  );
+  animation: shimmerSweep 12s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.continue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.continue-label {
+  font-family: var(--display);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.continue-source-tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 10px;
+  text-transform: uppercase;
+}
+
+/* Roadmap tier chips — 3D embossed, industry-standard ranking colors */
+.tag-diamond {
+  color: #0A3040;
+  background: linear-gradient(180deg, #D0F8FF 0%, #8ED8EC 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -1px 0 rgba(0,60,80,0.2), 0 1px 3px rgba(0,0,0,0.4);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.3);
+}
+
+.tag-gold {
+  color: #3D2800;
+  background: linear-gradient(180deg, #FFE566 0%, #D4A800 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -1px 0 rgba(80,50,0,0.25), 0 1px 3px rgba(0,0,0,0.4);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.25);
+}
+
+.tag-silver {
+  color: #1A1A1A;
+  background: linear-gradient(180deg, #D8D8D8 0%, #A0A0A0 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), inset 0 -1px 0 rgba(0,0,0,0.15), 0 1px 3px rgba(0,0,0,0.4);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.35);
+}
+
+.tag-bronze {
+  color: #2A1500;
+  background: linear-gradient(180deg, #D99548 0%, #A06828 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 0 rgba(60,30,0,0.25), 0 1px 3px rgba(0,0,0,0.4);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.15);
+}
+
+.continue-title {
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.continue-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.continue-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--body);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.rarity-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 8px;
+  text-transform: uppercase;
+}
+
+.rarity-rare {
+  color: #3B82F6;
+  background: rgba(59,130,246,0.1);
+}
+
+.rarity-epic {
+  color: var(--violet);
+  background: rgba(157,122,255,0.1);
+}
+
+.rarity-boss {
+  color: var(--gold);
+  background: rgba(255,209,102,0.1);
+}
+
+.continue-btn {
+  width: 100%;
+  padding: 14px 24px;
+  border-radius: 12px;
+  border: none;
+  background: var(--gradient);
+  color: #FFF;
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 20px rgba(157,122,255,0.3), 0 0 40px rgba(157,122,255,0.1);
+  transition: transform 0.15s;
+  animation: btnGlow 4s ease-in-out infinite;
+}
+
+.continue-btn:hover { transform: scale(1.02); }
+.continue-btn:active { transform: scale(0.98); }
+
+/* ═══════════════════════════════════════════
+   ZONE 3: ROADMAP CARDS
+   ═══════════════════════════════════════════ */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.section-link {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--violet);
+  cursor: pointer;
+  text-decoration: none;
+  border: none;
+  background: none;
+}
+
+.section-link:hover { text-decoration: underline; }
+
+.roadmap-cards {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: 24px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.roadmap-cards::-webkit-scrollbar { height: 4px; }
+.roadmap-cards::-webkit-scrollbar-track { background: transparent; }
+.roadmap-cards::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.roadmap-card {
+  min-width: 180px;
+  max-width: 200px;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+  flex-shrink: 0;
+}
+
+.roadmap-card:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+
+.roadmap-card.active {
+  border-color: rgba(157,122,255,0.5);
+  animation: cardBreath 3s ease-in-out infinite;
+}
+
+@keyframes cardBreath {
+  0%, 100% { box-shadow: 0 0 14px rgba(157,122,255,0.15), 0 0 30px rgba(157,122,255,0.05); }
+  50% { box-shadow: 0 0 22px rgba(157,122,255,0.3), 0 0 44px rgba(157,122,255,0.1); }
+}
+
+.roadmap-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.roadmap-card-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.roadmap-card-pct {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.roadmap-card-title {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.roadmap-card-milestone {
+  font-family: var(--body);
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.roadmap-card-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.roadmap-card-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.6s ease-out;
+  position: relative;
+  overflow: hidden;
+}
+
+.roadmap-card-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -100%;
+  width: 60%;
+  height: calc(100% + 2px);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  animation: barShimmer 2.5s ease-in-out infinite;
+}
+
+@keyframes barShimmer {
+  0% { left: -100%; }
+  100% { left: 200%; }
+}
+
+.roadmap-card-quests {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+/* ═══════════════════════════════════════════
+   ZONE 4: TODAY'S QUESTS
+   ═══════════════════════════════════════════ */
+.quest-filter-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.quest-filter {
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.quest-filter:hover {
+  border-color: var(--border-hover);
+  color: var(--text-secondary);
+}
+
+.quest-filter.active {
+  background: rgba(157,122,255,0.12);
+  border-color: rgba(157,122,255,0.35);
+  color: var(--violet);
+}
+
+.quest-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.quest-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.2s, opacity 0.25s;
+}
+
+.quest-item:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-1px);
+}
+
+.quest-item.completed {
+  opacity: 0.6;
+  background: rgba(78,205,196,0.04);
+  border-color: rgba(78,205,196,0.2);
+}
+
+.quest-checkbox {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border-hover);
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.quest-checkbox:hover {
+  border-color: var(--violet);
+}
+
+.quest-checkbox.checked {
+  border-color: var(--cyan);
+  background: var(--cyan);
+}
+
+.quest-checkbox.checked svg {
+  display: block;
+}
+
+.quest-checkbox svg {
+  display: none;
+}
+
+.quest-content { flex: 1; min-width: 0; }
+
+.quest-title {
+  font-family: var(--body);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.quest-item.completed .quest-title {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.quest-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.quest-xp {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--violet);
+  flex-shrink: 0;
+}
+
+.quest-item.completed .quest-xp {
+  color: var(--text-muted);
+}
+
+.quest-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--body);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ─── Completed section ─── */
+.completed-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.completed-toggle-label {
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.completed-toggle-count {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--cyan);
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: rgba(78,205,196,0.1);
+}
+
+.completed-toggle-arrow {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+  margin-left: auto;
+}
+
+.completed-toggle-arrow.open {
+  transform: rotate(180deg);
+}
+
+.completed-section {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 0.3s ease, opacity 0.2s ease;
+}
+
+.completed-section.open {
+  max-height: 600px;
+  opacity: 1;
+}
+
+.completed-line {
+  width: 100%;
+  height: 1px;
+  background: var(--border);
+  margin-bottom: 12px;
+}
+
+/* ═══════════════════════════════════════════
+   ZONE 5: QUEST LINES (ROADMAP PROGRESS)
+   ═══════════════════════════════════════════ */
+.quest-line-card {
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.quest-line-card:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-1px);
+}
+
+/* floating ambient sparkles */
+.quest-line-card::before {
+  content: '';
+  position: absolute;
+  width: 4px; height: 4px;
+  background: var(--violet);
+  border-radius: 50%;
+  top: 20%; right: 12%;
+  box-shadow:
+    0 0 6px 2px rgba(157,122,255,0.4),
+    /* sparkle 2 */ 60px 30px 0 0 rgba(78,205,196,0.3),
+    60px 30px 6px 2px rgba(78,205,196,0.2),
+    /* sparkle 3 */ -30px 50px 0 0 rgba(255,209,102,0.25),
+    -30px 50px 6px 2px rgba(255,209,102,0.15),
+    /* sparkle 4 */ 120px -10px 0 0 rgba(157,122,255,0.2),
+    120px -10px 4px 1px rgba(157,122,255,0.12);
+  animation: sparkleFloat 4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.7;
+}
+
+@keyframes sparkleFloat {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.7; }
+  25% { transform: translateY(-3px) scale(1.3); opacity: 1; }
+  50% { transform: translateY(2px) scale(0.8); opacity: 0.5; }
+  75% { transform: translateY(-1px) scale(1.1); opacity: 0.9; }
+}
+
+.quest-line-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.quest-line-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(157,122,255,0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.quest-line-info { flex: 1; min-width: 0; }
+
+.quest-line-title {
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+
+.quest-line-level {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+}
+
+.quest-line-pct {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--cyan);
+}
+
+/* Milestone path */
+/* ── Milestone path — v3 dramatic ── */
+.milestone-path {
+  position: relative;
+  padding: 16px 0 42px;
+  margin: 8px 0 0;
+}
+
+/* ── Track: glowing progress line ── */
+.milestone-track {
+  position: absolute;
+  top: 36px;
+  left: 32px;
+  right: 32px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(37,37,48,0.8);
+  z-index: 0;
+}
+
+.milestone-track-fill {
+  position: absolute;
+  top: 35px;
+  left: 32px;
+  right: 32px;
+  height: 6px;
+  border-radius: 3px;
+  overflow: visible;
+  z-index: 1;
+}
+
+.milestone-track-fill-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--gradient);
+  transform-origin: left;
+  transition: transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  box-shadow: 0 0 12px rgba(157,122,255,0.5), 0 0 24px rgba(78,205,196,0.2);
+  position: relative;
+}
+
+/* shimmer sweep on progress line */
+.milestone-track-fill-inner::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -80%;
+  width: 50%;
+  height: calc(100% + 4px);
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(255,255,255,0.25),
+    transparent
+  );
+  animation: trackShimmer 3s ease-in-out infinite;
+  border-radius: 3px;
+}
+
+@keyframes trackShimmer {
+  0% { left: -80%; }
+  100% { left: 180%; }
+}
+
+.milestone-nodes {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 0 4px;
+  z-index: 2;
+}
+
+.milestone-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Dot base — BIG, solid bg ── */
+.milestone-dot {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+  position: relative;
+  background: var(--bg-card);
+}
+
+/* ── Completed: golden aura ── */
+.milestone-dot.completed {
+  background: radial-gradient(circle at 50% 40%,
+    #3D3118 0%,
+    #252015 100%);
+  border: 2.5px solid rgba(255,209,102,0.7);
+  box-shadow:
+    0 0 16px rgba(255,209,102,0.35),
+    0 0 32px rgba(255,209,102,0.12),
+    inset 0 0 10px rgba(255,209,102,0.08);
+  color: var(--gold);
+  animation: completedGlow 3s ease-in-out infinite;
+}
+
+@keyframes completedGlow {
+  0%, 100% { box-shadow: 0 0 16px rgba(255,209,102,0.35), 0 0 32px rgba(255,209,102,0.12), inset 0 0 10px rgba(255,209,102,0.08); }
+  50% { box-shadow: 0 0 22px rgba(255,209,102,0.45), 0 0 40px rgba(255,209,102,0.18), inset 0 0 14px rgba(255,209,102,0.12); }
+}
+
+.milestone-dot.completed svg {
+  filter: drop-shadow(0 0 4px rgba(255,209,102,0.6));
+}
+
+/* ── Active: HERO GLOW — the magnet ── */
+.milestone-dot.active {
+  background: radial-gradient(circle at 40% 35%,
+    #2E2548 0%,
+    #1A1820 70%);
+  border: 2.5px solid var(--violet);
+  color: var(--violet);
+  animation: activeBreath 2.5s ease-in-out infinite;
+}
+
+/* Outer glow ring — pulsing */
+.milestone-dot.active::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 2px solid rgba(157,122,255,0.3);
+  animation: activeRingPulse 2.5s ease-in-out infinite;
+  box-shadow: 0 0 20px rgba(157,122,255,0.15);
+}
+
+/* Second outer ring — staggered */
+.milestone-dot.active::after {
+  content: '';
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  border: 1px solid rgba(157,122,255,0.12);
+  animation: activeRingPulse 2.5s ease-in-out infinite 0.4s;
+}
+
+@keyframes activeBreath {
+  0%, 100% {
+    box-shadow:
+      0 0 20px rgba(157,122,255,0.5),
+      0 0 40px rgba(157,122,255,0.2),
+      0 0 60px rgba(157,122,255,0.08);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow:
+      0 0 28px rgba(157,122,255,0.65),
+      0 0 55px rgba(157,122,255,0.3),
+      0 0 80px rgba(157,122,255,0.12);
+    transform: scale(1.06);
+  }
+}
+
+@keyframes activeRingPulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+.milestone-dot.active svg {
+  filter: drop-shadow(0 0 6px rgba(157,122,255,0.7));
+}
+
+/* ── Locked: teasing — beckoning the user forward ── */
+.milestone-dot.locked {
+  background: #15151C;
+  border: 1.5px dashed rgba(157,122,255,0.25);
+  color: rgba(157,122,255,0.45);
+  animation: lockedTease 4s ease-in-out infinite;
+}
+
+.milestone-dot.locked svg { opacity: 0.55; filter: drop-shadow(0 0 3px rgba(157,122,255,0.2)); }
+
+/* ── Trophy (final milestone) — GRAND ── */
+.milestone-dot.trophy {
+  width: 54px;
+  height: 54px;
+  margin-top: -5px;
+}
+
+.milestone-dot.trophy.locked {
+  border: 2px dashed rgba(255,209,102,0.25);
+  color: rgba(255,209,102,0.4);
+  animation: lockedTrophyTease 4s ease-in-out infinite;
+}
+
+.milestone-dot.trophy.active {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: radial-gradient(circle at 40% 35%,
+    #3D3118 0%,
+    #1A1815 70%);
+  animation: trophyBreath 2.5s ease-in-out infinite;
+}
+
+.milestone-dot.trophy.active::before {
+  border-color: rgba(255,209,102,0.3);
+  box-shadow: 0 0 24px rgba(255,209,102,0.15);
+}
+.milestone-dot.trophy.active::after {
+  border-color: rgba(255,209,102,0.12);
+}
+
+@keyframes trophyBreath {
+  0%, 100% {
+    box-shadow:
+      0 0 24px rgba(255,209,102,0.45),
+      0 0 50px rgba(255,209,102,0.15),
+      0 0 80px rgba(255,209,102,0.06);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow:
+      0 0 32px rgba(255,209,102,0.6),
+      0 0 65px rgba(255,209,102,0.25),
+      0 0 100px rgba(255,209,102,0.1);
+    transform: scale(1.07);
+  }
+}
+
+.milestone-dot.trophy.completed {
+  border-color: var(--gold);
+  animation: trophyShine 3s ease-in-out infinite;
+}
+
+@keyframes trophyShine {
+  0%, 100% {
+    box-shadow: 0 0 24px rgba(255,209,102,0.45), 0 0 50px rgba(255,209,102,0.2);
+    filter: brightness(1);
+  }
+  50% {
+    box-shadow: 0 0 36px rgba(255,209,102,0.65), 0 0 70px rgba(255,209,102,0.3);
+    filter: brightness(1.2);
+  }
+}
+
+@keyframes lockedTease {
+  0%, 100% {
+    box-shadow: 0 0 6px rgba(157,122,255,0.06);
+    border-color: rgba(157,122,255,0.2);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(157,122,255,0.18), 0 0 30px rgba(157,122,255,0.06);
+    border-color: rgba(157,122,255,0.45);
+  }
+}
+
+@keyframes lockedTrophyTease {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(255,209,102,0.06);
+    border-color: rgba(255,209,102,0.2);
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(255,209,102,0.2), 0 0 36px rgba(255,209,102,0.08);
+    border-color: rgba(255,209,102,0.45);
+  }
+}
+
+/* ── Milestone name ── */
+.milestone-name {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  text-align: center;
+  margin-top: 8px;
+  line-height: 1.3;
+  width: 100%;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  transition: color 0.3s;
+}
+
+.milestone-name.completed { color: var(--gold); font-weight: 700; }
+.milestone-name.active { color: var(--text); font-weight: 800; }
+.milestone-name.locked { color: var(--text-muted); opacity: 0.7; }
+
+.quest-line-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0;
+}
+
+.quest-line-milestone-label {
+  font-family: var(--body);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.quest-line-quest-count {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+/* ═══════════════════════════════════════════
+   ZONE 6: REVIEW SECTION (FUTURE)
+   ═══════════════════════════════════════════ */
+.review-section {
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--bg-card);
+  border: 1px dashed rgba(157,122,255,0.25);
+  text-align: center;
+}
+
+.review-section-badge {
+  display: inline-flex;
+  padding: 3px 10px;
+  border-radius: 10px;
+  background: rgba(157,122,255,0.1);
+  border: 1px solid rgba(157,122,255,0.2);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--violet);
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.review-section-title {
+  font-family: var(--display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.review-section-desc {
+  font-family: var(--body);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ═══════════════════════════════════════════
+   ANNOTATIONS
+   ═══════════════════════════════════════════ */
+.zone-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  margin-top: 24px;
+}
+
+.zone-label:first-child { margin-top: 0; }
+
+.zone-label-tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+  color: var(--bg);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.zone-label-text {
+  font-family: var(--body);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.zone-0 { background: var(--rose); }
+.zone-1 { background: var(--violet); }
+.zone-2 { background: var(--cyan); }
+.zone-3 { background: var(--gold); }
+.zone-4 { background: var(--mint); }
+
+.zone-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+  margin: 20px 0;
+}
+
+/* ═══════════════════════════════════════════
+   ALL DONE STATE
+   ═══════════════════════════════════════════ */
+.all-done-hero {
+  padding: 36px 20px;
+  border-radius: 18px;
+  background: radial-gradient(ellipse at 50% 30%, rgba(78,205,196,0.1), rgba(24,24,31,1) 70%);
+  border: 1px solid rgba(78,205,196,0.3);
+  text-align: center;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+  animation: doneGlow 3s ease-in-out infinite;
+}
+
+@keyframes doneGlow {
+  0%, 100% { box-shadow: 0 0 20px rgba(78,205,196,0.15), 0 0 40px rgba(78,205,196,0.05); }
+  50% { box-shadow: 0 0 30px rgba(78,205,196,0.3), 0 0 60px rgba(78,205,196,0.1); }
+}
+
+.all-done-hero::after {
+  content: '';
+  position: absolute;
+  top: -50%; left: -60%; width: 40%; height: 200%;
+  background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.04) 45%, rgba(255,255,255,0.07) 50%, rgba(255,255,255,0.04) 55%, transparent 65%);
+  animation: shimmerSweep 6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.all-done-emoji {
+  font-size: 48px;
+  margin-bottom: 12px;
+  animation: celebrateBounce 2s ease-in-out infinite;
+}
+
+@keyframes celebrateBounce {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  25% { transform: scale(1.1) rotate(-5deg); }
+  75% { transform: scale(1.1) rotate(5deg); }
+}
+
+.all-done-title {
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--cyan);
+  margin-bottom: 4px;
+}
+
+.all-done-desc {
+  font-family: var(--body);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ═══════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════ */
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(157,122,255,0.5); }
+  50% { box-shadow: 0 0 18px rgba(157,122,255,0.7); }
+}
+
+/* ── CTA mystical scene effects — slow, dramatic ── */
+@keyframes particleFloat1 {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.3; }
+  25% { transform: translateY(-3px) scale(1.2); opacity: 0.8; }
+  50% { transform: translateY(1px) scale(0.9); opacity: 0.2; }
+  75% { transform: translateY(-2px) scale(1.1); opacity: 0.6; }
+}
+
+@keyframes particleFloat2 {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.2; }
+  35% { transform: translateY(3px) scale(1.15); opacity: 0.7; }
+  65% { transform: translateY(-2px) scale(0.9); opacity: 0.15; }
+  90% { transform: translateY(1px) scale(1.05); opacity: 0.5; }
+}
+
+@keyframes mistDrift {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+  25% { transform: translate(8px, -6px) scale(1.03); opacity: 0.9; }
+  50% { transform: translate(15px, -3px) scale(1.06); opacity: 0.7; }
+  75% { transform: translate(-5px, 4px) scale(0.98); opacity: 1; }
+}
+
+@keyframes shimmerSweep {
+  0% { left: -80%; }
+  40%, 100% { left: 180%; }
+}
+
+/* ── CTA button glow ── */
+@keyframes btnGlow {
+  0%, 100% {
+    box-shadow: 0 4px 20px rgba(157,122,255,0.3), 0 0 40px rgba(157,122,255,0.1);
+  }
+  50% {
+    box-shadow: 0 4px 28px rgba(157,122,255,0.5), 0 0 60px rgba(157,122,255,0.2);
+  }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ═══════════════════════════════════════════
+   TABS (for switching states)
+   ═══════════════════════════════════════════ */
+.state-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 24px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+
+.state-tab {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.state-tab:hover { color: var(--text-secondary); }
+
+.state-tab.active {
+  background: rgba(157,122,255,0.15);
+  color: var(--violet);
+}
+
+.state-view { display: none; }
+.state-view.active { display: block; animation: fadeUp 0.3s ease-out; }
+</style>
+</head>
+<body>
+
+<div class="dashboard">
+
+  <div class="proto-badge">
+    &#9670; Dashboard Redesign Prototype &mdash; Plan2Skill
+  </div>
+
+  <!-- State switcher -->
+  <div class="state-tabs">
+    <button class="state-tab active" onclick="switchState('active')">&#9876; В процесі</button>
+    <button class="state-tab" onclick="switchState('alldone')">&#10004; Все зроблено</button>
+    <button class="state-tab" onclick="switchState('single')">&#9733; 1 роадмапа</button>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       STATE: ACTIVE (multiple roadmaps, quests in progress)
+       ═══════════════════════════════════════════ -->
+  <div id="state-active" class="state-view active">
+
+    <!-- ZONE 1: Continue Quest Hero CTA -->
+    <div class="zone-label">
+      <span class="zone-label-tag zone-0">Zone 1</span>
+      <span class="zone-label-text">Continue Quest &mdash; Hero CTA (single highest-priority action)</span>
+    </div>
+
+    <div class="continue-hero" onclick="alert('Opens QuestJourneyModal for this quest')">
+      <div class="continue-hero-glow"></div>
+      <div class="continue-header">
+        <span class="continue-label"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:-2px"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><g transform="rotate(45 12 12)"><path d="M12 4l2.5 8H9.5L12 4z" fill="currentColor" opacity="0.7" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M12 20l-2.5-8h5L12 20z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></g><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg> Наступний квест</span>
+        <span class="continue-source-tag tag-diamond">AI &amp; Smart Tools</span>
+      </div>
+      <div class="continue-title">Introduction to Reinforcement Learning</div>
+      <div class="continue-meta">
+        <span class="rarity-badge rarity-rare">&#9670; rare</span>
+        <span class="continue-meta-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="vertical-align:-2px"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M10 8l6 4-6 4V8z" fill="currentColor" opacity="0.6" stroke="currentColor" stroke-width="1.2"/></svg> video</span>
+        <span class="continue-meta-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="vertical-align:-2px"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg> 30 min</span>
+        <span class="continue-meta-item" style="color:var(--violet); font-weight:700;">+30 XP</span>
+      </div>
+      <button class="continue-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 3l14 14" stroke="#FFF" stroke-width="1.8" stroke-linecap="round"/><path d="M14.5 15.5l3-3" stroke="#FFF" stroke-width="2.2" stroke-linecap="round"/><path d="M19 3L5 17" stroke="#FFF" stroke-width="1.8" stroke-linecap="round"/><path d="M6.5 12.5l3 3" stroke="#FFF" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="10" r="1.2" fill="#FFF" opacity="0.35"/></svg> Продовжити квест
+      </button>
+    </div>
+
+    <!-- ZONE 2: Roadmap Cards -->
+    <div class="zone-label">
+      <span class="zone-label-tag zone-1">Zone 2</span>
+      <span class="zone-label-text">Roadmap Cards &mdash; horizontal scroll, recency sort (up to 7)</span>
+    </div>
+
+    <div class="section-header">
+      <span class="section-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:-2px"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6zM9 3v15M15 6v15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Ваші роадмапи</span>
+      <button class="section-link">Керувати...</button>
+    </div>
+
+    <div class="roadmap-cards">
+      <!-- Card 1: AI (active) -->
+      <div class="roadmap-card active">
+        <div class="roadmap-card-header">
+          <div class="roadmap-card-icon" style="background:rgba(157,122,255,0.12);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2" fill="#9D7AFF"/><ellipse cx="12" cy="12" rx="10" ry="4" stroke="#9D7AFF" stroke-width="1.5"/><ellipse cx="12" cy="12" rx="10" ry="4" stroke="#9D7AFF" stroke-width="1.5" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4" stroke="#9D7AFF" stroke-width="1.5" transform="rotate(120 12 12)"/></svg></div>
+          <span class="roadmap-card-pct" style="color:var(--violet);">15%</span>
+        </div>
+        <div class="roadmap-card-title">AI & Smart Tools</div>
+        <div class="roadmap-card-milestone">&#9654; AI Foundations</div>
+        <div class="roadmap-card-bar">
+          <div class="roadmap-card-bar-fill" style="width:15%; background:var(--gradient);"></div>
+        </div>
+        <div class="roadmap-card-quests">3/20 квестів</div>
+      </div>
+
+      <!-- Card 2: Frontend -->
+      <div class="roadmap-card">
+        <div class="roadmap-card-header">
+          <div class="roadmap-card-icon" style="background:rgba(59,130,246,0.12);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <span class="roadmap-card-pct" style="color:#3B82F6;">64%</span>
+        </div>
+        <div class="roadmap-card-title">Frontend Mastery</div>
+        <div class="roadmap-card-milestone">&#9654; React Hooks Deep Dive</div>
+        <div class="roadmap-card-bar">
+          <div class="roadmap-card-bar-fill" style="width:64%; background:linear-gradient(90deg, #3B82F6, #4ECDC4);"></div>
+        </div>
+        <div class="roadmap-card-quests">13/20 квестів</div>
+      </div>
+
+      <!-- Card 3: Backend -->
+      <div class="roadmap-card">
+        <div class="roadmap-card-header">
+          <div class="roadmap-card-icon" style="background:rgba(110,231,183,0.12);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="#6EE7B7" stroke-width="1.8"/><path d="M7 15h4M7 9l4 3-4 3" stroke="#6EE7B7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div>
+          <span class="roadmap-card-pct" style="color:var(--mint);">28%</span>
+        </div>
+        <div class="roadmap-card-title">Backend Engineering</div>
+        <div class="roadmap-card-milestone">&#9654; SQL & Data Modeling</div>
+        <div class="roadmap-card-bar">
+          <div class="roadmap-card-bar-fill" style="width:28%; background:linear-gradient(90deg, var(--mint), var(--cyan));"></div>
+        </div>
+        <div class="roadmap-card-quests">6/21 квестів</div>
+      </div>
+
+      <!-- Card 4: DevOps -->
+      <div class="roadmap-card">
+        <div class="roadmap-card-header">
+          <div class="roadmap-card-icon" style="background:rgba(255,209,102,0.12);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M18 10c1.1 0 2.12.37 2.93 1A4 4 0 1117.5 18H7a5 5 0 01-.42-9.97A7 7 0 0118 10z" stroke="#FFD166" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <span class="roadmap-card-pct" style="color:var(--gold);">8%</span>
+        </div>
+        <div class="roadmap-card-title">DevOps Foundations</div>
+        <div class="roadmap-card-milestone">&#9654; Docker Basics</div>
+        <div class="roadmap-card-bar">
+          <div class="roadmap-card-bar-fill" style="width:8%; background:linear-gradient(90deg, var(--gold), var(--rose));"></div>
+        </div>
+        <div class="roadmap-card-quests">2/24 квестів</div>
+      </div>
+    </div>
+
+    <div class="zone-divider"></div>
+
+    <!-- ZONE 3: Today's Quests -->
+    <div class="zone-label">
+      <span class="zone-label-tag zone-2">Zone 3</span>
+      <span class="zone-label-text">Today's Quests &mdash; unified feed with roadmap tags + filter + completed section</span>
+    </div>
+
+    <div class="section-header">
+      <span class="section-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:-2px"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg> Щоденні квести</span>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-family:var(--body); font-size:11px; color:var(--text-muted); font-style:italic;">Починай свою подорож!</span>
+        <span style="font-family:var(--mono); font-size:11px; font-weight:800; color:var(--violet); padding:2px 8px; border-radius:8px; background:rgba(157,122,255,0.12);">3/7</span>
+      </div>
+    </div>
+
+    <!-- Filter row -->
+    <div class="quest-filter-row">
+      <button class="quest-filter" onclick="filterQuests(this, 'ai')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align:-1px"><circle cx="12" cy="12" r="2" fill="currentColor"/><ellipse cx="12" cy="12" rx="10" ry="4" stroke="currentColor" stroke-width="1.5"/><ellipse cx="12" cy="12" rx="10" ry="4" stroke="currentColor" stroke-width="1.5" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4" stroke="currentColor" stroke-width="1.5" transform="rotate(120 12 12)"/></svg> AI &amp; Tools (2)</button>
+      <button class="quest-filter" onclick="filterQuests(this, 'frontend')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align:-1px"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Frontend (3)</button>
+      <button class="quest-filter" onclick="filterQuests(this, 'backend')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align:-1px"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M7 15h4M7 9l4 3-4 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg> Backend (2)</button>
+      <button class="quest-filter active" onclick="filterQuests(this, 'all')">Всі (7)</button>
+    </div>
+
+    <!-- Active quests -->
+    <div class="quest-list">
+      <div class="quest-item" onclick="alert('Opens QuestJourneyModal')">
+        <div class="quest-checkbox" onclick="event.stopPropagation(); toggleQuest(this)">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#FFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="quest-content">
+          <div class="quest-title">Introduction to Reinforcement Learning</div>
+          <div class="quest-tags">
+            <span class="continue-source-tag tag-diamond" style="font-size:8px; padding:2px 6px;">AI</span>
+            <span class="rarity-badge rarity-rare">&#9670; video</span>
+            <span class="quest-time"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align:-1px"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg> 30 min</span>
+          </div>
+        </div>
+        <span class="quest-xp">+30 XP</span>
+      </div>
+
+      <div class="quest-item" onclick="alert('Opens QuestJourneyModal')">
+        <div class="quest-checkbox" onclick="event.stopPropagation(); toggleQuest(this)">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#FFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="quest-content">
+          <div class="quest-title">React useEffect Cleanup Patterns</div>
+          <div class="quest-tags">
+            <span class="continue-source-tag tag-gold" style="font-size:8px; padding:2px 6px;">Frontend</span>
+            <span class="rarity-badge" style="color:#6EE7B7; background:rgba(110,231,183,0.1);">&#9670; article</span>
+            <span class="quest-time"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align:-1px"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg> 20 min</span>
+          </div>
+        </div>
+        <span class="quest-xp">+25 XP</span>
+      </div>
+
+      <div class="quest-item" onclick="alert('Opens QuestJourneyModal')">
+        <div class="quest-checkbox" onclick="event.stopPropagation(); toggleQuest(this)">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#FFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="quest-content">
+          <div class="quest-title">SQL JOIN Types Quiz</div>
+          <div class="quest-tags">
+            <span class="continue-source-tag tag-silver" style="font-size:8px; padding:2px 6px;">Backend</span>
+            <span class="rarity-badge" style="color:var(--violet); background:rgba(157,122,255,0.1);">&#9672; quiz</span>
+            <span class="quest-time"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align:-1px"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg> 15 min</span>
+          </div>
+        </div>
+        <span class="quest-xp">+20 XP</span>
+      </div>
+
+      <div class="quest-item" onclick="alert('Opens QuestJourneyModal')">
+        <div class="quest-checkbox" onclick="event.stopPropagation(); toggleQuest(this)">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#FFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="quest-content">
+          <div class="quest-title">AI Foundations Boss Challenge</div>
+          <div class="quest-tags">
+            <span class="continue-source-tag tag-diamond" style="font-size:8px; padding:2px 6px;">AI</span>
+            <span class="rarity-badge rarity-boss">&#9733; boss</span>
+            <span class="quest-time"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align:-1px"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg> 45 min</span>
+          </div>
+        </div>
+        <span class="quest-xp">+150 XP</span>
+      </div>
+    </div>
+
+    <!-- Completed section (collapsible) -->
+    <button class="completed-toggle" onclick="toggleCompleted()">
+      <span class="completed-toggle-label">
+        &#10003; Пройдено сьогодні
+        <span class="completed-toggle-count">3</span>
+      </span>
+      <span class="completed-toggle-arrow" id="completed-arrow">&#9660;</span>
+    </button>
+
+    <div class="completed-section" id="completed-section">
+      <div class="completed-line"></div>
+      <div class="quest-list">
+        <div class="quest-item completed">
+          <div class="quest-checkbox checked">
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#FFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="quest-content">
+            <div class="quest-title">Introduction to Neural Networks</div>
+            <div class="quest-tags">
+              <span class="continue-source-tag tag-diamond" style="font-size:8px; padding:2px 6px; opacity:0.6;">AI</span>
+              <span class="rarity-badge" style="color:var(--text-muted); background:rgba(113,113,122,0.1);">&#9679; article</span>
+              <span class="quest-time"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align:-1px"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg> 25 min</span>
+            </div>
+          </div>
+          <span class="quest-xp">&#10004; +25 XP</span>
+        </div>
+
+        <div class="quest-item completed">
+          <div class="quest-checkbox checked">
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#FFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="quest-content">
+            <div class="quest-title">CSS Grid Layout Fundamentals</div>
+            <div class="quest-tags">
+              <span class="continue-source-tag tag-gold" style="font-size:8px; padding:2px 6px; opacity:0.6;">Frontend</span>
+              <span class="rarity-badge" style="color:var(--text-muted); background:rgba(113,113,122,0.1);">&#9679; project</span>
+              <span class="quest-time"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align:-1px"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg> 35 min</span>
+            </div>
+          </div>
+          <span class="quest-xp">&#10004; +30 XP</span>
+        </div>
+
+        <div class="quest-item completed">
+          <div class="quest-checkbox checked">
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#FFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="quest-content">
+            <div class="quest-title">Database Normalization Basics</div>
+            <div class="quest-tags">
+              <span class="continue-source-tag tag-silver" style="font-size:8px; padding:2px 6px; opacity:0.6;">Backend</span>
+              <span class="rarity-badge" style="color:var(--text-muted); background:rgba(113,113,122,0.1);">&#9679; quiz</span>
+              <span class="quest-time"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align:-1px"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg> 15 min</span>
+            </div>
+          </div>
+          <span class="quest-xp">&#10004; +20 XP</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="zone-divider"></div>
+
+    <!-- ZONE 4: Quest Lines -->
+    <div class="zone-label">
+      <span class="zone-label-tag zone-3">Zone 4</span>
+      <span class="zone-label-text">Quest Lines &mdash; roadmap milestone visualization (moved below quests)</span>
+    </div>
+
+    <div class="section-header">
+      <span class="section-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:-2px"><path d="M8 3C6.5 3 5 4 5 5.5V19a2 2 0 002 2h10a2 2 0 002-2V5.5C19 4 17.5 3 16 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8 3c0 1.5 1.5 3 4 3s4-1.5 4-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M9 11h6M9 14h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/></svg> Лінії квестів</span>
+    </div>
+
+    <div class="quest-line-card">
+      <div class="quest-line-header">
+        <div class="quest-line-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2" fill="#9D7AFF"/><ellipse cx="12" cy="12" rx="10" ry="4" stroke="#9D7AFF" stroke-width="1.5"/><ellipse cx="12" cy="12" rx="10" ry="4" stroke="#9D7AFF" stroke-width="1.5" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4" stroke="#9D7AFF" stroke-width="1.5" transform="rotate(120 12 12)"/></svg></div>
+        <div class="quest-line-info">
+          <div class="quest-line-title">Mastery of AI and Smart Tools</div>
+          <span class="quest-line-level" style="color:#71717A; background:rgba(113,113,122,0.12);">&#9679; beginner</span>
+        </div>
+        <span class="quest-line-pct" style="color:var(--violet);">15%</span>
+      </div>
+
+      <div class="milestone-path">
+        <div class="milestone-track"></div>
+        <div class="milestone-track-fill">
+          <div class="milestone-track-fill-inner" style="transform:scaleX(0.12)"></div>
+        </div>
+        <div class="milestone-nodes">
+          <div class="milestone-node">
+            <div class="milestone-dot active"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="14" r="6" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M8 2l1.5 6M16 2l-1.5 6M9 2h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M12 11v2M10.5 13.5l1.5-1 1.5 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div>
+            <span class="milestone-name active">AI Foundations</span>
+          </div>
+          <div class="milestone-node">
+            <div class="milestone-dot locked"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="14" r="6" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M8 2l1.5 6M16 2l-1.5 6M9 2h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg></div>
+            <span class="milestone-name locked">Reinforcement Learning</span>
+          </div>
+          <div class="milestone-node">
+            <div class="milestone-dot locked"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="14" r="6" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M8 2l1.5 6M16 2l-1.5 6M9 2h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg></div>
+            <span class="milestone-name locked">Advanced AI</span>
+          </div>
+          <div class="milestone-node">
+            <div class="milestone-dot trophy locked"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M6 4h12v2c0 3.31-2.69 6-6 6S6 9.31 6 6V4z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M6 6H4c0 2.21 1.79 4 4 4M18 6h2c0 2.21-1.79 4-4 4M9 18h6M12 12v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div>
+            <span class="milestone-name locked">Innovation</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="quest-line-footer">
+        <span class="quest-line-milestone-label">Поточна віха: AI Foundations</span>
+        <span class="quest-line-quest-count">3/20 квестів</span>
+      </div>
+    </div>
+
+    <div class="quest-line-card">
+      <div class="quest-line-header">
+        <div class="quest-line-icon" style="background:rgba(59,130,246,0.12);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="quest-line-info">
+          <div class="quest-line-title">Frontend Mastery</div>
+          <span class="quest-line-level" style="color:#3B82F6; background:rgba(59,130,246,0.12);">&#9646; intermediate</span>
+        </div>
+        <span class="quest-line-pct">64%</span>
+      </div>
+
+      <div class="milestone-path">
+        <div class="milestone-track"></div>
+        <div class="milestone-track-fill">
+          <div class="milestone-track-fill-inner" style="transform:scaleX(0.52)"></div>
+        </div>
+        <div class="milestone-nodes">
+          <div class="milestone-node">
+            <div class="milestone-dot completed"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="14" r="6" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M8 2l1.5 6M16 2l-1.5 6M9 2h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M9 13l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div>
+            <span class="milestone-name completed">HTML/CSS</span>
+          </div>
+          <div class="milestone-node">
+            <div class="milestone-dot completed"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="14" r="6" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M8 2l1.5 6M16 2l-1.5 6M9 2h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M9 13l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div>
+            <span class="milestone-name completed">JavaScript</span>
+          </div>
+          <div class="milestone-node">
+            <div class="milestone-dot active"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="14" r="6" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M8 2l1.5 6M16 2l-1.5 6M9 2h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M12 11v2M10.5 13.5l1.5-1 1.5 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div>
+            <span class="milestone-name active">React Hooks</span>
+          </div>
+          <div class="milestone-node">
+            <div class="milestone-dot locked"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="14" r="6" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M8 2l1.5 6M16 2l-1.5 6M9 2h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg></div>
+            <span class="milestone-name locked">State Mgmt</span>
+          </div>
+          <div class="milestone-node">
+            <div class="milestone-dot trophy locked"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M6 4h12v2c0 3.31-2.69 6-6 6S6 9.31 6 6V4z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M6 6H4c0 2.21 1.79 4 4 4M18 6h2c0 2.21-1.79 4-4 4M9 18h6M12 12v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div>
+            <span class="milestone-name locked">Capstone</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="quest-line-footer">
+        <span class="quest-line-milestone-label">Поточна віха: React Hooks Deep Dive</span>
+        <span class="quest-line-quest-count">13/20 квестів</span>
+      </div>
+    </div>
+
+    <div class="zone-divider"></div>
+
+    <!-- ZONE 6: Review (future) -->
+    <div class="zone-label">
+      <span class="zone-label-tag zone-4">Zone 5</span>
+      <span class="zone-label-text">Training Grounds &mdash; review &amp; mastery (Phase 3, future)</span>
+    </div>
+
+    <div class="review-section">
+      <div class="review-section-badge">Phase 3</div>
+      <div class="review-section-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="vertical-align:-3px"><path d="M5 3l14 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M14.5 15.5l3-3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M19 3L5 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M6.5 12.5l3 3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="10" r="1.2" fill="currentColor" opacity="0.35"/></svg> Training Grounds</div>
+      <div class="review-section-desc">Spaced repetition, knowledge codex, weakness practice.<br>Planned for future release.</div>
+    </div>
+
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       STATE: ALL DONE
+       ═══════════════════════════════════════════ -->
+  <div id="state-alldone" class="state-view">
+
+    <!-- All done hero CTA -->
+    <div class="all-done-hero">
+      <div class="all-done-emoji">&#127881;</div>
+      <div class="all-done-title">Всі квести на сьогодні завершені!</div>
+      <div class="all-done-desc">Ти завершив 7 квестів і заробив +250 XP. Повертайся завтра за новими пригодами!</div>
+    </div>
+
+    <!-- Completed section (always open when all done) -->
+    <div class="section-header">
+      <span class="section-title">&#10004; Пройдено сьогодні</span>
+      <span style="font-family:var(--mono); font-size:11px; font-weight:800; color:var(--cyan); padding:2px 8px; border-radius:8px; background:rgba(78,205,196,0.12);">7/7</span>
+    </div>
+
+    <div class="quest-list" style="margin-bottom:24px;">
+      <div class="quest-item completed">
+        <div class="quest-checkbox checked">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#FFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="quest-content">
+          <div class="quest-title">Introduction to Neural Networks</div>
+          <div class="quest-tags">
+            <span class="continue-source-tag tag-diamond" style="font-size:8px; padding:2px 6px; opacity:0.6;">AI</span>
+            <span class="rarity-badge" style="color:var(--text-muted); background:rgba(113,113,122,0.1);">&#9679; article</span>
+          </div>
+        </div>
+        <span class="quest-xp">&#10004; +25 XP</span>
+      </div>
+
+      <div class="quest-item completed">
+        <div class="quest-checkbox checked">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#FFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="quest-content">
+          <div class="quest-title">CSS Grid Layout Fundamentals</div>
+          <div class="quest-tags">
+            <span class="continue-source-tag tag-gold" style="font-size:8px; padding:2px 6px; opacity:0.6;">Frontend</span>
+            <span class="rarity-badge" style="color:var(--text-muted); background:rgba(113,113,122,0.1);">&#9679; project</span>
+          </div>
+        </div>
+        <span class="quest-xp">&#10004; +30 XP</span>
+      </div>
+
+      <div class="quest-item completed">
+        <div class="quest-checkbox checked">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#FFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="quest-content">
+          <div class="quest-title">SQL JOIN Types Quiz</div>
+          <div class="quest-tags">
+            <span class="continue-source-tag tag-silver" style="font-size:8px; padding:2px 6px; opacity:0.6;">Backend</span>
+            <span class="rarity-badge" style="color:var(--text-muted); background:rgba(113,113,122,0.1);">&#9679; quiz</span>
+          </div>
+        </div>
+        <span class="quest-xp">&#10004; +20 XP</span>
+      </div>
+    </div>
+
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       STATE: SINGLE ROADMAP (no cards row)
+       ═══════════════════════════════════════════ -->
+  <div id="state-single" class="state-view">
+
+    <!-- Continue quest (no roadmap tag needed for single) -->
+    <div class="continue-hero" onclick="alert('Opens QuestJourneyModal')">
+      <div class="continue-hero-glow"></div>
+      <div class="continue-header">
+        <span class="continue-label"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:-2px"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><g transform="rotate(45 12 12)"><path d="M12 4l2.5 8H9.5L12 4z" fill="currentColor" opacity="0.7" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M12 20l-2.5-8h5L12 20z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></g><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg> Наступний квест</span>
+      </div>
+      <div class="continue-title">Introduction to Reinforcement Learning</div>
+      <div class="continue-meta">
+        <span class="rarity-badge rarity-rare">&#9670; rare</span>
+        <span class="continue-meta-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="vertical-align:-2px"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M10 8l6 4-6 4V8z" fill="currentColor" opacity="0.6" stroke="currentColor" stroke-width="1.2"/></svg> video</span>
+        <span class="continue-meta-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="vertical-align:-2px"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg> 30 min</span>
+        <span class="continue-meta-item" style="color:var(--violet); font-weight:700;">+30 XP</span>
+      </div>
+      <button class="continue-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 3l14 14" stroke="#FFF" stroke-width="1.8" stroke-linecap="round"/><path d="M14.5 15.5l3-3" stroke="#FFF" stroke-width="2.2" stroke-linecap="round"/><path d="M19 3L5 17" stroke="#FFF" stroke-width="1.8" stroke-linecap="round"/><path d="M6.5 12.5l3 3" stroke="#FFF" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="10" r="1.2" fill="#FFF" opacity="0.35"/></svg> Продовжити квест
+      </button>
+    </div>
+
+    <!-- No roadmap cards row for single roadmap -->
+    <!-- Quests without filter (single source) -->
+    <div class="section-header">
+      <span class="section-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:-2px"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg> Щоденні квести</span>
+      <span style="font-family:var(--mono); font-size:11px; font-weight:800; color:var(--violet); padding:2px 8px; border-radius:8px; background:rgba(157,122,255,0.12);">1/5</span>
+    </div>
+
+    <!-- No filter row for single roadmap -->
+    <div class="quest-list" style="margin-bottom:12px;">
+      <div class="quest-item">
+        <div class="quest-checkbox" onclick="event.stopPropagation(); toggleQuest(this)">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#FFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="quest-content">
+          <div class="quest-title">Introduction to Reinforcement Learning</div>
+          <div class="quest-tags">
+            <span class="rarity-badge rarity-rare">&#9670; video</span>
+            <span class="quest-time">&#9201; 30 min</span>
+          </div>
+        </div>
+        <span class="quest-xp">+30 XP</span>
+      </div>
+
+      <div class="quest-item">
+        <div class="quest-checkbox" onclick="event.stopPropagation(); toggleQuest(this)">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#FFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="quest-content">
+          <div class="quest-title">AI Foundations Boss Challenge</div>
+          <div class="quest-tags">
+            <span class="rarity-badge rarity-boss">&#9733; boss</span>
+            <span class="quest-time">&#9201; 45 min</span>
+          </div>
+        </div>
+        <span class="quest-xp">+150 XP</span>
+      </div>
+
+      <div class="quest-item">
+        <div class="quest-checkbox" onclick="event.stopPropagation(); toggleQuest(this)">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#FFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="quest-content">
+          <div class="quest-title">Supervised vs Unsupervised Learning</div>
+          <div class="quest-tags">
+            <span class="rarity-badge" style="color:#6EE7B7; background:rgba(110,231,183,0.1);">&#9670; article</span>
+            <span class="quest-time">&#9201; 20 min</span>
+          </div>
+        </div>
+        <span class="quest-xp">+25 XP</span>
+      </div>
+
+      <div class="quest-item">
+        <div class="quest-checkbox" onclick="event.stopPropagation(); toggleQuest(this)">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#FFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="quest-content">
+          <div class="quest-title">Neural Networks Quick Quiz</div>
+          <div class="quest-tags">
+            <span class="rarity-badge" style="color:var(--violet); background:rgba(157,122,255,0.1);">&#9672; quiz</span>
+            <span class="quest-time">&#9201; 10 min</span>
+          </div>
+        </div>
+        <span class="quest-xp">+15 XP</span>
+      </div>
+    </div>
+
+    <!-- Completed -->
+    <button class="completed-toggle" onclick="toggleCompleted2()">
+      <span class="completed-toggle-label">
+        &#10003; Пройдено сьогодні
+        <span class="completed-toggle-count">1</span>
+      </span>
+      <span class="completed-toggle-arrow" id="completed-arrow-2">&#9660;</span>
+    </button>
+
+    <div class="completed-section" id="completed-section-2">
+      <div class="completed-line"></div>
+      <div class="quest-list">
+        <div class="quest-item completed">
+          <div class="quest-checkbox checked">
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#FFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="quest-content">
+            <div class="quest-title">Introduction to Neural Networks</div>
+            <div class="quest-tags">
+              <span class="rarity-badge" style="color:var(--text-muted); background:rgba(113,113,122,0.1);">&#9679; article</span>
+              <span class="quest-time">&#9201; 25 min</span>
+            </div>
+          </div>
+          <span class="quest-xp">&#10004; +25 XP</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="zone-divider"></div>
+
+    <!-- Quest line (single) -->
+    <div class="section-header">
+      <span class="section-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:-2px"><path d="M8 3C6.5 3 5 4 5 5.5V19a2 2 0 002 2h10a2 2 0 002-2V5.5C19 4 17.5 3 16 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8 3c0 1.5 1.5 3 4 3s4-1.5 4-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M9 11h6M9 14h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/></svg> Лінія квестів</span>
+    </div>
+
+    <div class="quest-line-card">
+      <div class="quest-line-header">
+        <div class="quest-line-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2" fill="#9D7AFF"/><ellipse cx="12" cy="12" rx="10" ry="4" stroke="#9D7AFF" stroke-width="1.5"/><ellipse cx="12" cy="12" rx="10" ry="4" stroke="#9D7AFF" stroke-width="1.5" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4" stroke="#9D7AFF" stroke-width="1.5" transform="rotate(120 12 12)"/></svg></div>
+        <div class="quest-line-info">
+          <div class="quest-line-title">Mastery of AI and Smart Tools</div>
+          <span class="quest-line-level" style="color:#71717A; background:rgba(113,113,122,0.12);">&#9679; beginner</span>
+        </div>
+        <span class="quest-line-pct" style="color:var(--violet);">15%</span>
+      </div>
+
+      <div class="milestone-path">
+        <div class="milestone-track"></div>
+        <div class="milestone-track-fill">
+          <div class="milestone-track-fill-inner" style="transform:scaleX(0.12)"></div>
+        </div>
+        <div class="milestone-nodes">
+          <div class="milestone-node">
+            <div class="milestone-dot active"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="14" r="6" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M8 2l1.5 6M16 2l-1.5 6M9 2h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M12 11v2M10.5 13.5l1.5-1 1.5 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div>
+            <span class="milestone-name active">AI Foundations</span>
+          </div>
+          <div class="milestone-node">
+            <div class="milestone-dot locked"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="14" r="6" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M8 2l1.5 6M16 2l-1.5 6M9 2h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg></div>
+            <span class="milestone-name locked">Reinforcement Learning</span>
+          </div>
+          <div class="milestone-node">
+            <div class="milestone-dot locked"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="14" r="6" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M8 2l1.5 6M16 2l-1.5 6M9 2h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg></div>
+            <span class="milestone-name locked">Advanced AI</span>
+          </div>
+          <div class="milestone-node">
+            <div class="milestone-dot trophy locked"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M6 4h12v2c0 3.31-2.69 6-6 6S6 9.31 6 6V4z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M6 6H4c0 2.21 1.79 4 4 4M18 6h2c0 2.21-1.79 4-4 4M9 18h6M12 12v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div>
+            <span class="milestone-name locked">Innovation</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="quest-line-footer">
+        <span class="quest-line-milestone-label">Поточна віха: AI Foundations</span>
+        <span class="quest-line-quest-count">3/20 квестів</span>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+// State switcher
+function switchState(state) {
+  document.querySelectorAll('.state-view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.state-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('state-' + state).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// Quest filter
+function filterQuests(btn, filter) {
+  document.querySelectorAll('.quest-filter').forEach(f => f.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// Checkbox toggle
+function toggleQuest(el) {
+  el.classList.toggle('checked');
+  const item = el.closest('.quest-item');
+  item.classList.toggle('completed');
+}
+
+// Completed section toggle
+function toggleCompleted() {
+  const section = document.getElementById('completed-section');
+  const arrow = document.getElementById('completed-arrow');
+  section.classList.toggle('open');
+  arrow.classList.toggle('open');
+}
+
+function toggleCompleted2() {
+  const section = document.getElementById('completed-section-2');
+  const arrow = document.getElementById('completed-arrow-2');
+  section.classList.toggle('open');
+  arrow.classList.toggle('open');
+}
+</script>
+
+</body>
+</html>

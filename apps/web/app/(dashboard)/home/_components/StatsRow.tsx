@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
 import { t } from '../../../(onboarding)/_components/tokens';
+import { useReducedMotion } from '../_hooks/useReducedMotion';
 import { useI18nStore } from '@plan2skill/store';
 
 interface StatsRowProps {
@@ -32,10 +33,7 @@ export function StatsRow({ level, currentStreak, totalXp, coins, energyCrystals,
   const [crystalBounce, setCrystalBounce] = useState(false);
 
   // prefers-reduced-motion guard
-  const prefersReduced = useRef(false);
-  useEffect(() => {
-    prefersReduced.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  }, []);
+  const prefersReduced = useReducedMotion();
 
   useEffect(() => {
     if (prevXp.current === null) {

@@ -56,12 +56,12 @@ export class QuestService {
       },
     });
 
-    // Flatten available tasks across roadmaps
-    const candidateTasks = roadmaps.flatMap((r) =>
-      r.milestones.flatMap((m) => m.tasks),
+    // Flatten available tasks — preserve roadmap context as tuples
+    const candidateTuples = roadmaps.flatMap((r) =>
+      r.milestones.flatMap((m) =>
+        m.tasks.map((task) => ({ task, roadmapId: r.id, roadmapTitle: r.title })),
+      ),
     );
-
-    if (candidateTasks.length === 0) return [];
 
     // Check what types already completed today
     const user = await this.prisma.user.findUnique({
@@ -85,52 +85,98 @@ export class QuestService {
       typeCountToday.set(c.questType, (typeCountToday.get(c.questType) ?? 0) + 1);
     }
 
+    // Assign tiers to roadmaps
+    const tierMap = this.assignTiers(
+      roadmaps.map((r) => ({ id: r.id, lastAccessedAt: r.lastAccessedAt, progress: r.progress })),
+    );
+
     // Select quests with diversity enforcement
-    const selected: typeof candidateTasks = [];
+    const selected: typeof candidateTuples = [];
     const selectionTypeCounts = new Map<string, number>();
 
-    for (const task of candidateTasks) {
+    for (const tuple of candidateTuples) {
       if (selected.length >= DAILY_QUEST_COUNT) break;
-      if (completedTaskIds.has(task.id)) continue;
+      if (completedTaskIds.has(tuple.task.id)) continue;
 
       const existingCount =
-        (typeCountToday.get(task.questType) ?? 0) +
-        (selectionTypeCounts.get(task.questType) ?? 0);
+        (typeCountToday.get(tuple.task.questType) ?? 0) +
+        (selectionTypeCounts.get(tuple.task.questType) ?? 0);
 
       if (existingCount >= MAX_SAME_TYPE_PER_DAY) continue;
 
-      selected.push(task);
+      selected.push(tuple);
       selectionTypeCounts.set(
-        task.questType,
-        (selectionTypeCounts.get(task.questType) ?? 0) + 1,
+        tuple.task.questType,
+        (selectionTypeCounts.get(tuple.task.questType) ?? 0) + 1,
       );
     }
 
     // If we don't have enough diverse quests, fill remaining slots ignoring type constraint
     if (selected.length < DAILY_QUEST_COUNT) {
-      for (const task of candidateTasks) {
+      for (const tuple of candidateTuples) {
         if (selected.length >= DAILY_QUEST_COUNT) break;
-        if (completedTaskIds.has(task.id)) continue;
-        if (selected.some((s) => s.id === task.id)) continue;
-        selected.push(task);
+        if (completedTaskIds.has(tuple.task.id)) continue;
+        if (selected.some((s) => s.task.id === tuple.task.id)) continue;
+        selected.push(tuple);
       }
     }
 
-    return selected.map((task) => ({
-      id: task.id,
-      title: task.title,
-      description: task.description,
-      taskType: task.taskType,
-      questType: task.questType,
-      estimatedMinutes: task.estimatedMinutes,
-      xpReward: task.xpReward,
-      coinReward: task.coinReward,
-      rarity: task.rarity,
-      difficultyTier: task.difficultyTier,
-      validationType: task.validationType,
-      knowledgeCheck: task.knowledgeCheck,
-      skillDomain: task.skillDomain,
+    const available = selected.map((tuple) => ({
+      id: tuple.task.id,
+      title: tuple.task.title,
+      description: tuple.task.description,
+      taskType: tuple.task.taskType,
+      questType: tuple.task.questType,
+      estimatedMinutes: tuple.task.estimatedMinutes,
+      xpReward: tuple.task.xpReward,
+      coinReward: tuple.task.coinReward,
+      rarity: tuple.task.rarity,
+      difficultyTier: tuple.task.difficultyTier,
+      validationType: tuple.task.validationType,
+      knowledgeCheck: tuple.task.knowledgeCheck,
+      skillDomain: tuple.task.skillDomain,
+      roadmapId: tuple.roadmapId,
+      roadmapTitle: tuple.roadmapTitle,
+      roadmapTier: tierMap.get(tuple.roadmapId) ?? 'bronze',
     }));
+
+    // Fetch completed task data for today
+    const completedToday = completedTaskIds.size > 0
+      ? await this.prisma.task.findMany({
+          where: { id: { in: [...completedTaskIds] } },
+          include: {
+            milestone: {
+              include: {
+                roadmap: { select: { id: true, title: true } },
+              },
+            },
+          },
+        })
+      : [];
+
+    const completedTodayMapped = completedToday.map((task) => {
+      const rmId = task.milestone?.roadmap?.id ?? '';
+      return {
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        taskType: task.taskType,
+        questType: task.questType,
+        estimatedMinutes: task.estimatedMinutes,
+        xpReward: task.xpReward,
+        coinReward: task.coinReward,
+        rarity: task.rarity,
+        difficultyTier: task.difficultyTier,
+        validationType: task.validationType,
+        knowledgeCheck: task.knowledgeCheck,
+        skillDomain: task.skillDomain,
+        roadmapId: rmId,
+        roadmapTitle: task.milestone?.roadmap?.title ?? '',
+        roadmapTier: tierMap.get(rmId) ?? 'bronze',
+      };
+    });
+
+    return { available, completedToday: completedTodayMapped };
   }
 
   /**
@@ -368,22 +414,61 @@ export class QuestService {
   }
 
   /**
+   * Assign diamond/gold/silver/bronze tiers to roadmaps based on recency + progress.
+   */
+  private assignTiers(
+    roadmaps: Array<{ id: string; lastAccessedAt: Date | null; progress: number }>,
+  ): Map<string, string> {
+    const tiers = new Map<string, string>();
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const sorted = [...roadmaps].sort((a, b) => {
+      const aTime = a.lastAccessedAt?.getTime() ?? 0;
+      const bTime = b.lastAccessedAt?.getTime() ?? 0;
+      return bTime - aTime;
+    });
+
+    sorted.forEach((rm, idx) => {
+      if (idx === 0 && rm.lastAccessedAt && rm.lastAccessedAt > sevenDaysAgo && rm.progress > 0) {
+        tiers.set(rm.id, 'diamond');
+      } else if (rm.lastAccessedAt && rm.lastAccessedAt > sevenDaysAgo) {
+        tiers.set(rm.id, 'gold');
+      } else if (rm.lastAccessedAt && rm.lastAccessedAt > thirtyDaysAgo) {
+        tiers.set(rm.id, 'silver');
+      } else {
+        tiers.set(rm.id, 'bronze');
+      }
+    });
+
+    return tiers;
+  }
+
+  /**
    * Get the start of today in the user's timezone, expressed as a UTC Date.
    * Uses Intl to get the UTC offset for the timezone, then adjusts accordingly.
    */
   private todayStartInTimezone(timezone: string): Date {
-    const now = new Date();
-    // Get "today" in user's timezone as YYYY-MM-DD
-    const dateStr = now.toLocaleDateString('en-CA', { timeZone: timezone });
-    // Get the timezone offset by comparing local midnight to UTC
-    const midnightLocal = new Date(`${dateStr}T00:00:00`);
-    const midnightInTz = new Date(
-      midnightLocal.toLocaleString('en-US', { timeZone: timezone }),
-    );
-    const midnightUtc = new Date(
-      midnightLocal.toLocaleString('en-US', { timeZone: 'UTC' }),
-    );
-    const offsetMs = midnightUtc.getTime() - midnightInTz.getTime();
-    return new Date(midnightLocal.getTime() + offsetMs);
+    try {
+      const now = new Date();
+      // Get "today" in user's timezone as YYYY-MM-DD
+      const dateStr = now.toLocaleDateString('en-CA', { timeZone: timezone });
+      // Get the timezone offset by comparing local midnight to UTC
+      const midnightLocal = new Date(`${dateStr}T00:00:00`);
+      const midnightInTz = new Date(
+        midnightLocal.toLocaleString('en-US', { timeZone: timezone }),
+      );
+      const midnightUtc = new Date(
+        midnightLocal.toLocaleString('en-US', { timeZone: 'UTC' }),
+      );
+      const offsetMs = midnightUtc.getTime() - midnightInTz.getTime();
+      return new Date(midnightLocal.getTime() + offsetMs);
+    } catch {
+      // Fallback to UTC midnight if timezone is invalid
+      console.warn('[QuestService] Invalid timezone, falling back to UTC:', timezone);
+      const now = new Date();
+      return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    }
   }
 }

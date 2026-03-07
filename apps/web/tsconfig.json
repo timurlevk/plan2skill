@@ -9,6 +9,8 @@
     ],
     "module": "ESNext",
     "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
     "plugins": [
       {
         "name": "next"

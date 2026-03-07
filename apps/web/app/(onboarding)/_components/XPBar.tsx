@@ -22,6 +22,9 @@ export function XPBar({ xp, level }: XPBarProps) {
   const [animatedFill, setAnimatedFill] = useState(0);
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [prevLevel, setPrevLevel] = useState(level);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => setHydrated(true), []);
 
   // prefers-reduced-motion
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -65,7 +68,7 @@ export function XPBar({ xp, level }: XPBarProps) {
         color: t.gold,
         whiteSpace: 'nowrap',
       }}>
-        {tr('sidebar.xp_short', '{n} XP').replace('{n}', String(xp))}
+        {hydrated ? tr('sidebar.xp_short', '{n} XP').replace('{n}', String(xp)) : `${xp} XP`}
       </span>
 
       {/* XP bar */}
@@ -105,7 +108,7 @@ export function XPBar({ xp, level }: XPBarProps) {
         color: t.violet,
         animation: showLevelUp ? (reducedMotion ? 'none' : 'bounceIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)') : 'none',
       }}>
-        {tr('xpbar.level_badge', 'L{n}').replace('{n}', String(level))}
+        {hydrated ? tr('xpbar.level_badge', 'L{n}').replace('{n}', String(level)) : `L${level}`}
       </div>
     </div>
   );

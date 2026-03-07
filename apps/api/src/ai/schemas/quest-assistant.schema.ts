@@ -6,6 +6,7 @@ export const QuestAssistantModeSchema = z.enum([
   'hint',
   'feedback',
   'reattempt',
+  'tutor',
 ]);
 
 export type QuestAssistantMode = z.infer<typeof QuestAssistantModeSchema>;

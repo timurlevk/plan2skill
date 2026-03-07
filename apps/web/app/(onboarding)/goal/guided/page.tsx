@@ -508,7 +508,7 @@ export default function GuidedPage() {
                   addXP(5);
                   setTimeout(() => setPhase('goals'), reducedMotion ? 50 : 300);
                 }}
-                aria-label={`${opt.label}: ${opt.description}`}
+                aria-label={`${tr(opt.labelKey, opt.label)}: ${tr(opt.descKey, opt.description)}`}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
@@ -542,7 +542,7 @@ export default function GuidedPage() {
                   fontWeight: 700,
                   color: t.text,
                 }}>
-                  {opt.label}
+                  {tr(opt.labelKey, opt.label)}
                 </span>
                 <span style={{
                   fontFamily: t.body,
@@ -550,7 +550,7 @@ export default function GuidedPage() {
                   color: t.textMuted,
                   lineHeight: 1.3,
                 }}>
-                  {opt.description}
+                  {tr(opt.descKey, opt.description)}
                 </span>
               </button>
             );

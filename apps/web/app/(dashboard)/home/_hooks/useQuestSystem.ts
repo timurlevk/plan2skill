@@ -39,6 +39,9 @@ function serverTaskToQuestTask(task: DailyQuest, domainLabel: string): QuestTask
     checkCorrect: kc?.correctIndex ?? 0,
     goalLabel: domainLabel,
     goalIcon: 'target',
+    roadmapId: task.roadmapId,
+    roadmapTitle: task.roadmapTitle,
+    roadmapTier: task.roadmapTier as QuestTask['roadmapTier'],
   };
 }
 
@@ -51,20 +54,23 @@ export interface QuestGroup {
 
 export function useQuestSystem(): {
   serverQuestGroups: QuestGroup[] | null;
+  completedTodayGroups: QuestGroup[];
+  completedTodayCount: number;
   isLoadingQuests: boolean;
   isGeneratingQuests: boolean;
   hasServerQuests: boolean;
   refetchQuests: () => void;
-  validateQuest: (validationType: string, validationData: Record<string, unknown>, knowledgeCheck?: unknown) => Promise<{ valid: boolean; qualityScore: number; feedback: string }>;
+  validateQuest: (taskId: string, validationType: string, validationData: Record<string, unknown>) => Promise<{ valid: boolean; qualityScore: number; feedback: string }>;
   createReview: (skillId: string, skillDomain?: string) => void;
   getServerQuest: (taskId: string) => DailyQuest | undefined;
 } {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const { dailyQuests, isGenerating, setDailyQuests, addGeneratedQuests, setGenerating } =
+  const { dailyQuests, completedToday, isGenerating, setDailyQuests, setCompletedToday, addGeneratedQuests, setGenerating } =
     useQuestStore();
   const generateAttemptedRef = useRef(false);
 
   // ── Fetch daily quests from server ──
+  // Cast to break tRPC deep type inference (TS2589)
   const {
     data: serverQuests,
     isLoading,
@@ -73,7 +79,7 @@ export function useQuestSystem(): {
     enabled: isAuthenticated,
     staleTime: 1000 * 60 * 5, // 5 min
     retry: 1,
-  });
+  }) as { data: { available: DailyQuest[]; completedToday: DailyQuest[] } | undefined; isLoading: boolean; refetch: () => void };
 
   // ── Auto-generate mutation ──
   const generateMutation = trpc.quest.generateDaily.useMutation();
@@ -86,21 +92,29 @@ export function useQuestSystem(): {
 
   // Sync server response → store
   useEffect(() => {
-    if (serverQuests && Array.isArray(serverQuests) && serverQuests.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setDailyQuests(serverQuests as any as DailyQuest[]);
-      generateAttemptedRef.current = false;
+    if (serverQuests && 'available' in serverQuests) {
+      const { available, completedToday: completed } = serverQuests as {
+        available: DailyQuest[];
+        completedToday: DailyQuest[];
+      };
+      if (available.length > 0) {
+        setDailyQuests(available);
+        generateAttemptedRef.current = false;
+      }
+      setCompletedToday(completed);
     }
-  }, [serverQuests, setDailyQuests]);
+  }, [serverQuests, setDailyQuests, setCompletedToday]);
 
   // Auto-generate if no quests exist and haven't tried yet
   useEffect(() => {
+    const hasAvailable = serverQuests && 'available' in serverQuests
+      ? (serverQuests as { available: unknown[] }).available.length > 0
+      : false;
     if (
       isAuthenticated &&
       !isLoading &&
       serverQuests !== undefined &&
-      Array.isArray(serverQuests) &&
-      serverQuests.length === 0 &&
+      !hasAvailable &&
       !isGenerating &&
       !generateMutation.isPending &&
       !generateAttemptedRef.current
@@ -151,15 +165,15 @@ export function useQuestSystem(): {
 
   // ── Validate quest completion ──
   const validateQuest = async (
+    taskId: string,
     validationType: string,
     validationData: Record<string, unknown>,
-    knowledgeCheck?: unknown,
   ) => {
     try {
       const result = await validateMutation.mutateAsync({
+        taskId,
         validationType,
         validationData,
-        knowledgeCheck,
       });
       return result;
     } catch (err) {
@@ -181,13 +195,36 @@ export function useQuestSystem(): {
     );
   };
 
+  // ── Completed quests as QuestGroup[] ──
+  const completedTodayGroups = useMemo((): QuestGroup[] => {
+    if (!completedToday.length) return [];
+
+    const byDomain = new Map<string, DailyQuest[]>();
+    for (const task of completedToday) {
+      const domain = task.skillDomain || 'Daily Quests';
+      const group = byDomain.get(domain) || [];
+      group.push(task);
+      byDomain.set(domain, group);
+    }
+
+    return Array.from(byDomain.entries()).map(([domain, tasks]) => ({
+      goal: { id: domain, label: domain, icon: 'target' },
+      goalData: null,
+      tasks: tasks.map((t) => serverTaskToQuestTask(t, domain)),
+    }));
+  }, [completedToday]);
+
   // ── Look up a DailyQuest by task ID (for validation type info) ──
   const getServerQuest = (taskId: string): DailyQuest | undefined =>
-    dailyQuests.find((q) => q.id === taskId);
+    dailyQuests.find((q) => q.id === taskId) ?? completedToday.find((q) => q.id === taskId);
 
   return {
     /** Server quest groups (null if no server quests available) */
     serverQuestGroups,
+    /** Completed today as QuestGroup[] */
+    completedTodayGroups,
+    /** Number of quests completed today */
+    completedTodayCount: completedToday.length,
     /** Loading state for initial fetch */
     isLoadingQuests: isLoading,
     /** AI generation in progress */

@@ -126,12 +126,7 @@ export function useServerHydration() {
       useCharacterStore.getState().setEquipment(equippedItems as any);
     }
 
-    // BL-007: Hydrate roadmap store
-    if (roadmaps && Array.isArray(roadmaps)) {
-      useRoadmapStore.getState().setRoadmaps(roadmaps as any);
-      const active = (roadmaps as any[]).find((r: any) => r.status === 'active');
-      useRoadmapStore.getState().setActiveRoadmap(active ?? null);
-    }
+    // BL-007: Roadmap hydration moved to separate effect (see below)
 
     // Phase W2: Hydrate skill Elo ratings
     if (skillElos && Array.isArray(skillElos)) {
@@ -164,7 +159,17 @@ export function useServerHydration() {
     if (activePartyQuest !== undefined) {
       useSocialStore.getState().setPartyQuest(activePartyQuest as any);
     }
-  }, [profile, mastery, serverAchievements, inventory, computedAttributes, roadmaps, character, skillElos, equippedItems, userProfile, leagueData, socialFriends, activePartyQuest]);
+  }, [profile, mastery, serverAchievements, inventory, computedAttributes, character, skillElos, equippedItems, userProfile, leagueData, socialFriends, activePartyQuest]);
+
+  // BL-007: Roadmap hydration — separate effect to avoid race condition
+  // with hydratedRef guard (roadmaps query may resolve after profile)
+  useEffect(() => {
+    if (roadmaps && Array.isArray(roadmaps)) {
+      useRoadmapStore.getState().setRoadmaps(roadmaps as any);
+      const active = (roadmaps as any[]).find((r: any) => r.status === 'active');
+      useRoadmapStore.getState().setActiveRoadmap(active ?? null);
+    }
+  }, [roadmaps]);
 
   return {
     isHydrating: isAuthenticated && isLoading,

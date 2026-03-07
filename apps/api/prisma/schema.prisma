@@ -209,6 +209,8 @@ model Roadmap {
   hasPhysicalComponent Boolean   @default(false)
   domainMeta           Json?
 
+  lastAccessedAt DateTime? // Dashboard redesign: tier assignment by recency
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -790,6 +792,8 @@ model QuestContent {
   resources     Json?
   funFacts      Json?
   quizQuestions Json?
+  contentBlocks Json?    // ContentBlock[]
+  exercises     Json?    // Exercise[]
 
   contentFormat String   @default("article") @db.VarChar(30)
   generatedAt   DateTime @default(now())

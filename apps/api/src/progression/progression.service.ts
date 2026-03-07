@@ -411,6 +411,12 @@ export class ProgressionService {
       data: { status: 'completed', completedAt: new Date() },
     });
 
+    // Update roadmap recency for tier assignment
+    await this.prisma.roadmap.update({
+      where: { id: task.milestone.roadmap.id },
+      data: { lastAccessedAt: new Date() },
+    });
+
     // Unlock next task in milestone
     const nextTask = await this.prisma.task.findFirst({
       where: {

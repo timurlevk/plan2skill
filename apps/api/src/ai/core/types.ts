@@ -235,4 +235,5 @@ export const GENERATOR_CONTEXT_BUDGETS: Record<string, ContextLayer[]> = {
   'quest-assistant':      ['questSession', 'roadmapContext', 'ledgerContext'],
   'domain-classifier':    [],
   'article-body':         ['roadmapContext'],
+  'exercise':             ['roadmapContext'],
 };

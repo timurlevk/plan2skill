@@ -59,3 +59,37 @@ export const LEAGUE_TIERS = {
   gold:    { color: '#FFD700', label: 'Gold' },
   diamond: { color: '#4ECDC4', label: 'Diamond' },
 } as const;
+
+// Roadmap tier colors — ranked by user activity (diamond = most active)
+export const ROADMAP_TIERS = {
+  diamond: {
+    bg: 'linear-gradient(180deg, #D0F8FF 0%, #8ED8EC 100%)',
+    text: '#0A3040',
+    shadow: 'inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -1px 0 rgba(0,60,80,0.2), 0 1px 3px rgba(0,0,0,0.4)',
+    textShadow: '0 1px 0 rgba(255,255,255,0.3)',
+    label: 'Diamond',
+  },
+  gold: {
+    bg: 'linear-gradient(180deg, #FFE566 0%, #D4A800 100%)',
+    text: '#3D2800',
+    shadow: 'inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -1px 0 rgba(100,60,0,0.25), 0 1px 3px rgba(0,0,0,0.4)',
+    textShadow: '0 1px 0 rgba(255,255,255,0.25)',
+    label: 'Gold',
+  },
+  silver: {
+    bg: 'linear-gradient(180deg, #D8D8D8 0%, #A0A0A0 100%)',
+    text: '#1A1A1A',
+    shadow: 'inset 0 1px 0 rgba(255,255,255,0.6), inset 0 -1px 0 rgba(0,0,0,0.15), 0 1px 3px rgba(0,0,0,0.4)',
+    textShadow: '0 1px 0 rgba(255,255,255,0.35)',
+    label: 'Silver',
+  },
+  bronze: {
+    bg: 'linear-gradient(180deg, #D99548 0%, #A06828 100%)',
+    text: '#2A1500',
+    shadow: 'inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 0 rgba(80,30,0,0.25), 0 1px 3px rgba(0,0,0,0.4)',
+    textShadow: '0 1px 0 rgba(255,255,255,0.15)',
+    label: 'Bronze',
+  },
+} as const;
+
+export type RoadmapTier = keyof typeof ROADMAP_TIERS;

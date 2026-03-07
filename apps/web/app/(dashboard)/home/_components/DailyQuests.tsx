@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useReducedMotion } from '../_hooks/useReducedMotion';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
-import { t, rarity } from '../../../(onboarding)/_components/tokens';
+import { t, rarity, ROADMAP_TIERS } from '../../../(onboarding)/_components/tokens';
 import { XPFloat } from '../../../(onboarding)/_components/XPFloat';
 import { getDailyProgressMessage } from '../_utils/xp-utils';
 import { useI18nStore } from '@plan2skill/store';
@@ -24,12 +25,13 @@ interface DailyQuestsProps {
   onCompleteQuest: (taskId: string, xp: number) => void;
   onUndoQuest: (taskId: string) => void;
   onOpenQuest: (taskId: string) => void;
+  onOpenQuestReview?: (taskId: string) => void;
 }
 
 export function DailyQuests({
   questGroups, completedQuests, dailyCompleted, dailyTotal,
   xpFloatId, xpFloatAmount,
-  onCompleteQuest, onUndoQuest, onOpenQuest,
+  onCompleteQuest, onUndoQuest, onOpenQuest, onOpenQuestReview,
 }: DailyQuestsProps) {
   const tr = useI18nStore((s) => s.t);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
@@ -40,26 +42,28 @@ export function DailyQuests({
   // Track recently completed quests for celebration flash
   const [celebratingQuest, setCelebratingQuest] = useState<string | null>(null);
   const prevCompletedRef = useRef<Set<string>>(completedQuests);
+  // Completed section toggle
+  const [showCompleted, setShowCompleted] = useState(false);
+  // Roadmap filter
+  const [activeFilter, setActiveFilter] = useState<string>('all');
 
   // prefers-reduced-motion guard
-  const prefersReduced = useRef(false);
-  useEffect(() => {
-    prefersReduced.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  }, []);
+  const prefersReduced = useReducedMotion();
 
   // Detect newly completed quests for celebration flash
   useEffect(() => {
-    if (prefersReduced.current) return;
+    if (prefersReduced.current) { prevCompletedRef.current = completedQuests; return; }
     const prev = prevCompletedRef.current;
+    // Find first new completion (quests complete one at a time)
+    let newId: string | null = null;
     for (const id of Array.from(completedQuests)) {
-      if (!prev.has(id)) {
-        setCelebratingQuest(id);
-        const timer = setTimeout(() => setCelebratingQuest(null), 300);
-        prevCompletedRef.current = completedQuests;
-        return () => clearTimeout(timer);
-      }
+      if (!prev.has(id)) { newId = id; break; }
     }
     prevCompletedRef.current = completedQuests;
+    if (!newId) return;
+    setCelebratingQuest(newId);
+    const timer = setTimeout(() => setCelebratingQuest(null), 300);
+    return () => clearTimeout(timer);
   }, [completedQuests]);
 
   const toggleGroup = useCallback((id: string) => {
@@ -76,6 +80,27 @@ export function DailyQuests({
     }
   }, [expandedGroups]);
   const isExpanded = (id: string) => expandedGroups[id] !== false;
+
+  // Compute unique roadmap filters from quest tasks
+  const roadmapFilters = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const group of questGroups) {
+      for (const task of group.tasks) {
+        if (task.roadmapId && task.roadmapTitle && !seen.has(task.roadmapId)) {
+          seen.set(task.roadmapId, task.roadmapTitle);
+        }
+      }
+    }
+    return Array.from(seen.entries()).map(([id, title]) => ({ id, title }));
+  }, [questGroups]);
+
+  // Filter groups by selected roadmap
+  const filteredGroups = useMemo(() => {
+    if (activeFilter === 'all') return questGroups;
+    return questGroups
+      .map((g) => ({ ...g, tasks: g.tasks.filter((task) => task.roadmapId === activeFilter) }))
+      .filter((g) => g.tasks.length > 0);
+  }, [questGroups, activeFilter]);
 
   return (
     <div>
@@ -108,7 +133,50 @@ export function DailyQuests({
         )}
       </div>
 
-      {questGroups.length === 0 ? (
+      {/* Filter row — per-roadmap filters (shown when 2+ roadmaps) */}
+      {roadmapFilters.length > 1 && (
+        <div style={{
+          display: 'flex', gap: 6, flexWrap: 'wrap',
+          marginBottom: 12, paddingBottom: 8,
+        }}>
+          <button
+            onClick={() => setActiveFilter('all')}
+            style={{
+              padding: '4px 12px', borderRadius: 10,
+              background: activeFilter === 'all' ? `${t.violet}15` : 'transparent',
+              border: `1px solid ${activeFilter === 'all' ? t.violet : t.border}`,
+              cursor: 'pointer',
+              fontFamily: t.mono, fontSize: 10, fontWeight: 700,
+              color: activeFilter === 'all' ? t.violet : t.textMuted,
+              transition: 'all 0.15s ease',
+            }}
+          >
+            {tr('dashboard.filter_all', 'All')}
+          </button>
+          {roadmapFilters.map((rf) => {
+            const isActive = activeFilter === rf.id;
+            return (
+              <button
+                key={rf.id}
+                onClick={() => setActiveFilter(isActive ? 'all' : rf.id)}
+                style={{
+                  padding: '4px 12px', borderRadius: 10,
+                  background: isActive ? `${t.violet}15` : 'transparent',
+                  border: `1px solid ${isActive ? t.violet : t.border}`,
+                  cursor: 'pointer',
+                  fontFamily: t.mono, fontSize: 10, fontWeight: 700,
+                  color: isActive ? t.violet : t.textMuted,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {rf.title}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {filteredGroups.length === 0 ? (
         <div style={{
           padding: 32, borderRadius: 16,
           background: t.bgCard, border: `1px solid ${t.border}`,
@@ -126,7 +194,7 @@ export function DailyQuests({
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {questGroups.map(({ goal, goalData, tasks }, gi) => {
+          {filteredGroups.map(({ goal, goalData, tasks }, gi) => {
             const doneCount = tasks.filter(tk => completedQuests.has(tk.id)).length;
             const allDone = doneCount === tasks.length;
             return (
@@ -175,7 +243,7 @@ export function DailyQuests({
                       : 'fadeUp 0.25s ease-out',
                   }}>
                     {tasks.map((task, ti) => {
-                      const r = rarity[task.rarity];
+                      const r = rarity[task.rarity] ?? rarity.common;
                       const done = completedQuests.has(task.id);
                       const isHovered = hoveredQuest === task.id;
                       const isCelebrating = celebratingQuest === task.id;
@@ -266,6 +334,25 @@ export function DailyQuests({
                               {task.title}
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              {/* Roadmap tier chip */}
+                              {task.roadmapTitle && (() => {
+                                const tier = task.roadmapTier ?? 'diamond';
+                                const tierStyle = ROADMAP_TIERS[tier];
+                                return (
+                                  <span style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 3,
+                                    fontFamily: t.mono, fontSize: 8, fontWeight: 800,
+                                    padding: '2px 8px', borderRadius: 8,
+                                    background: done ? `${t.textMuted}10` : tierStyle.bg,
+                                    color: done ? t.textMuted : tierStyle.text,
+                                    boxShadow: done ? 'none' : tierStyle.shadow,
+                                    textShadow: done ? 'none' : tierStyle.textShadow,
+                                    textTransform: 'uppercase',
+                                  }}>
+                                    {task.roadmapTitle}
+                                  </span>
+                                );
+                              })()}
                               <span
                                 aria-label={`Rarity: ${r.icon}`}
                                 style={{
@@ -313,6 +400,101 @@ export function DailyQuests({
           })}
         </div>
       )}
+
+      {/* ── Completed Quests (collapsible) ── */}
+      {(() => {
+        const completedTasks = questGroups.flatMap((g) =>
+          g.tasks.filter((task) => completedQuests.has(task.id))
+        );
+        if (completedTasks.length === 0) return null;
+        return (
+          <div style={{ marginTop: 16 }}>
+            <button
+              onClick={() => setShowCompleted((v) => !v)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 12px', borderRadius: 10,
+                background: 'transparent', border: `1px solid ${t.border}`,
+                cursor: 'pointer', width: '100%', textAlign: 'left',
+                transition: 'background 0.2s ease',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = t.bgElevated; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+            >
+              <NeonIcon type="check" size={12} color="cyan" />
+              <span style={{
+                fontFamily: t.display, fontSize: 12, fontWeight: 700,
+                color: t.textSecondary, flex: 1,
+              }}>
+                {tr('dashboard.completed_today', 'Completed ({n})').replace('{n}', String(completedTasks.length))}
+              </span>
+              <span style={{
+                fontFamily: t.mono, fontSize: 10, color: t.textMuted,
+                transform: showCompleted ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s ease',
+                display: 'inline-block',
+              }}>
+                ▼
+              </span>
+            </button>
+            {showCompleted && (
+              <div style={{
+                marginTop: 8,
+                animation: 'fadeUp 0.2s ease-out',
+              }}>
+                {completedTasks.map((task) => {
+                  const r2 = rarity[task.rarity] ?? rarity.common;
+                  return (
+                    <button
+                      key={task.id}
+                      onClick={() => onOpenQuestReview?.(task.id)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '10px 14px', borderRadius: 12,
+                        background: t.bgElevated, border: `1px solid ${t.border}`,
+                        marginBottom: 4, opacity: 0.7,
+                        width: '100%', textAlign: 'left',
+                        cursor: onOpenQuestReview ? 'pointer' : 'default',
+                        transition: 'opacity 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => { if (onOpenQuestReview) (e.currentTarget as HTMLElement).style.opacity = '0.9'; }}
+                      onMouseLeave={(e) => { if (onOpenQuestReview) (e.currentTarget as HTMLElement).style.opacity = '0.7'; }}
+                    >
+                      <NeonIcon type="check" size={14} color="cyan" />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontFamily: t.body, fontSize: 13, fontWeight: 500,
+                          color: t.textMuted, textDecoration: 'line-through',
+                        }}>
+                          {task.title}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                          <span style={{
+                            fontFamily: t.mono, fontSize: 9, fontWeight: 700,
+                            padding: '1px 6px', borderRadius: 6,
+                            color: t.textMuted, background: `${t.textMuted}10`,
+                            textTransform: 'uppercase',
+                          }}>
+                            {r2.icon} {task.type}
+                          </span>
+                        </div>
+                      </div>
+                      <span style={{
+                        fontFamily: t.mono, fontSize: 11, fontWeight: 700,
+                        color: t.textMuted,
+                      }}>
+                        {onOpenQuestReview
+                          ? tr('quest.review', 'Review')
+                          : tr('quest.complete', 'Quest Complete!')}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }

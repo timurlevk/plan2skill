@@ -88,7 +88,14 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
 - Provide encouragement + a teaching moment
 - Explain the concept behind the question at a simpler level
 - Suggest a mental model or mnemonic to help remember
-- Do NOT give the answer directly — guide discovery`;
+- Do NOT give the answer directly — guide discovery
+
+**tutor mode:**
+- Act as a personal tutor: explain the topic clearly and thoroughly
+- Break down complex concepts into simpler parts with analogies
+- Adapt explanation depth to the learner's level
+- Provide examples and counter-examples to solidify understanding
+- Encourage questions and suggest what to explore next`;
 
     // L0: Archetype style
     if (domainModel.archetypeBlueprint) {
