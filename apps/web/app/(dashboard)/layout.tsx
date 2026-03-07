@@ -297,7 +297,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Guard: if onboarding not complete, redirect to v2 onboarding
   // Check localStorage first, then server as fallback (survives localStorage clear)
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const { data: serverProfile, isLoading: profileLoading } = trpc.user.profile.useQuery(
+  const { data: serverProfile, isFetched: profileFetched } = trpc.user.profile.useQuery(
     undefined,
     { enabled: isAuthenticated, staleTime: 1000 * 60 * 5, retry: 1 },
   );
@@ -310,12 +310,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [serverProfile, onboardingCompletedAt]);
 
   const onboardingDone = forgeComplete || !!onboardingCompletedAt || !!serverProfile?.onboardingCompleted;
+  // Only redirect when we have a definitive answer: localStorage hydrated AND
+  // (server responded OR user is not authenticated so no server check possible)
+  const serverChecked = profileFetched || !isAuthenticated;
   useEffect(() => {
-    // Wait for both localStorage hydration AND server response before redirecting
-    if (hydrated && !profileLoading && !onboardingDone) {
+    if (hydrated && serverChecked && !onboardingDone) {
       router.replace('/intent');
     }
-  }, [hydrated, profileLoading, onboardingDone, router]);
+  }, [hydrated, serverChecked, onboardingDone, router]);
 
   const charMeta = CHARACTERS.find(c => c.id === characterId);
   const archetype = archetypeId ? ARCHETYPES[archetypeId] : null;
