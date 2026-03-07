@@ -7,6 +7,7 @@ import { trpc } from '@plan2skill/api-client';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
 import { t } from '../../../(onboarding)/_components/tokens';
 import { RoadmapTierModal } from '../_components/RoadmapTierModal';
+import { TIER_LIMITS } from '../_components/constants';
 import { MiniForge } from './_components/MiniForge';
 import { useRoadmapProgress } from '../../home/_hooks/useRoadmapProgress';
 
@@ -25,7 +26,6 @@ const DOMAIN_CHIPS = [
   { id: 'business', label: 'Business', icon: 'briefcase' as const, color: t.gold },
 ];
 
-const TIER_LIMITS: Record<string, number> = { free: 2, pro: 7, champion: 15 };
 
 export default function NewRoadmapPage() {
   const router = useRouter();
