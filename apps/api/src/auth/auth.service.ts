@@ -205,6 +205,7 @@ export class AuthService {
         displayName: name,
         authProvider: 'google',
         providerSubId: `dev_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        role: 'admin',
         progression: {
           create: {
             totalXp: 0,
