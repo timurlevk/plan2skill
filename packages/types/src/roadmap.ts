@@ -12,6 +12,7 @@ export interface Roadmap {
   dailyMinutes: number;
   status: RoadmapStatus;
   progress: number; // 0-100
+  archivedAt?: string | null;
   aiModel: string;
   milestones: Milestone[];
   createdAt: string;

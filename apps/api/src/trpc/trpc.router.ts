@@ -191,6 +191,16 @@ export class TrpcRouter implements OnModuleInit {
         .mutation(({ ctx, input }) => {
           return this.roadmapService.resumeRoadmap(ctx.userId, input.roadmapId);
         }),
+      archive: protectedProcedure
+        .input(z.object({ roadmapId: z.string().uuid() }))
+        .mutation(({ ctx, input }) => {
+          return this.roadmapService.archiveRoadmap(ctx.userId, input.roadmapId);
+        }),
+      reactivate: protectedProcedure
+        .input(z.object({ roadmapId: z.string().uuid() }))
+        .mutation(({ ctx, input }) => {
+          return this.roadmapService.reactivateRoadmap(ctx.userId, input.roadmapId);
+        }),
       checkLimit: protectedProcedure.query(({ ctx }) => {
         return this.roadmapService.validateRoadmapLimit(ctx.userId);
       }),

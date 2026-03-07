@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RoadmapGenerator } from '../ai/generators/roadmap.generator';
 import { DomainClassifierService } from '../ai/generators/domain-classifier.service';
@@ -502,6 +502,36 @@ export class RoadmapService {
     return this.prisma.roadmap.update({
       where: { id: roadmapId },
       data: { status: 'active' },
+    });
+  }
+
+  async archiveRoadmap(userId: string, roadmapId: string) {
+    const roadmap = await this.prisma.roadmap.findFirst({
+      where: { id: roadmapId, userId, status: { in: ['active', 'paused'] } },
+    });
+    if (!roadmap) throw new NotFoundException('Active or paused quest line not found');
+    return this.prisma.roadmap.update({
+      where: { id: roadmapId },
+      data: { status: 'archived', archivedAt: new Date() },
+    });
+  }
+
+  async reactivateRoadmap(userId: string, roadmapId: string) {
+    const roadmap = await this.prisma.roadmap.findFirst({
+      where: { id: roadmapId, userId, status: 'archived' },
+    });
+    if (!roadmap) throw new NotFoundException('Archived quest line not found');
+
+    const gate = await this.validateRoadmapLimit(userId);
+    if (!gate.allowed) {
+      throw new BadRequestException(
+        `Tier limit reached (${gate.current}/${gate.limit}). Upgrade to reactivate.`,
+      );
+    }
+
+    return this.prisma.roadmap.update({
+      where: { id: roadmapId },
+      data: { status: 'paused', archivedAt: null },
     });
   }
 

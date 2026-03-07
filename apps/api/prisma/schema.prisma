@@ -210,6 +210,7 @@ model Roadmap {
   domainMeta           Json?
 
   lastAccessedAt DateTime? // Dashboard redesign: tier assignment by recency
+  archivedAt       DateTime?
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
