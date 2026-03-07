@@ -17,6 +17,7 @@ import { MilestoneDetail } from '../_components/MilestoneDetail';
 import { CompletionCelebration } from '../_components/CompletionCelebration';
 import { WhatsNextScreen } from '../_components/WhatsNextScreen';
 import { useRoadmapCompletion } from '../_hooks/useRoadmapCompletion';
+import { RoadmapTierModal } from '../_components/RoadmapTierModal';
 
 // ═══════════════════════════════════════════
 // TIMELINE DRILL-DOWN — BL-007
@@ -114,6 +115,10 @@ export default function TimelineDrillDownPage() {
   const storeResume = useRoadmapStore((s) => s.resumeRoadmap);
   const pauseMutation = trpc.roadmap.pause.useMutation();
   const resumeMutation = trpc.roadmap.resume.useMutation();
+  const storeArchive = useRoadmapStore((s) => s.archiveRoadmap);
+  const storeReactivate = useRoadmapStore((s) => s.reactivateRoadmap);
+  const archiveMutation = trpc.roadmap.archive.useMutation();
+  const reactivateMutation = trpc.roadmap.reactivate.useMutation();
 
   const handlePause = useCallback(() => {
     storePause(roadmapId);
@@ -128,6 +133,28 @@ export default function TimelineDrillDownPage() {
       onError: () => storePause(roadmapId),
     });
   }, [roadmapId, storePause, storeResume, resumeMutation]);
+
+  // Tier gate for reactivation
+  const [showTierModal, setShowTierModal] = useState(false);
+  const subscriptionTier = useProgressionStore((s) => s.subscriptionTier);
+  const TIER_LIMITS: Record<string, number> = { free: 2, pro: 7, champion: 15 };
+  const tierLimit = TIER_LIMITS[subscriptionTier] ?? 2;
+  const allRoadmaps = useRoadmapStore((s) => s.roadmaps);
+  const activeCount = allRoadmaps.filter(
+    (r) => !r.id.startsWith('mock-') && (r.status === 'active' || r.status === 'generating'),
+  ).length;
+
+  const handleReactivate = useCallback(() => {
+    storeReactivate(roadmapId);
+    reactivateMutation.mutate({ roadmapId }, {
+      onError: (err) => {
+        storeArchive(roadmapId);
+        if (err.message.includes('Tier limit')) {
+          setShowTierModal(true);
+        }
+      },
+    });
+  }, [roadmapId, storeArchive, storeReactivate, reactivateMutation]);
 
   // Data from store (hydrated by useServerHydration)
   const storeRoadmap = useRoadmapStore((s) =>
@@ -344,6 +371,40 @@ export default function TimelineDrillDownPage() {
         </div>
       )}
 
+      {/* Archived banner */}
+      {roadmap.status === 'archived' && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 16, padding: '10px 16px', borderRadius: 12, marginBottom: 16,
+          background: `${t.textMuted}08`, border: `1px solid ${t.textMuted}20`,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <NeonIcon type="book" size={16} color={t.textMuted} />
+            <span style={{
+              fontFamily: t.body, fontSize: 13, fontWeight: 600, color: t.textMuted,
+            }}>
+              {tr('roadmap.archived_banner', 'This Quest Line is archived')}
+            </span>
+          </div>
+          <button
+            onClick={handleReactivate}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '6px 14px', borderRadius: 8,
+              background: `${t.cyan}10`, border: `1px solid ${t.cyan}25`,
+              cursor: 'pointer', fontFamily: t.display, fontSize: 12,
+              fontWeight: 700, color: t.cyan,
+              transition: 'background 0.15s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = `${t.cyan}18`; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = `${t.cyan}10`; }}
+          >
+            <NeonIcon type="lightning" size={12} color={t.cyan} />
+            {tr('roadmap.reactivate', 'Reactivate')}
+          </button>
+        </div>
+      )}
+
       {/* ─── Overall Progress Bar ─── */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24,
@@ -477,6 +538,14 @@ export default function TimelineDrillDownPage() {
             completion.send({ type: 'SELECT_OPTION', option });
             completion.send({ type: 'CONFIRM' });
           }}
+        />
+      )}
+
+      {showTierModal && (
+        <RoadmapTierModal
+          isOpen
+          onClose={() => setShowTierModal(false)}
+          tierInfo={{ tier: subscriptionTier, current: activeCount, limit: tierLimit }}
         />
       )}
     </div>
