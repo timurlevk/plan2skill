@@ -10,6 +10,7 @@ import { t } from '../../(onboarding)/_components/tokens';
 import { QuestLineCard } from './_components/QuestLineCard';
 import type { QuestLineAction } from './_components/QuestLineCard';
 import { RoadmapTierModal } from './_components/RoadmapTierModal';
+import { TIER_LIMITS } from './_components/constants';
 
 // ═══════════════════════════════════════════
 // QUEST MAP HUB — BL-007 + Phase 5H
@@ -127,7 +128,6 @@ export default function QuestMapPage() {
 
   // Count active (non-mock) roadmaps for premium gate
   const subscriptionTier = useProgressionStore((s) => s.subscriptionTier);
-  const TIER_LIMITS: Record<string, number> = { free: 2, pro: 7, champion: 15 };
   const tierLimit = TIER_LIMITS[subscriptionTier] ?? 2;
   const activeCount = allRoadmaps.filter(
     (r) => !r.id.startsWith('mock-') && (r.status === 'active' || r.status === 'generating'),
@@ -430,6 +430,8 @@ export default function QuestMapPage() {
             backdropFilter: 'blur(4px)',
           }}
           onClick={(e) => { if (e.target === e.currentTarget) setConfirmArchiveId(null); }}
+          onKeyDown={(e) => { if (e.key === 'Escape') setConfirmArchiveId(null); }}
+          tabIndex={-1}
           role="presentation"
         >
           <div
@@ -478,6 +480,7 @@ export default function QuestMapPage() {
             {/* Buttons */}
             <div style={{ display: 'flex', gap: 10 }}>
               <button
+                autoFocus
                 onClick={() => setConfirmArchiveId(null)}
                 style={{
                   flex: 1, padding: '12px 20px', borderRadius: 12,

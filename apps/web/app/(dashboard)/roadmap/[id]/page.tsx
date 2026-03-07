@@ -18,6 +18,7 @@ import { CompletionCelebration } from '../_components/CompletionCelebration';
 import { WhatsNextScreen } from '../_components/WhatsNextScreen';
 import { useRoadmapCompletion } from '../_hooks/useRoadmapCompletion';
 import { RoadmapTierModal } from '../_components/RoadmapTierModal';
+import { TIER_LIMITS } from '../_components/constants';
 
 // ═══════════════════════════════════════════
 // TIMELINE DRILL-DOWN — BL-007
@@ -137,7 +138,6 @@ export default function TimelineDrillDownPage() {
   // Tier gate for reactivation
   const [showTierModal, setShowTierModal] = useState(false);
   const subscriptionTier = useProgressionStore((s) => s.subscriptionTier);
-  const TIER_LIMITS: Record<string, number> = { free: 2, pro: 7, champion: 15 };
   const tierLimit = TIER_LIMITS[subscriptionTier] ?? 2;
   const allRoadmaps = useRoadmapStore((s) => s.roadmaps);
   const activeCount = allRoadmaps.filter(

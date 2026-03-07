@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { Roadmap } from '@plan2skill/types';
+import { useI18nStore } from '@plan2skill/store';
 import { NeonIcon } from '../../../(onboarding)/_components/NeonIcon';
 import type { NeonIconType } from '../../../(onboarding)/_components/NeonIcon';
 import { t } from '../../../(onboarding)/_components/tokens';
@@ -37,6 +38,8 @@ interface QuestLineCardProps {
 }
 
 export function QuestLineCard({ roadmap, isActive, onClick, onAction }: QuestLineCardProps) {
+  const tr = useI18nStore((s) => s.t);
+
   // SSR-safe reduced-motion hook (BLOCKER — Крок 9)
   const [reducedMotion, setReducedMotion] = useState(false);
   useEffect(() => {
@@ -87,18 +90,18 @@ export function QuestLineCard({ roadmap, isActive, onClick, onAction }: QuestLin
     menuItems.push(
       { label: 'Adjust Quest Line', icon: 'sparkle', color: t.violet, action: 'adjust' },
       { label: 'Pause Quest Line', icon: 'shield', color: '#FBBF24', action: 'pause' },
-      { label: 'Archive Quest Line', icon: 'book', color: t.textMuted, action: 'archive' },
+      { label: tr('roadmap.archive_action', 'Archive Quest Line'), icon: 'book', color: t.textMuted, action: 'archive' },
     );
   }
   if (roadmap.status === 'paused') {
     menuItems.push(
       { label: 'Resume Quest Line', icon: 'lightning', color: t.cyan, action: 'resume' },
-      { label: 'Archive Quest Line', icon: 'book', color: t.textMuted, action: 'archive' },
+      { label: tr('roadmap.archive_action', 'Archive Quest Line'), icon: 'book', color: t.textMuted, action: 'archive' },
     );
   }
   if (roadmap.status === 'archived') {
     menuItems.push(
-      { label: 'Reactivate Quest Line', icon: 'lightning', color: t.cyan, action: 'reactivate' },
+      { label: tr('roadmap.reactivate_action', 'Reactivate Quest Line'), icon: 'lightning', color: t.cyan, action: 'reactivate' },
     );
   }
 
@@ -305,7 +308,7 @@ export function QuestLineCard({ roadmap, isActive, onClick, onAction }: QuestLin
               fontFamily: t.body, fontSize: 12, fontWeight: 600,
               color: t.textMuted,
             }}>
-              Archived — view history or reactivate
+              {tr('roadmap.archived_message', 'Archived — view history or reactivate')}
             </span>
           </div>
         )}

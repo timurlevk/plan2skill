@@ -1078,9 +1078,14 @@ const UI_TRANSLATIONS: UiTranslationRow[] = [
   { entityId: 'roadmap.reactivate', en: 'Reactivate', uk: 'Відновити', pl: 'Przywróć' },
   { entityId: 'roadmap.reactivate_tier_blocked', en: 'Upgrade your tier to reactivate more quest lines', uk: 'Оновіть тір, щоб відновити більше квест-ліній', pl: 'Ulepsz swój poziom, aby przywrócić więcej linii questów' },
   { entityId: 'roadmap.quest_history', en: 'Quest History', uk: 'Історія квестів', pl: 'Historia questów' },
-  { entityId: 'roadmap.completed_on', en: 'Completed on', uk: 'Завершено', pl: 'Ukończono' },
-  { entityId: 'roadmap.xp_earned', en: 'XP earned', uk: 'Отримано XP', pl: 'Zdobyte XP' },
+  { entityId: 'roadmap.completed_on', en: 'Last completed: {date}', uk: 'Останнє виконання: {date}', pl: 'Ostatnio ukończono: {date}' },
+  { entityId: 'roadmap.xp_earned', en: '{xp} XP earned', uk: '{xp} XP отримано', pl: '{xp} XP zdobyte' },
   { entityId: 'roadmap.history_empty', en: 'No archived or completed quest lines yet', uk: 'Ще немає архівованих або завершених квест-ліній', pl: 'Brak zarchiwizowanych ani ukończonych linii questów' },
+  { entityId: 'roadmap.archive_confirm_action', en: 'Deactivate', uk: 'Деактивувати', pl: 'Dezaktywuj' },
+  { entityId: 'roadmap.quests_completed', en: 'quests completed', uk: 'квестів виконано', pl: 'questów ukończonych' },
+  { entityId: 'roadmap.archive_action', en: 'Archive Quest Line', uk: 'Архівувати квест-лінію', pl: 'Archiwizuj linię questów' },
+  { entityId: 'roadmap.reactivate_action', en: 'Reactivate Quest Line', uk: 'Відновити квест-лінію', pl: 'Przywróć linię questów' },
+  { entityId: 'roadmap.archived_message', en: 'Archived — view history or reactivate', uk: 'Архівовано — перегляньте історію або відновіть', pl: 'Zarchiwizowano — zobacz historię lub przywróć' },
 
   // Dashboard Redesign — Phase 3
   { entityId: 'dashboard.training_grounds', en: 'Training Grounds', uk: 'Тренувальні поля', pl: 'Poligon treningowy' },

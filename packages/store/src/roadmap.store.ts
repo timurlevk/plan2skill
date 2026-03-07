@@ -62,13 +62,17 @@ export const useRoadmapStore = create<RoadmapState>((set) => ({
   archiveRoadmap: (roadmapId) =>
     set((s) => ({
       roadmaps: s.roadmaps.map((r) =>
-        r.id === roadmapId ? { ...r, status: 'archived' as RoadmapStatus } : r,
+        r.id === roadmapId
+          ? { ...r, status: 'archived' as RoadmapStatus, archivedAt: new Date().toISOString() }
+          : r,
       ),
     })),
   reactivateRoadmap: (roadmapId) =>
     set((s) => ({
       roadmaps: s.roadmaps.map((r) =>
-        r.id === roadmapId ? { ...r, status: 'paused' as RoadmapStatus } : r,
+        r.id === roadmapId
+          ? { ...r, status: 'paused' as RoadmapStatus, archivedAt: null }
+          : r,
       ),
     })),
   updateRoadmap: (roadmap) =>
