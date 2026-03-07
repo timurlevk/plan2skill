@@ -262,6 +262,7 @@ export default function TimelineDrillDownPage() {
 
   const selectedMilestone = selectedIndex !== null ? milestones[selectedIndex] : null;
   const isCompleted = roadmap.status === 'completed';
+  const isArchived = roadmap.status === 'archived';
 
   return (
     <div style={{ animation: prefersReducedMotion ? 'none' : 'fadeUp 0.4s ease-out' }}>
@@ -515,8 +516,61 @@ export default function TimelineDrillDownPage() {
           <MilestoneDetail
             key={selectedMilestone.id}
             milestone={selectedMilestone}
-            isActive={selectedMilestone.status === 'active'}
+            isActive={isArchived ? false : selectedMilestone.status === 'active'}
           />
+
+          {/* Quest completion history for archived/completed roadmaps */}
+          {(isArchived || isCompleted) && (() => {
+            const completedTasks = selectedMilestone.tasks.filter((task) => task.status === 'completed');
+            const totalXp = completedTasks.reduce((sum, task) => sum + task.xpReward, 0);
+            if (completedTasks.length === 0) return null;
+            return (
+              <div style={{
+                marginTop: 12, padding: '14px 16px', borderRadius: 12,
+                background: `${t.cyan}06`, border: `1px solid ${t.cyan}15`,
+              }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8,
+                }}>
+                  <NeonIcon type="check" size={14} color="cyan" />
+                  <span style={{
+                    fontFamily: t.display, fontSize: 12, fontWeight: 700,
+                    color: t.cyan,
+                  }}>
+                    {tr('roadmap.quest_history', 'Quest History')}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                  <span style={{
+                    fontFamily: t.mono, fontSize: 11, fontWeight: 600,
+                    color: t.textSecondary,
+                  }}>
+                    {completedTasks.length}/{selectedMilestone.tasks.length}{' '}
+                    {tr('roadmap.quests_completed', 'quests completed')}
+                  </span>
+                  {totalXp > 0 && (
+                    <span style={{
+                      fontFamily: t.mono, fontSize: 11, fontWeight: 600,
+                      color: t.gold,
+                    }}>
+                      {tr('roadmap.xp_earned', '{xp} XP earned').replace('{xp}', String(totalXp))}
+                    </span>
+                  )}
+                  {completedTasks.length > 0 && completedTasks[completedTasks.length - 1]!.completedAt && (
+                    <span style={{
+                      fontFamily: t.mono, fontSize: 11, fontWeight: 600,
+                      color: t.textMuted,
+                    }}>
+                      {tr('roadmap.completed_on', 'Last completed: {date}').replace(
+                        '{date}',
+                        new Date(completedTasks[completedTasks.length - 1]!.completedAt!).toLocaleDateString(),
+                      )}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 

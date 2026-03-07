@@ -107,6 +107,7 @@ export default function QuestMapPage() {
 
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+  const [confirmArchiveId, setConfirmArchiveId] = useState<string | null>(null);
 
   // Fallback: build mock roadmap from onboarding store when server data absent
   const { selectedGoals, dailyMinutes, aiEstimateWeeks } = useOnboardingStore();
@@ -165,16 +166,7 @@ export default function QuestMapPage() {
         );
         break;
       case 'archive':
-        storeArchive(action.roadmapId);
-        archiveMutation.mutate(
-          { roadmapId: action.roadmapId },
-          {
-            onError: (err) => {
-              console.warn('[QuestMap] Archive sync failed:', err.message);
-              storeResume(action.roadmapId);
-            },
-          },
-        );
+        setConfirmArchiveId(action.roadmapId);
         break;
       case 'reactivate':
         storeReactivate(action.roadmapId);
@@ -193,6 +185,30 @@ export default function QuestMapPage() {
         break;
     }
   }, [router, storePause, storeResume, storeArchive, storeReactivate, pauseMutation, resumeMutation, archiveMutation, reactivateMutation]);
+
+  // Confirm archive — performs the actual archive after user confirms
+  const confirmArchive = useCallback(() => {
+    if (!confirmArchiveId) return;
+    // Capture previous status before optimistic update for proper rollback
+    const targetRoadmap = allRoadmaps.find((r) => r.id === confirmArchiveId);
+    const previousStatus = targetRoadmap?.status;
+    storeArchive(confirmArchiveId);
+    archiveMutation.mutate(
+      { roadmapId: confirmArchiveId },
+      {
+        onError: (err) => {
+          console.warn('[QuestMap] Archive sync failed:', err.message);
+          // Rollback to the actual previous status, not always 'active'
+          if (previousStatus === 'paused') {
+            storePause(confirmArchiveId);
+          } else {
+            storeResume(confirmArchiveId);
+          }
+        },
+      },
+    );
+    setConfirmArchiveId(null);
+  }, [confirmArchiveId, allRoadmaps, storeArchive, storePause, storeResume, archiveMutation]);
 
   // "Add Quest Line" click handler — with tier gate
   const handleAddQuestLine = useCallback(() => {
@@ -346,7 +362,7 @@ export default function QuestMapPage() {
           <p style={{
             fontFamily: t.body, fontSize: 14, color: t.textMuted, textAlign: 'center',
           }}>
-            {tr('questmap.history_empty', 'No archived or completed quest lines yet')}
+            {tr('roadmap.history_empty', 'No archived or completed quest lines yet')}
           </p>
         </div>
       ) : (
@@ -402,6 +418,100 @@ export default function QuestMapPage() {
           onClose={() => setShowTierModal(false)}
           tierInfo={{ tier: subscriptionTier, current: activeCount, limit: tierLimit }}
         />
+      )}
+
+      {/* Archive confirmation modal */}
+      {confirmArchiveId !== null && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0, 0, 0, 0.6)',
+            backdropFilter: 'blur(4px)',
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setConfirmArchiveId(null); }}
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={tr('roadmap.archive_confirm_title', 'Deactivate Quest Line?')}
+            style={{
+              maxWidth: 400, width: '90vw',
+              padding: 28, borderRadius: 20,
+              background: t.bgCard,
+              border: `1px solid ${t.border}`,
+              boxShadow: `0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px ${t.violet}10`,
+              animation: reducedMotion ? 'none' : 'fadeUp 0.3s ease-out',
+            }}
+          >
+            {/* Icon */}
+            <div style={{
+              display: 'flex', justifyContent: 'center', marginBottom: 16,
+            }}>
+              <div style={{
+                width: 56, height: 56, borderRadius: 18,
+                background: `${t.rose}12`,
+                border: `1px solid ${t.rose}25`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <NeonIcon type="book" size={28} color="rose" />
+              </div>
+            </div>
+
+            {/* Title */}
+            <h2 style={{
+              fontFamily: t.display, fontSize: 20, fontWeight: 900,
+              color: t.text, textAlign: 'center', marginBottom: 8,
+            }}>
+              {tr('roadmap.archive_confirm_title', 'Deactivate Quest Line?')}
+            </h2>
+
+            {/* Body */}
+            <p style={{
+              fontFamily: t.body, fontSize: 14, color: t.textSecondary,
+              textAlign: 'center', marginBottom: 24, lineHeight: 1.5,
+            }}>
+              {tr('roadmap.archive_confirm_body', 'You can restore it from History. All progress is saved.')}
+            </p>
+
+            {/* Buttons */}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => setConfirmArchiveId(null)}
+                style={{
+                  flex: 1, padding: '12px 20px', borderRadius: 12,
+                  background: 'transparent',
+                  border: `1px solid ${t.border}`,
+                  cursor: 'pointer',
+                  fontFamily: t.display, fontSize: 14, fontWeight: 700,
+                  color: t.textSecondary,
+                  transition: 'background 0.15s ease, border-color 0.15s ease',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = `${t.textMuted}10`; e.currentTarget.style.borderColor = t.borderHover; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = t.border; }}
+              >
+                {tr('common.cancel', 'Cancel')}
+              </button>
+              <button
+                onClick={confirmArchive}
+                style={{
+                  flex: 1, padding: '12px 20px', borderRadius: 12,
+                  background: `${t.rose}15`,
+                  border: `1px solid ${t.rose}30`,
+                  cursor: 'pointer',
+                  fontFamily: t.display, fontSize: 14, fontWeight: 700,
+                  color: t.rose,
+                  transition: 'background 0.15s ease, border-color 0.15s ease',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = `${t.rose}25`; e.currentTarget.style.borderColor = `${t.rose}50`; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = `${t.rose}15`; e.currentTarget.style.borderColor = `${t.rose}30`; }}
+              >
+                {tr('roadmap.archive_confirm_action', 'Deactivate')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
