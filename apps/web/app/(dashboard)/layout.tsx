@@ -899,33 +899,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* ═══ Main Content + Right Sidebar ═══ */}
-        <div style={{ flex: 1, position: 'relative', zIndex: 1, display: 'flex', overflowY: 'auto' }}>
-          <main style={{ flex: 1, minWidth: 0 }}>
-            {/* Mobile top padding for sticky header */}
-            <div className="md:hidden" style={{ height: 56 }} />
-            <div style={{ maxWidth: 720, margin: '0 auto', padding: '32px 24px 96px' }}>
-              {children}
-            </div>
-          </main>
+        <div style={{ flex: 1, position: 'relative', zIndex: 1, overflowY: 'auto' }}>
+          <div style={{ display: 'flex', minHeight: '100%' }}>
+            <main style={{ flex: 1, minWidth: 0 }}>
+              {/* Mobile top padding for sticky header */}
+              <div className="md:hidden" style={{ height: 56 }} />
+              <div style={{ maxWidth: 720, margin: '0 auto', padding: '32px 24px 96px' }}>
+                {children}
+              </div>
+            </main>
 
-          {/* ═══ Right Sidebar — BL-004: secondary content, sticky ═══ */}
-          <aside
-            className="dashboard-right-sidebar"
-            style={{
-              borderLeft: `1px solid ${t.border}`,
-            }}
-          >
-            <div style={{
-              position: 'sticky',
-              top: 0,
-              maxHeight: '100vh',
-              overflowY: 'auto',
-              paddingLeft: 20,
-              paddingRight: 20,
-            }}>
-              <RightSidebar />
-            </div>
-          </aside>
+            {/* ═══ Right Sidebar — BL-004: secondary content, sticky ═══ */}
+            <aside
+              className="dashboard-right-sidebar"
+              style={{
+                borderLeft: `1px solid ${t.border}`,
+              }}
+            >
+              <div style={{
+                position: 'sticky',
+                top: 0,
+                maxHeight: '100vh',
+                overflowY: 'auto',
+                paddingLeft: 20,
+                paddingRight: 20,
+              }}>
+                <RightSidebar />
+              </div>
+            </aside>
+          </div>
         </div>
 
         {/* ═══ Mobile Bottom Tab Bar ═══ */}
