@@ -68,7 +68,7 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
     {
       "title": "string (5-200 chars)",
       "description": "string (10-500 chars)",
-      "taskType": "video|article|quiz|project|review|boss",
+      "taskType": "article|quiz|project|review|boss|reflection",
       "questType": "knowledge|physical|creative|habit|social|reflection",
       "estimatedMinutes": number (5-120),
       "xpReward": number (10-500),

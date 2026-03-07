@@ -17,13 +17,13 @@ interface MilestoneDetailProps {
 }
 
 // Task type → icon mapping
-const TASK_TYPE_ICONS: Record<string, 'book' | 'code' | 'sparkle' | 'rocket' | 'refresh' | 'crown'> = {
-  video: 'book',
+const TASK_TYPE_ICONS: Record<string, 'book' | 'code' | 'sparkle' | 'rocket' | 'refresh' | 'crown' | 'compass'> = {
   article: 'book',
   quiz: 'sparkle',
   project: 'rocket',
   review: 'refresh',
   boss: 'crown',
+  reflection: 'compass',
 };
 
 export function MilestoneDetail({ milestone, isActive }: MilestoneDetailProps) {

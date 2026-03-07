@@ -34,11 +34,11 @@ interface ContinueQuestHeroProps {
 /** Icon map for quest types */
 const typeIcon: Record<string, string> = {
   article: 'book',
-  video: 'play',
   quiz: 'quiz',
   project: 'rocket',
   review: 'book',
   boss: 'crown',
+  reflection: 'compass',
 };
 
 export function ContinueQuestHero({

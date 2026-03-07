@@ -3,12 +3,12 @@ import { z } from 'zod';
 // ─── Shared Enums ───────────────────────────────────────────────
 
 export const TaskTypeSchema = z.enum([
-  'video',
   'article',
   'quiz',
   'project',
   'review',
   'boss',
+  'reflection',
 ]);
 
 export const RaritySchema = z.enum([

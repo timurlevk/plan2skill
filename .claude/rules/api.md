@@ -15,6 +15,13 @@ paths:
 - Use cascade delete for user-owned relations
 - All queries must handle `null`/`undefined` from optional relations
 
+## Post-Release Checklist
+After switching to a new release branch or pulling schema changes:
+1. `cd apps/api && npx prisma migrate dev` (or `npx prisma migrate reset --force` if drift detected)
+2. `cd apps/api && npx tsx prisma/seed-i18n-full.ts` (re-seed translations + reference data)
+3. Restart backend: `npm run dev`
+- **Never skip migration + seeding** — the database must match the current schema before starting dev servers
+
 ## tRPC Router
 - All procedures defined in `trpc.router.ts` with Zod input validation
 - Use `.query()` for reads, `.mutation()` for writes

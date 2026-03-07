@@ -42,7 +42,7 @@ export type RoadmapStatus = 'generating' | 'active' | 'paused' | 'completed' | '
 export type RoadmapTier = 'diamond' | 'gold' | 'silver' | 'bronze';
 export type MilestoneStatus = 'locked' | 'active' | 'completed' | 'boss';
 export type TaskStatus = 'locked' | 'available' | 'in_progress' | 'completed' | 'skipped';
-export type TaskType = 'video' | 'article' | 'quiz' | 'project' | 'review' | 'boss';
+export type TaskType = 'article' | 'quiz' | 'project' | 'review' | 'boss' | 'reflection';
 
 // ─── Subscription ────────────────────────────────────────────────
 export type SubscriptionTier = 'free' | 'pro' | 'champion';
