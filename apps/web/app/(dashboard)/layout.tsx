@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useOnboardingStore, useOnboardingV2Store, useProgressionStore, useCharacterStore, useSocialStore, useAuthStore, isOnboardingV1Hydrated, isOnboardingV2Hydrated, getLevelInfo } from '@plan2skill/store';
+import { useOnboardingStore, useOnboardingV2Store, useProgressionStore, useCharacterStore, useSocialStore, useAuthStore, isOnboardingV1Hydrated, isOnboardingV2Hydrated, isAuthHydrated, getLevelInfo } from '@plan2skill/store';
 import { NeonIcon } from '../(onboarding)/_components/NeonIcon';
 import { t } from '../(onboarding)/_components/tokens';
 import { useI18nStore } from '@plan2skill/store';
@@ -279,14 +279,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const displayName = useSocialStore((s) => s.displayName);
   const tr = useI18nStore((s) => s.t);
   useLoadTranslations();
-  // Hydration guard — wait for Zustand persist to rehydrate from localStorage
-  // Uses onRehydrateStorage callback (best practice, not generic useEffect)
-  const [hydrated, setHydrated] = useState(() => isOnboardingV1Hydrated() && isOnboardingV2Hydrated());
+  // Hydration guard — wait for ALL Zustand persisted stores to rehydrate from localStorage
+  // (onboarding v1, v2, AND auth) before making any routing decisions
+  const [hydrated, setHydrated] = useState(() =>
+    isOnboardingV1Hydrated() && isOnboardingV2Hydrated() && isAuthHydrated()
+  );
   useEffect(() => {
     if (hydrated) return;
-    // Poll briefly — onRehydrateStorage fires synchronously after persist reads localStorage
     const id = setInterval(() => {
-      if (isOnboardingV1Hydrated() && isOnboardingV2Hydrated()) {
+      if (isOnboardingV1Hydrated() && isOnboardingV2Hydrated() && isAuthHydrated()) {
         setHydrated(true);
         clearInterval(id);
       }
@@ -295,11 +296,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [hydrated]);
 
   // Guard: if onboarding not complete, redirect to v2 onboarding
-  // Check localStorage first, then server as fallback (survives localStorage clear)
+  // Server fallback: if localStorage was cleared, check DB via user.profile
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { data: serverProfile, isFetched: profileFetched } = trpc.user.profile.useQuery(
     undefined,
-    { enabled: isAuthenticated, staleTime: 1000 * 60 * 5, retry: 1 },
+    { enabled: hydrated && isAuthenticated, staleTime: 1000 * 60 * 5, retry: 1 },
   );
 
   // Restore onboarding state from server if localStorage was cleared
@@ -310,8 +311,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [serverProfile, onboardingCompletedAt]);
 
   const onboardingDone = forgeComplete || !!onboardingCompletedAt || !!serverProfile?.onboardingCompleted;
-  // Only redirect when we have a definitive answer: localStorage hydrated AND
-  // (server responded OR user is not authenticated so no server check possible)
+  // Wait for: stores hydrated + (server responded OR not authenticated)
   const serverChecked = profileFetched || !isAuthenticated;
   useEffect(() => {
     if (hydrated && serverChecked && !onboardingDone) {

@@ -25,6 +25,12 @@ const initialState = {
   isLoading: false,
 };
 
+// Hydration tracking — resolves when localStorage is loaded
+let _authHydrated = false;
+let _authHydratedResolve: () => void;
+export const authHydratedPromise = new Promise<void>((r) => { _authHydratedResolve = r; });
+export function isAuthHydrated() { return _authHydrated; }
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -49,6 +55,10 @@ export const useAuthStore = create<AuthState>()(
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,
       }),
+      onRehydrateStorage: () => () => {
+        _authHydrated = true;
+        _authHydratedResolve();
+      },
     },
   ),
 );

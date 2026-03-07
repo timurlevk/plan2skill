@@ -1,4 +1,4 @@
-export { useAuthStore } from './auth.store';
+export { useAuthStore, isAuthHydrated } from './auth.store';
 export { useOnboardingStore, isOnboardingV1Hydrated } from './onboarding.store';
 export { useOnboardingV2Store, isOnboardingV2Hydrated, SUPPORTED_LOCALES, PICKER_LOCALES, LOCALE_ENDONYMS, detectLocale } from './onboarding-v2.store';
 export type { SupportedLocale } from './onboarding-v2.store';
