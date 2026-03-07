@@ -367,13 +367,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Mobile nav tab press state
   const [pressedTab, setPressedTab] = useState<string | null>(null);
 
-  // Early return AFTER all hooks (Rules of Hooks)
-  if (!hydrated || !onboardingDone) return null;
-
-  return (
-    <>
-      {/* ── Keyframes: synced 1:1 with onboarding layout ── */}
-      <style>{`
+  // ── Keyframes: always rendered (even during loading) so animations work immediately ──
+  const keyframesStyle = (
+    <style>{`
         @keyframes fadeUp {
           from { opacity: 0; transform: translateY(24px); }
           to   { opacity: 1; transform: translateY(0); }
@@ -558,6 +554,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           }
         }
       `}</style>
+  );
+
+  // Early return AFTER all hooks (Rules of Hooks)
+  // Keyframes are always injected so animations work on first paint
+  if (!hydrated || !onboardingDone) return keyframesStyle;
+
+  return (
+    <>
+      {keyframesStyle}
 
       <div className="flex" style={{ background: t.bg, position: 'relative', height: '100vh', overflow: 'hidden' }}>
         {/* Ambient glows — static radial-gradient backgrounds (§6: ambient background motion) */}
