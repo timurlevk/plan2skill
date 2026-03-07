@@ -26,7 +26,11 @@ export function RoadmapCards({ selectedGoals, skillAssessments }: RoadmapCardsPr
     return [];
   }, [serverRoadmaps]);
 
-  if (roadmaps.length === 0) return null;
+  const displayRoadmaps = useMemo<Roadmap[]>(() => {
+    return roadmaps.filter((r) => !['archived', 'completed'].includes(r.status));
+  }, [roadmaps]);
+
+  if (displayRoadmaps.length === 0) return null;
 
   return (
     <div style={{ marginBottom: 24 }}>
@@ -43,7 +47,7 @@ export function RoadmapCards({ selectedGoals, skillAssessments }: RoadmapCardsPr
           <NeonIcon type="map" size={14} color="cyan" />
           {tr('dashboard.roadmaps', 'Roadmaps')}
         </h2>
-        {roadmaps.length > 1 && (
+        {displayRoadmaps.length > 1 && (
           <button
             onClick={() => router.push('/roadmaps')}
             style={{
@@ -65,7 +69,7 @@ export function RoadmapCards({ selectedGoals, skillAssessments }: RoadmapCardsPr
         scrollSnapType: 'x mandatory',
         WebkitOverflowScrolling: 'touch',
       }}>
-        {roadmaps.map((rm, i) => {
+        {displayRoadmaps.map((rm, i) => {
           const isActive = rm.status === 'active';
           const isCompleted = rm.status === 'completed';
           const activeMilestone = rm.milestones.find((m) => m.status === 'active');
