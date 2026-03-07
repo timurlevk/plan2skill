@@ -24,6 +24,7 @@ dist/
 
 # Claude Code
 CLAUDE.local.md
+.worktrees/
 
 # OS
 .DS_Store
