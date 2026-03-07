@@ -90,10 +90,14 @@ export default function QuestMapPage() {
   const activeRoadmap = useRoadmapStore((s) => s.activeRoadmap);
   const storePause = useRoadmapStore((s) => s.pauseRoadmap);
   const storeResume = useRoadmapStore((s) => s.resumeRoadmap);
+  const storeArchive = useRoadmapStore((s) => s.archiveRoadmap);
+  const storeReactivate = useRoadmapStore((s) => s.reactivateRoadmap);
 
-  // tRPC mutations for pause/resume (background sync)
+  // tRPC mutations for pause/resume/archive/reactivate (background sync)
   const pauseMutation = trpc.roadmap.pause.useMutation();
   const resumeMutation = trpc.roadmap.resume.useMutation();
+  const archiveMutation = trpc.roadmap.archive.useMutation();
+  const reactivateMutation = trpc.roadmap.reactivate.useMutation();
 
   // SSR-safe reduced-motion hook (BLOCKER — Крок 9)
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -101,22 +105,30 @@ export default function QuestMapPage() {
     setReducedMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   }, []);
 
+  const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
 
   // Fallback: build mock roadmap from onboarding store when server data absent
   const { selectedGoals, dailyMinutes, aiEstimateWeeks } = useOnboardingStore();
-  const roadmaps = useMemo<Roadmap[]>(() => {
+  const allRoadmaps = useMemo<Roadmap[]>(() => {
     if (serverRoadmaps.length > 0) return serverRoadmaps;
     if (!selectedGoals.length) return [];
     const weeks = aiEstimateWeeks || 12;
     return selectedGoals.map((g) => buildMockRoadmap(g.label, g.id, weeks, dailyMinutes));
   }, [serverRoadmaps, selectedGoals, dailyMinutes, aiEstimateWeeks]);
 
+  const roadmaps = useMemo<Roadmap[]>(() => {
+    if (activeTab === 'active') {
+      return allRoadmaps.filter((r) => ['active', 'paused', 'generating'].includes(r.status));
+    }
+    return allRoadmaps.filter((r) => ['archived', 'completed'].includes(r.status));
+  }, [allRoadmaps, activeTab]);
+
   // Count active (non-mock) roadmaps for premium gate
   const subscriptionTier = useProgressionStore((s) => s.subscriptionTier);
   const TIER_LIMITS: Record<string, number> = { free: 2, pro: 7, champion: 15 };
   const tierLimit = TIER_LIMITS[subscriptionTier] ?? 2;
-  const activeCount = roadmaps.filter(
+  const activeCount = allRoadmaps.filter(
     (r) => !r.id.startsWith('mock-') && (r.status === 'active' || r.status === 'generating'),
   ).length;
   const [showTierModal, setShowTierModal] = useState(false);
@@ -153,10 +165,34 @@ export default function QuestMapPage() {
         );
         break;
       case 'archive':
-        // Archive = mark completed, no special action beyond status
+        storeArchive(action.roadmapId);
+        archiveMutation.mutate(
+          { roadmapId: action.roadmapId },
+          {
+            onError: (err) => {
+              console.warn('[QuestMap] Archive sync failed:', err.message);
+              storeResume(action.roadmapId);
+            },
+          },
+        );
+        break;
+      case 'reactivate':
+        storeReactivate(action.roadmapId);
+        reactivateMutation.mutate(
+          { roadmapId: action.roadmapId },
+          {
+            onError: (err) => {
+              console.warn('[QuestMap] Reactivate failed:', err.message);
+              storeArchive(action.roadmapId);
+              if (err.message.includes('Tier limit')) {
+                setShowTierModal(true);
+              }
+            },
+          },
+        );
         break;
     }
-  }, [router, storePause, storeResume, pauseMutation, resumeMutation]);
+  }, [router, storePause, storeResume, storeArchive, storeReactivate, pauseMutation, resumeMutation, archiveMutation, reactivateMutation]);
 
   // "Add Quest Line" click handler — with tier gate
   const handleAddQuestLine = useCallback(() => {
@@ -185,6 +221,49 @@ export default function QuestMapPage() {
         {tr('questmap.subtitle', 'Your quest lines, mapped and ready for adventure')}
       </p>
 
+      {/* ─── Tab Bar ─── */}
+      <div style={{
+        display: 'flex', gap: 4, marginBottom: 20,
+        borderBottom: `1px solid ${t.border}`,
+        paddingBottom: 0,
+      }}>
+        {(['active', 'history'] as const).map((tab) => {
+          const isSelected = activeTab === tab;
+          const count = tab === 'active'
+            ? allRoadmaps.filter((r) => ['active', 'paused', 'generating'].includes(r.status)).length
+            : allRoadmaps.filter((r) => ['archived', 'completed'].includes(r.status)).length;
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                padding: '10px 20px',
+                fontFamily: t.display, fontSize: 13, fontWeight: isSelected ? 700 : 500,
+                color: isSelected ? t.violet : t.textMuted,
+                background: 'transparent',
+                border: 'none',
+                borderBottom: `2px solid ${isSelected ? t.violet : 'transparent'}`,
+                cursor: 'pointer',
+                transition: 'color 0.15s ease, border-color 0.15s ease',
+                marginBottom: -1,
+              }}
+            >
+              {tab === 'active' ? tr('roadmap.tab_active', 'Active') : tr('roadmap.tab_history', 'History')}
+              {count > 0 && (
+                <span style={{
+                  marginLeft: 6, padding: '1px 6px', borderRadius: 8,
+                  fontFamily: t.mono, fontSize: 10, fontWeight: 700,
+                  background: isSelected ? `${t.violet}15` : `${t.textMuted}15`,
+                  color: isSelected ? t.violet : t.textMuted,
+                }}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
       {/* ─── Card Grid ─── */}
       {roadmaps.length > 0 ? (
         <div style={{
@@ -211,49 +290,64 @@ export default function QuestMapPage() {
             </div>
           ))}
 
-          {/* +Add Quest Line — always visible when roadmaps exist */}
-          <button
-            onClick={handleAddQuestLine}
-            aria-label="Add a new quest line"
-            style={{
-              display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center',
-              gap: 10, padding: 24, borderRadius: 16,
-              background: 'transparent',
-              border: `2px dashed ${t.border}`,
-              cursor: 'pointer',
-              transition: 'border-color 0.2s ease, background 0.2s ease',
-              minHeight: 140,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = t.violet;
-              e.currentTarget.style.background = `${t.violet}06`;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = t.border;
-              e.currentTarget.style.background = 'transparent';
-            }}
-          >
-            <div style={{
-              width: 40, height: 40, borderRadius: 12,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: `${t.violet}10`,
-            }}>
-              <NeonIcon type="plus" size={20} color="violet" />
-            </div>
-            <span style={{
-              fontFamily: t.display, fontSize: 14, fontWeight: 700,
-              color: t.textSecondary,
-            }}>
-              {tr('questmap.add', 'Add Quest Line')}
-            </span>
-            <span style={{
-              fontFamily: t.mono, fontSize: 10, fontWeight: 600,
-              color: activeCount >= tierLimit ? t.rose : t.textMuted,
-            }}>
-              {tr('questmap.count', '{n}/{limit} quest lines').replace('{n}', String(activeCount)).replace('{limit}', String(tierLimit))}
-            </span>
-          </button>
+          {/* +Add Quest Line — only on Active tab */}
+          {activeTab === 'active' && (
+            <button
+              onClick={handleAddQuestLine}
+              aria-label="Add a new quest line"
+              style={{
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center',
+                gap: 10, padding: 24, borderRadius: 16,
+                background: 'transparent',
+                border: `2px dashed ${t.border}`,
+                cursor: 'pointer',
+                transition: 'border-color 0.2s ease, background 0.2s ease',
+                minHeight: 140,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = t.violet;
+                e.currentTarget.style.background = `${t.violet}06`;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = t.border;
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <div style={{
+                width: 40, height: 40, borderRadius: 12,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: `${t.violet}10`,
+              }}>
+                <NeonIcon type="plus" size={20} color="violet" />
+              </div>
+              <span style={{
+                fontFamily: t.display, fontSize: 14, fontWeight: 700,
+                color: t.textSecondary,
+              }}>
+                {tr('questmap.add', 'Add Quest Line')}
+              </span>
+              <span style={{
+                fontFamily: t.mono, fontSize: 10, fontWeight: 600,
+                color: activeCount >= tierLimit ? t.rose : t.textMuted,
+              }}>
+                {tr('questmap.count', '{n}/{limit} quest lines').replace('{n}', String(activeCount)).replace('{limit}', String(tierLimit))}
+              </span>
+            </button>
+          )}
+        </div>
+      ) : activeTab === 'history' ? (
+        /* ─── History Empty State ─── */
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          gap: 12, padding: '48px 0',
+        }}>
+          <NeonIcon type="book" size={32} color={t.textMuted} />
+          <p style={{
+            fontFamily: t.body, fontSize: 14, color: t.textMuted, textAlign: 'center',
+          }}>
+            {tr('questmap.history_empty', 'No archived or completed quest lines yet')}
+          </p>
         </div>
       ) : (
         /* ─── Empty State ─── */
