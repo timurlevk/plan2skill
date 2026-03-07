@@ -109,42 +109,63 @@ export function ContinueQuestHero({
     <div
       style={{
         position: 'relative',
-        padding: '24px 20px',
-        borderRadius: 20,
+        padding: '22px 20px',
+        borderRadius: 18,
         background: t.bgCard,
-        border: '1.5px solid rgba(157,122,255,0.15)',
-        overflow: 'visible',
-        marginBottom: 24,
+        border: '1px solid rgba(157,122,255,0.15)',
+        overflow: 'hidden',
+        marginBottom: 20,
         animation: prefersReduced.current ? 'none' : 'ctaAmbient 6s ease-in-out infinite',
       }}
     >
-      {/* ── Scene layer: particles ── */}
-      {!prefersReduced.current && (
-        <>
-          <div aria-hidden="true" style={{
-            position: 'absolute', inset: 0, pointerEvents: 'none',
-            borderRadius: 20, overflow: 'hidden',
-            boxShadow: '18px 15px 0 1.5px rgba(157,122,255,0.5), 45px 35px 0 1.5px rgba(78,205,196,0.4), 80px 12px 0 1.5px rgba(255,215,0,0.4), 120px 40px 0 1.5px rgba(157,122,255,0.4), 160px 20px 0 1.5px rgba(78,205,196,0.5), 200px 45px 0 1px rgba(255,215,0,0.3), 35px 50px 0 1.5px rgba(157,122,255,0.4), 75px 55px 0 1px rgba(78,205,196,0.3), 140px 8px 0 1.5px rgba(255,215,0,0.4), 180px 52px 0 1.5px rgba(157,122,255,0.5)',
-            animation: 'particleDrift1 9s ease-in-out infinite',
-          }} />
-          <div aria-hidden="true" style={{
-            position: 'absolute', inset: 0, pointerEvents: 'none',
-            borderRadius: 20, overflow: 'hidden',
-            boxShadow: '25px 8px 0 1.5px rgba(78,205,196,0.4), 60px 42px 0 1.5px rgba(157,122,255,0.4), 95px 18px 0 1.5px rgba(255,215,0,0.5), 130px 48px 0 1px rgba(78,205,196,0.3), 170px 30px 0 1.5px rgba(157,122,255,0.5), 210px 10px 0 1.5px rgba(255,215,0,0.4), 50px 28px 0 1.5px rgba(78,205,196,0.4), 110px 55px 0 1px rgba(157,122,255,0.3), 150px 5px 0 1.5px rgba(255,215,0,0.5), 190px 38px 0 1.5px rgba(78,205,196,0.4)',
-            animation: 'particleDrift2 13s ease-in-out infinite',
-          }} />
-        </>
-      )}
-
-      {/* ── Scene layer: mystical fog ── */}
+      {/* ── Scene layer: mystical fog (::before equivalent) ── */}
       {!prefersReduced.current && (
         <div aria-hidden="true" style={{
-          position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.6,
-          borderRadius: 20, overflow: 'hidden',
-          background: 'radial-gradient(ellipse at 20% 50%, rgba(157,122,255,0.2) 0%, transparent 50%), radial-gradient(ellipse at 80% 30%, rgba(78,205,196,0.15) 0%, transparent 50%), radial-gradient(ellipse at 50% 80%, rgba(255,215,0,0.1) 0%, transparent 50%)',
-          backgroundSize: '60% 60%, 50% 50%, 40% 40%',
+          position: 'absolute', inset: -10, pointerEvents: 'none',
+          borderRadius: 24,
+          background: 'radial-gradient(ellipse 180px 90px at 25% 40%, rgba(157,122,255,0.12), transparent), radial-gradient(ellipse 140px 70px at 75% 55%, rgba(78,205,196,0.08), transparent), radial-gradient(ellipse 120px 60px at 50% 80%, rgba(255,209,102,0.06), transparent)',
           animation: 'mistDrift 16s ease-in-out infinite',
+          zIndex: 0,
         }} />
+      )}
+
+      {/* ── Scene layer: shimmer sweep (::after equivalent) ── */}
+      {!prefersReduced.current && (
+        <div aria-hidden="true" style={{
+          position: 'absolute',
+          top: '-50%', left: '-80%',
+          width: '35%', height: '200%',
+          background: 'linear-gradient(105deg, transparent 38%, rgba(157,122,255,0.03) 42%, rgba(255,255,255,0.05) 50%, rgba(78,205,196,0.03) 58%, transparent 62%)',
+          animation: 'shimmerSweep 12s ease-in-out infinite',
+          pointerEvents: 'none',
+        }} />
+      )}
+
+      {/* ── Scene layer: particle field ── */}
+      {!prefersReduced.current && (
+        <div aria-hidden="true" style={{
+          position: 'absolute', inset: 0, borderRadius: 18,
+          overflow: 'hidden', pointerEvents: 'none', zIndex: 0,
+        }}>
+          {/* Star layer 1 — bright scattered particles */}
+          <div style={{
+            position: 'absolute',
+            width: 3, height: 3, borderRadius: '50%',
+            background: 'rgba(255,255,255,0.8)',
+            top: '22%', left: '8%',
+            boxShadow: '45px 8px 0 0 rgba(157,122,255,0.8), 90px -12px 0 0 rgba(78,205,196,0.7), 135px 15px 0 0 rgba(255,209,102,0.6), 180px -5px 0 0 rgba(157,122,255,0.5), 225px 10px 0 0 rgba(78,205,196,0.7), 35px 45px 0 0 rgba(255,255,255,0.5), 75px 50px 0 0 rgba(157,122,255,0.6), 115px 40px 0 0 rgba(78,205,196,0.5), 155px 55px 0 0 rgba(255,209,102,0.7), 195px 42px 0 0 rgba(157,122,255,0.4), 260px 20px 0 0 rgba(78,205,196,0.5), 300px 48px 0 0 rgba(255,209,102,0.4)',
+            animation: 'particleFloat1 9s ease-in-out infinite',
+          }} />
+          {/* Star layer 2 — dim secondary, staggered */}
+          <div style={{
+            position: 'absolute',
+            width: 2, height: 2, borderRadius: '50%',
+            background: 'rgba(78,205,196,0.6)',
+            top: '38%', left: '15%',
+            boxShadow: '55px -18px 0 0 rgba(255,209,102,0.5), 105px 12px 0 0 rgba(157,122,255,0.6), 145px -10px 0 0 rgba(78,205,196,0.6), 185px 8px 0 0 rgba(255,255,255,0.4), 25px 25px 0 0 rgba(157,122,255,0.7), 65px 30px 0 0 rgba(255,209,102,0.5), 205px 20px 0 0 rgba(78,205,196,0.4), 240px -8px 0 0 rgba(157,122,255,0.3), 280px 15px 0 0 rgba(255,209,102,0.4)',
+            animation: 'particleFloat2 13s ease-in-out infinite',
+          }} />
+        </div>
       )}
 
       {/* ── Content ── */}

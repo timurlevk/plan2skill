@@ -455,24 +455,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           0%, 100% { box-shadow: 0 0 30px rgba(157,122,255,0.08), 0 0 60px rgba(78,205,196,0.04); border-color: rgba(157,122,255,0.15); }
           50% { box-shadow: 0 0 50px rgba(157,122,255,0.18), 0 0 90px rgba(78,205,196,0.08), 0 0 120px rgba(157,122,255,0.04); border-color: rgba(157,122,255,0.35); }
         }
-        @keyframes particleDrift1 {
-          0% { opacity: 0.2; transform: translateY(0); }
-          50% { opacity: 1; transform: translateY(-6px); }
-          100% { opacity: 0.2; transform: translateY(0); }
+        @keyframes particleFloat1 {
+          0%, 100% { transform: translateY(0) scale(1); opacity: 0.3; }
+          25% { transform: translateY(-3px) scale(1.2); opacity: 0.8; }
+          50% { transform: translateY(1px) scale(0.9); opacity: 0.2; }
+          75% { transform: translateY(-2px) scale(1.1); opacity: 0.6; }
         }
-        @keyframes particleDrift2 {
-          0% { opacity: 0.4; transform: translateY(0); }
-          50% { opacity: 0.8; transform: translateY(-8px); }
-          100% { opacity: 0.4; transform: translateY(0); }
+        @keyframes particleFloat2 {
+          0%, 100% { transform: translateY(0) scale(1); opacity: 0.2; }
+          35% { transform: translateY(3px) scale(1.15); opacity: 0.7; }
+          65% { transform: translateY(-2px) scale(0.9); opacity: 0.15; }
+          90% { transform: translateY(1px) scale(1.05); opacity: 0.5; }
         }
         @keyframes mistDrift {
-          0%   { background-position: 0% 50%, 100% 0%, 50% 100%; }
-          50%  { background-position: 100% 50%, 0% 100%, 50% 0%; }
-          100% { background-position: 0% 50%, 100% 0%, 50% 100%; }
+          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+          25% { transform: translate(8px, -6px) scale(1.03); opacity: 0.9; }
+          50% { transform: translate(15px, -3px) scale(1.06); opacity: 0.7; }
+          75% { transform: translate(-5px, 4px) scale(0.98); opacity: 1; }
+        }
+        @keyframes shimmerSweep {
+          0% { left: -80%; }
+          40%, 100% { left: 180%; }
         }
         @keyframes btnGlow {
-          0%, 100% { box-shadow: 0 0 16px rgba(157,122,255,0.15), 0 2px 8px rgba(0,0,0,0.3); }
-          50%      { box-shadow: 0 0 24px rgba(157,122,255,0.3), 0 2px 12px rgba(0,0,0,0.3); }
+          0%, 100% { box-shadow: 0 4px 20px rgba(157,122,255,0.3), 0 0 40px rgba(157,122,255,0.1); }
+          50%      { box-shadow: 0 4px 28px rgba(157,122,255,0.5), 0 0 60px rgba(157,122,255,0.2); }
         }
         @keyframes completedGlow {
           0%, 100% { box-shadow: 0 0 8px rgba(255,215,0,0.15), inset 0 0 6px rgba(255,215,0,0.08); }
