@@ -25,7 +25,7 @@ const STATUS_BADGES: Record<string, { label: string; color: string; icon: NeonIc
 // ─── Context menu action type ───────────────────────────────────
 
 export interface QuestLineAction {
-  type: 'adjust' | 'pause' | 'resume' | 'archive';
+  type: 'adjust' | 'pause' | 'resume' | 'archive' | 'reactivate';
   roadmapId: string;
 }
 
@@ -87,16 +87,18 @@ export function QuestLineCard({ roadmap, isActive, onClick, onAction }: QuestLin
     menuItems.push(
       { label: 'Adjust Quest Line', icon: 'sparkle', color: t.violet, action: 'adjust' },
       { label: 'Pause Quest Line', icon: 'shield', color: '#FBBF24', action: 'pause' },
+      { label: 'Archive Quest Line', icon: 'book', color: t.textMuted, action: 'archive' },
     );
   }
   if (roadmap.status === 'paused') {
     menuItems.push(
       { label: 'Resume Quest Line', icon: 'lightning', color: t.cyan, action: 'resume' },
+      { label: 'Archive Quest Line', icon: 'book', color: t.textMuted, action: 'archive' },
     );
   }
-  if (roadmap.status === 'completed') {
+  if (roadmap.status === 'archived') {
     menuItems.push(
-      { label: 'Archive Quest Line', icon: 'book', color: t.textMuted, action: 'archive' },
+      { label: 'Reactivate Quest Line', icon: 'lightning', color: t.cyan, action: 'reactivate' },
     );
   }
 
@@ -118,7 +120,7 @@ export function QuestLineCard({ roadmap, isActive, onClick, onAction }: QuestLin
           animation: reducedMotion ? 'none' : 'fadeUp 0.4s ease-out both',
           transform: pressed ? 'scale(0.98) translateY(1px)' : 'translateY(0)',
           width: '100%',
-          opacity: isPaused ? 0.75 : 1,
+          opacity: isPaused ? 0.75 : roadmap.status === 'archived' ? 0.6 : 1,
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.borderColor = isCompleted ? t.gold : t.violet;
@@ -287,6 +289,23 @@ export function QuestLineCard({ roadmap, isActive, onClick, onAction }: QuestLin
               color: '#FBBF24',
             }}>
               Quest line paused — resume when ready
+            </span>
+          </div>
+        )}
+
+        {/* Archived state message */}
+        {roadmap.status === 'archived' && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 12px', borderRadius: 10,
+            background: `${t.textMuted}08`,
+          }}>
+            <NeonIcon type="book" size={14} color={t.textMuted} />
+            <span style={{
+              fontFamily: t.body, fontSize: 12, fontWeight: 600,
+              color: t.textMuted,
+            }}>
+              Archived — view history or reactivate
             </span>
           </div>
         )}

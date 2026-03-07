@@ -20,6 +20,8 @@ interface RoadmapState {
   // Phase 5H: Roadmap lifecycle
   pauseRoadmap: (roadmapId: string) => void;
   resumeRoadmap: (roadmapId: string) => void;
+  archiveRoadmap: (roadmapId: string) => void;
+  reactivateRoadmap: (roadmapId: string) => void;
   updateRoadmap: (roadmap: Roadmap) => void;
   reset: () => void;
 }
@@ -55,6 +57,18 @@ export const useRoadmapStore = create<RoadmapState>((set) => ({
     set((s) => ({
       roadmaps: s.roadmaps.map((r) =>
         r.id === roadmapId ? { ...r, status: 'active' as RoadmapStatus } : r,
+      ),
+    })),
+  archiveRoadmap: (roadmapId) =>
+    set((s) => ({
+      roadmaps: s.roadmaps.map((r) =>
+        r.id === roadmapId ? { ...r, status: 'archived' as RoadmapStatus } : r,
+      ),
+    })),
+  reactivateRoadmap: (roadmapId) =>
+    set((s) => ({
+      roadmaps: s.roadmaps.map((r) =>
+        r.id === roadmapId ? { ...r, status: 'paused' as RoadmapStatus } : r,
       ),
     })),
   updateRoadmap: (roadmap) =>
