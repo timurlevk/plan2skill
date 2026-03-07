@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { BaseGenerator } from '../core/base-generator';
 import { ModelTier } from '../core/types';
 import type { GeneratorContext } from '../core/types';
@@ -10,12 +10,18 @@ import { ContextEnrichmentService } from '../core/context-enrichment.service';
 import { ContentSafetyService } from '../core/content-safety.service';
 import { AiRateLimitService } from '../core/rate-limit.service';
 import { TemplateService } from '../core/template.service';
+import { PromptTemplateService } from '../core/prompt-template.service';
 import {
   AiQuestAssistantSchema,
   type AiQuestAssistantResult,
   type QuestAssistantMode,
 } from '../schemas/quest-assistant.schema';
 import { buildLocaleInstruction } from '../core/locale-utils';
+import {
+  jsonInstructionHeader,
+  jsonFooter,
+  missingDataGuidance,
+} from '../core/prompt-builder';
 
 export interface QuestAssistantInput {
   taskId: string;
@@ -43,8 +49,9 @@ export class QuestAssistantGenerator extends BaseGenerator<
     safetyService: ContentSafetyService,
     rateLimitService: AiRateLimitService,
     templateService: TemplateService,
+    @Optional() promptTemplateService?: PromptTemplateService,
   ) {
-    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService);
+    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService, promptTemplateService);
   }
 
   /** L3: Pass taskId to context enrichment for quest session data */
@@ -57,11 +64,11 @@ export class QuestAssistantGenerator extends BaseGenerator<
 
     let prompt = `You are Plan2Skill's quest assistant — a helpful tutor embedded in a gamified learning platform. You help learners when they're stuck, give feedback on their attempts, and guide them toward mastery.
 
-Your output must be valid JSON matching the schema exactly. No markdown fences, no explanation — pure JSON only.
+${jsonInstructionHeader()}
 
 **Output JSON schema:**
 {
-  "mode": "hint | feedback | reattempt",
+  "mode": "hint | feedback | reattempt | tutor",
   "message": "string (5-2000 chars) — your main response",
   "encouragement": "string (optional, max 200 chars) — a brief motivational line",
   "nextSteps": ["string (optional, max 3 items, each max 200 chars) — suggested actions"]
@@ -149,6 +156,8 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
       }
 
       prompt += `\n- Total hints requested: ${questSession.hintsRequestedTotal}`;
+    } else {
+      prompt += missingDataGuidance();
     }
 
     // L4: Ledger — known misconceptions
@@ -179,7 +188,7 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
       prompt += `\n\nLearner says: "${input.userMessage}"`;
     }
 
-    prompt += `\n\nReturn ONLY the JSON. No markdown fences, no explanation.`;
+    prompt += `\n\n${jsonFooter()}`;
     return prompt;
   }
 }

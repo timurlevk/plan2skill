@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { BaseGenerator } from '../core/base-generator';
 import { ModelTier } from '../core/types';
 import type { GeneratorContext } from '../core/types';
@@ -10,9 +10,11 @@ import { ContextEnrichmentService } from '../core/context-enrichment.service';
 import { ContentSafetyService } from '../core/content-safety.service';
 import { AiRateLimitService } from '../core/rate-limit.service';
 import { TemplateService } from '../core/template.service';
+import { PromptTemplateService } from '../core/prompt-template.service';
 import { AiMotivationalSchema, type AiMotivationalResult } from '../schemas/motivational.schema';
 import { buildLocaleInstruction } from '../core/locale-utils';
 import { createHash } from 'crypto';
+import { jsonInstructionHeader, jsonFooter } from '../core/prompt-builder';
 
 export interface MotivationalGeneratorInput {
   triggerType: 'streak_milestone' | 'level_up' | 'comeback' | 'daily_start' | 'quest_complete';
@@ -41,8 +43,9 @@ export class MotivationalGenerator extends BaseGenerator<
     safetyService: ContentSafetyService,
     rateLimitService: AiRateLimitService,
     templateService: TemplateService,
+    @Optional() promptTemplateService?: PromptTemplateService,
   ) {
-    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService);
+    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService, promptTemplateService);
   }
 
   protected getCacheKey(input: MotivationalGeneratorInput): string {
@@ -59,7 +62,7 @@ export class MotivationalGenerator extends BaseGenerator<
 
     let prompt = `You are Plan2Skill's motivational companion. You craft short, punchy, and inspiring messages for learners at key moments in their journey.
 
-Your output must be valid JSON matching the schema exactly. No markdown fences, no explanation — pure JSON only.
+${jsonInstructionHeader()}
 
 **Output JSON schema:**
 {
@@ -115,7 +118,7 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
       prompt += `\n- Character ID: ${input.characterId}`;
     }
 
-    prompt += `\n\nReturn ONLY the JSON. No markdown fences, no explanation.`;
+    prompt += `\n\n${jsonFooter()}`;
 
     return prompt;
   }

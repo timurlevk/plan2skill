@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { BaseGenerator } from '../core/base-generator';
 import { ModelTier } from '../core/types';
 import type { GeneratorContext } from '../core/types';
@@ -10,9 +10,16 @@ import { ContextEnrichmentService } from '../core/context-enrichment.service';
 import { ContentSafetyService } from '../core/content-safety.service';
 import { AiRateLimitService } from '../core/rate-limit.service';
 import { TemplateService } from '../core/template.service';
+import { PromptTemplateService } from '../core/prompt-template.service';
 import { AiRecommendationSchema, type AiRecommendationResult } from '../schemas/recommendation.schema';
 import { buildLocaleInstruction } from '../core/locale-utils';
 import { createHash } from 'crypto';
+import {
+  jsonInstructionHeader,
+  jsonFooter,
+  roadmapContextSection,
+  ledgerInsightsSection,
+} from '../core/prompt-builder';
 
 export interface RecommendationGeneratorInput {
   completedSkillDomains: string[];
@@ -41,8 +48,9 @@ export class RecommendationGenerator extends BaseGenerator<
     safetyService: ContentSafetyService,
     rateLimitService: AiRateLimitService,
     templateService: TemplateService,
+    @Optional() promptTemplateService?: PromptTemplateService,
   ) {
-    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService);
+    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService, promptTemplateService);
   }
 
   protected getCacheKey(input: RecommendationGeneratorInput): string {
@@ -62,7 +70,7 @@ export class RecommendationGenerator extends BaseGenerator<
 
     let prompt = `You are Plan2Skill's learning path advisor. You analyze a learner's completed and current skills to recommend the most impactful next steps.
 
-Your output must be valid JSON matching the schema exactly. No markdown fences, no explanation — pure JSON only.
+${jsonInstructionHeader()}
 
 **Output JSON schema:**
 {
@@ -95,32 +103,14 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
     prompt += `\n- Current streak: ${learnerProfile.currentStreak} days`;
     prompt += `\n- Recent completions (30d): ${learnerProfile.recentCompletions}`;
 
-    // L2: Roadmap goal + milestone structure for targeted recommendations
+    // L2: Roadmap context
+    prompt += roadmapContextSection(context.roadmapContext);
     if (context.roadmapContext) {
-      const rc = context.roadmapContext;
-      prompt += `\n\n**Roadmap Context:**`;
-      prompt += `\n- Goal: ${rc.goal}`;
-      prompt += `\n- Progress: ${rc.progress.toFixed(0)}%`;
-      const allDomains = [...new Set(rc.milestones.flatMap((m) => m.skillDomains))];
-      if (allDomains.length > 0) {
-        prompt += `\n- Roadmap skill domains: ${allDomains.join(', ')}`;
-      }
       prompt += `\nRecommendations should complement the roadmap goal.`;
     }
 
     // L4: Learner insights — recommend practice in weak areas
-    if (context.ledgerContext?.insights.length) {
-      const weakAreas = context.ledgerContext.insights
-        .filter((i) => i.insightType === 'error_pattern' || i.insightType === 'misconception')
-        .slice(0, 3);
-      if (weakAreas.length > 0) {
-        prompt += `\n\n**Known Weak Areas:**`;
-        for (const w of weakAreas) {
-          prompt += `\n- ${w.skillDomain ?? 'general'}: ${w.title}`;
-        }
-        prompt += `\nPrioritize recommendations that address these gaps.`;
-      }
-    }
+    prompt += ledgerInsightsSection(context.ledgerContext);
 
     prompt += buildLocaleInstruction(learnerProfile.locale);
     return prompt;
@@ -141,7 +131,7 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
       prompt += `\n- Interests: ${input.interests.join(', ')}`;
     }
 
-    prompt += `\n\nReturn ONLY the JSON. No markdown fences, no explanation.`;
+    prompt += `\n\n${jsonFooter()}`;
 
     return prompt;
   }

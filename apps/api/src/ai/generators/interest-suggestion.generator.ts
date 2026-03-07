@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { BaseGenerator } from '../core/base-generator';
 import { ModelTier } from '../core/types';
 import type { GeneratorContext } from '../core/types';
@@ -10,11 +10,13 @@ import { ContextEnrichmentService } from '../core/context-enrichment.service';
 import { ContentSafetyService } from '../core/content-safety.service';
 import { AiRateLimitService } from '../core/rate-limit.service';
 import { TemplateService } from '../core/template.service';
+import { PromptTemplateService } from '../core/prompt-template.service';
 import { buildLocaleInstruction } from '../core/locale-utils';
 import {
   InterestSuggestionOutputSchema,
   type InterestSuggestionOutput,
 } from '../schemas/interest-suggestion.schema';
+import { jsonInstructionHeader, jsonFooter } from '../core/prompt-builder';
 
 // ─── Input ──────────────────────────────────────────────────────
 
@@ -47,8 +49,9 @@ export class InterestSuggestionGenerator extends BaseGenerator<
     safetyService: ContentSafetyService,
     rateLimitService: AiRateLimitService,
     templateService: TemplateService,
+    @Optional() promptTemplateService?: PromptTemplateService,
   ) {
-    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService);
+    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService, promptTemplateService);
   }
 
   protected getCacheKey(input: InterestSuggestionInput): string | null {
@@ -60,7 +63,7 @@ export class InterestSuggestionGenerator extends BaseGenerator<
   protected buildSystemPrompt(context: GeneratorContext): string {
     let prompt = `You are Plan2Skill's interest discovery assistant. Given a learning domain (and optionally a dream goal), suggest 6-10 specific learning interests/topics within that domain.
 
-Your output must be valid JSON. No markdown fences, no explanation — pure JSON only.
+${jsonInstructionHeader()}
 
 **Output JSON schema:**
 {
@@ -91,7 +94,7 @@ Your output must be valid JSON. No markdown fences, no explanation — pure JSON
     if (input.dreamGoal) {
       prompt += `\n**Dream goal:** "${input.dreamGoal}"`;
     }
-    prompt += `\n\nReturn ONLY the JSON. No markdown fences, no explanation.`;
+    prompt += `\n\n${jsonFooter()}`;
     return prompt;
   }
 }

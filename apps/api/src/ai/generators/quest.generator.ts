@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { BaseGenerator } from '../core/base-generator';
 import { ModelTier } from '../core/types';
 import type { GeneratorContext } from '../core/types';
@@ -10,9 +10,25 @@ import { ContextEnrichmentService } from '../core/context-enrichment.service';
 import { ContentSafetyService } from '../core/content-safety.service';
 import { AiRateLimitService } from '../core/rate-limit.service';
 import { TemplateService } from '../core/template.service';
+import { PromptTemplateService } from '../core/prompt-template.service';
 import { AiQuestBatchSchema, type AiQuestBatch } from '../schemas/quest.schema';
 import { buildLocaleInstruction } from '../core/locale-utils';
 import { createHash } from 'crypto';
+import { TASK_TYPE_DOC, QUEST_TYPE_DOC, RARITY_DOC, BLOOM_LEVEL_DOC, FLOW_CATEGORY_DOC } from '../core/prompt-constants';
+import {
+  jsonInstructionHeader,
+  jsonFooter,
+  archetypeSection,
+  userContextSection,
+  skillEloSection,
+  ledgerInsightsSection,
+  roadmapContextSection,
+  activeMilestoneSection,
+  rewardRulesDoc,
+  rarityDistributionDoc,
+  taskQuestTypeMapping,
+  missingDataGuidance,
+} from '../core/prompt-builder';
 
 export interface QuestGeneratorInput {
   skillDomain: string;
@@ -42,8 +58,9 @@ export class QuestGenerator extends BaseGenerator<
     safetyService: ContentSafetyService,
     rateLimitService: AiRateLimitService,
     templateService: TemplateService,
+    @Optional() promptTemplateService?: PromptTemplateService,
   ) {
-    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService);
+    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService, promptTemplateService);
   }
 
   protected getCacheKey(input: QuestGeneratorInput, _context: GeneratorContext): string {
@@ -60,7 +77,7 @@ export class QuestGenerator extends BaseGenerator<
 
     let prompt = `You are Plan2Skill's quest generation engine. You create personalized learning quests.
 
-Your output must be valid JSON matching the schema exactly. No markdown fences, no explanation — pure JSON only.
+${jsonInstructionHeader()}
 
 **Output JSON schema:**
 {
@@ -68,15 +85,15 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
     {
       "title": "string (5-200 chars)",
       "description": "string (10-500 chars)",
-      "taskType": "article|quiz|project|review|boss|reflection",
-      "questType": "knowledge|physical|creative|habit|social|reflection",
+      "taskType": "${TASK_TYPE_DOC}",
+      "questType": "${QUEST_TYPE_DOC}",
       "estimatedMinutes": number (5-120),
       "xpReward": number (10-500),
       "coinReward": number (1-50),
-      "rarity": "common|uncommon|rare|epic|legendary",
+      "rarity": "${RARITY_DOC}",
       "skillDomain": "string (1-50 chars)",
-      "bloomLevel": "remember|understand|apply|analyze|evaluate|create",
-      "flowCategory": "stretch|mastery|review",
+      "bloomLevel": "${BLOOM_LEVEL_DOC}",
+      "flowCategory": "${FLOW_CATEGORY_DOC}",
       "difficultyTier": number (1-5),
       "knowledgeCheck": {
         "question": "string (10-500 chars)",
@@ -91,76 +108,27 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
 **Rules:**
 - Flow state distribution: 70% mastery, 20% stretch, 10% review
 - Bloom's level should match user's skill proficiency
-- Rarity: ~50% common, 25% uncommon, 15% rare, 8% epic, 2% legendary
-- XP: common 15-25, uncommon 30-50, rare 60-100, epic 120-200, legendary 250-500
+${rewardRulesDoc()}
+${rarityDistributionDoc()}
+${taskQuestTypeMapping()}
 - Include knowledgeCheck for knowledge and quiz questTypes. For practice and creative questTypes, knowledgeCheck is optional.
 - Questions should have exactly 4 options with exactly 1 correct answer
 - Distractors should be plausible (common misconceptions, partial knowledge)`;
 
-    // L0: Archetype quest mix distribution
-    if (domainModel.archetypeBlueprint) {
-      const bp = domainModel.archetypeBlueprint;
-      prompt += `\n\n**Archetype Quest Mix (${bp.archetypeId}):**`;
-      prompt += `\n- knowledge: ${(bp.questMix.knowledge * 100).toFixed(0)}%, practice: ${(bp.questMix.practice * 100).toFixed(0)}%, creative: ${(bp.questMix.creative * 100).toFixed(0)}%, boss: ${(bp.questMix.boss * 100).toFixed(0)}%`;
-      prompt += `\n- Preferred Bloom's levels: ${bp.preferredBloomLevels.join(', ')}`;
-      prompt += `\nDistribute quest types according to this archetype mix.`;
-    }
+    // L0: Archetype quest mix
+    prompt += archetypeSection(domainModel.archetypeBlueprint);
 
     // L1: User context
-    prompt += `\n\n**User Context:**`;
-    prompt += `\n- Level: ${learnerProfile.level}`;
-    prompt += `\n- Current streak: ${learnerProfile.currentStreak} days`;
-    prompt += `\n- Average quality: ${(learnerProfile.averageQualityScore * 100).toFixed(0)}%`;
+    prompt += `\n` + userContextSection(learnerProfile);
+    prompt += skillEloSection(learnerProfile.skillElos);
 
-    if (learnerProfile.skillElos.length > 0) {
-      const eloStr = learnerProfile.skillElos
-        .slice(0, 5)
-        .map((e) => `${e.skillDomain}(${e.elo}, ${e.assessmentCount} assessments)`)
-        .join(', ');
-      prompt += `\n- Skill Elo: ${eloStr}`;
-    }
+    // L4: Learner insights
+    prompt += ledgerInsightsSection(context.ledgerContext);
 
-    if (learnerProfile.preferredTaskTypes.length > 0) {
-      prompt += `\n- Preferred types: ${learnerProfile.preferredTaskTypes.join(', ')}`;
-    }
-    prompt += `\n- Avg time ratio: ${learnerProfile.averageTimeSpentRatio.toFixed(2)} (>1 = takes longer than estimated)`;
-
-    if (learnerProfile.dreamGoal) {
-      prompt += `\n- Dream goal: ${learnerProfile.dreamGoal}`;
-    }
-    if (learnerProfile.interests?.length) {
-      prompt += `\n- Interests: ${learnerProfile.interests.join(', ')}`;
-    }
-    if (learnerProfile.dueReviewCount > 0) {
-      prompt += `\n- Due reviews: ${learnerProfile.dueReviewCount} (consider including review-type quests)`;
-    }
-
-    // L4: Learner insights — avoid known weak areas or target them
-    if (context.ledgerContext?.insights.length) {
-      const patterns = context.ledgerContext.insights
-        .filter((i) => i.insightType === 'error_pattern' || i.insightType === 'misconception')
-        .slice(0, 3);
-      if (patterns.length > 0) {
-        prompt += `\n\n**Known Learner Patterns:**`;
-        for (const p of patterns) {
-          prompt += `\n- ${p.title}: ${p.description}`;
-        }
-        prompt += `\nInclude review-type quests that address these patterns.`;
-      }
-    }
-
-    // L2: Roadmap context
+    // L2: Roadmap context + active milestone
     if (context.roadmapContext) {
-      const rc = context.roadmapContext;
-      prompt += `\n\n**Roadmap Context:**`;
-      prompt += `\n- Goal: ${rc.goal}`;
-      const activeMilestone = rc.milestones.find((m) => m.status === 'active' || m.status === 'in_progress');
-      if (activeMilestone) {
-        prompt += `\n- Active milestone: "${activeMilestone.title}" (${activeMilestone.completedTasks}/${activeMilestone.totalTasks} tasks done)`;
-        if (activeMilestone.skillDomains.length > 0) {
-          prompt += `\n- Milestone skill domains: ${activeMilestone.skillDomains.join(', ')}`;
-        }
-      }
+      prompt += roadmapContextSection(context.roadmapContext);
+      prompt += activeMilestoneSection(context.roadmapContext);
     }
 
     prompt += `
@@ -192,6 +160,7 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
 }
 (Generate the requested number of quests in your actual output.)`;
 
+    prompt += missingDataGuidance();
     prompt += buildLocaleInstruction(learnerProfile.locale);
     return prompt;
   }
@@ -228,7 +197,7 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
       }
     }
 
-    prompt += `\n\nReturn ONLY the JSON. No markdown fences, no explanation.`;
+    prompt += `\n\n${jsonFooter()}`;
 
     return prompt;
   }

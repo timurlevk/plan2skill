@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { BaseGenerator } from '../core/base-generator';
 import { ModelTier } from '../core/types';
 import type { GeneratorContext } from '../core/types';
@@ -10,9 +10,11 @@ import { ContextEnrichmentService } from '../core/context-enrichment.service';
 import { ContentSafetyService } from '../core/content-safety.service';
 import { AiRateLimitService } from '../core/rate-limit.service';
 import { TemplateService } from '../core/template.service';
+import { PromptTemplateService } from '../core/prompt-template.service';
 import { AiEpisodeSchema, type AiEpisodeResult } from '../schemas/narrative.schema';
 import { buildLocaleInstruction } from '../core/locale-utils';
 import type { SeasonStateTracker } from '@plan2skill/types';
+import { jsonInstructionHeader, jsonFooter, archetypeSection } from '../core/prompt-builder';
 
 export interface NarrativeGeneratorInput {
   seasonId: string;
@@ -50,8 +52,9 @@ export class NarrativeGenerator extends BaseGenerator<
     safetyService: ContentSafetyService,
     rateLimitService: AiRateLimitService,
     templateService: TemplateService,
+    @Optional() promptTemplateService?: PromptTemplateService,
   ) {
-    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService);
+    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService, promptTemplateService);
   }
 
   protected buildSystemPrompt(context: GeneratorContext): string {
@@ -60,7 +63,7 @@ export class NarrativeGenerator extends BaseGenerator<
     let prompt = `You are the narrative engine for Plan2Skill's world of Lumen.
 You write short, episodic fantasy stories (120-180 words per episode body) that inspire learners.
 
-Your output must be valid JSON matching the schema exactly. No markdown fences, no explanation — pure JSON only.
+${jsonInstructionHeader()}
 
 **Output JSON schema:**
 {
@@ -89,8 +92,8 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
 - Continuity: reference characters and locations from recent episodes`;
 
     // L0: Archetype narrative tone
+    prompt += archetypeSection(domainModel.archetypeBlueprint);
     if (domainModel.archetypeBlueprint) {
-      prompt += `\n\n**Archetype Narrative Tone:** ${domainModel.archetypeBlueprint.narrativeTone}`;
       prompt += `\nAdapt the story's voice to feel ${domainModel.archetypeBlueprint.narrativeTone}.`;
     }
 
@@ -167,7 +170,7 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
       prompt += `\n\n**Target Category:** ${input.category}`;
     }
 
-    prompt += `\n\nReturn ONLY the JSON. No markdown fences, no explanation.`;
+    prompt += `\n\n${jsonFooter()}`;
 
     return prompt;
   }

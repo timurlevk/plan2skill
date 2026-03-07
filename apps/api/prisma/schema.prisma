@@ -845,3 +845,21 @@ model LearnerInsight {
   @@index([validUntil])
   @@map("learner_insights")
 }
+
+// ─── AI Prompt Templates ───────────────────────────────────────
+
+model AiPromptTemplate {
+  id            String   @id @default(uuid())
+  generatorType String   @db.VarChar(50)
+  promptRole    String   @db.VarChar(10) // system | user
+  version       Int      @default(1)
+  template      String   @db.Text
+  metadata      Json?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([generatorType, promptRole, version], map: "uq_ai_prompt_template")
+  @@index([generatorType, isActive])
+  @@map("ai_prompt_templates")
+}

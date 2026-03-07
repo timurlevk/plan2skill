@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { BaseGenerator } from '../core/base-generator';
 import { ModelTier } from '../core/types';
 import type { GeneratorContext } from '../core/types';
@@ -10,9 +10,11 @@ import { ContextEnrichmentService } from '../core/context-enrichment.service';
 import { ContentSafetyService } from '../core/content-safety.service';
 import { AiRateLimitService } from '../core/rate-limit.service';
 import { TemplateService } from '../core/template.service';
+import { PromptTemplateService } from '../core/prompt-template.service';
 import { AiResourceSchema, type AiResourceResult } from '../schemas/resource.schema';
 import { buildLocaleInstruction } from '../core/locale-utils';
 import { createHash } from 'crypto';
+import { jsonInstructionHeader, jsonFooter, activeMilestoneSection } from '../core/prompt-builder';
 
 export interface ResourceGeneratorInput {
   skillDomain: string;
@@ -40,8 +42,9 @@ export class ResourceGenerator extends BaseGenerator<
     safetyService: ContentSafetyService,
     rateLimitService: AiRateLimitService,
     templateService: TemplateService,
+    @Optional() promptTemplateService?: PromptTemplateService,
   ) {
-    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService);
+    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService, promptTemplateService);
   }
 
   protected getCacheKey(input: ResourceGeneratorInput): string {
@@ -55,7 +58,7 @@ export class ResourceGenerator extends BaseGenerator<
   protected buildSystemPrompt(context: GeneratorContext): string {
     let prompt = `You are Plan2Skill's learning resource curator. You recommend high-quality, real-world learning resources for specific skill domains and difficulty levels.
 
-Your output must be valid JSON matching the schema exactly. No markdown fences, no explanation — pure JSON only.
+${jsonInstructionHeader()}
 
 **Output JSON schema:**
 {
@@ -88,10 +91,7 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
       const rc = context.roadmapContext;
       prompt += `\n\n**Roadmap Context:**`;
       prompt += `\n- Goal: ${rc.goal}`;
-      const activeMilestone = rc.milestones.find((m) => m.status === 'active' || m.status === 'in_progress');
-      if (activeMilestone?.skillDomains.length) {
-        prompt += `\n- Active milestone topics: ${activeMilestone.skillDomains.join(', ')}`;
-      }
+      prompt += activeMilestoneSection(rc);
       prompt += `\nPrioritize resources aligned with the roadmap goal and active milestone.`;
     }
 
@@ -112,7 +112,7 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
       prompt += `\n- Related task: ${input.taskTitle}`;
     }
 
-    prompt += `\n\nReturn ONLY the JSON. No markdown fences, no explanation.`;
+    prompt += `\n\n${jsonFooter()}`;
 
     return prompt;
   }

@@ -8,7 +8,33 @@ import type { ContextEnrichmentService } from './context-enrichment.service';
 import type { ContentSafetyService } from './content-safety.service';
 import type { AiRateLimitService } from './rate-limit.service';
 import type { TemplateService } from './template.service';
+import type { PromptTemplateService } from './prompt-template.service';
 import { ValidationError } from './errors';
+import {
+  jsonInstructionHeader,
+  jsonFooter,
+  enumDoc,
+  userContextSection,
+  skillEloSection,
+  characterSection,
+  archetypeSection,
+  roadmapContextSection,
+  activeMilestoneSection,
+  ledgerInsightsSection,
+  rewardRulesDoc,
+  rarityDistributionDoc,
+  pacingConstraint,
+  taskQuestTypeMapping,
+  missingDataGuidance,
+} from './prompt-builder';
+import {
+  TASK_TYPE_DOC,
+  QUEST_TYPE_DOC,
+  RARITY_DOC,
+  BLOOM_LEVEL_DOC,
+  FLOW_CATEGORY_DOC,
+} from './prompt-constants';
+import { buildLocaleInstruction } from './locale-utils';
 
 export abstract class BaseGenerator<TInput, TOutput> {
   protected readonly logger: Logger;
@@ -49,6 +75,7 @@ export abstract class BaseGenerator<TInput, TOutput> {
     protected readonly safetyService: ContentSafetyService,
     protected readonly rateLimitService: AiRateLimitService,
     protected readonly templateService: TemplateService,
+    protected readonly promptTemplateService?: PromptTemplateService,
   ) {
     this.logger = new Logger(this.constructor.name);
   }
@@ -99,9 +126,15 @@ export abstract class BaseGenerator<TInput, TOutput> {
       }
     }
 
-    // Step 3: Build prompts
-    const systemPrompt = this.buildSystemPrompt(context);
-    const rawUserPrompt = this.buildUserPrompt(input, context);
+    // Step 3: Build prompts — try DB template first, fall back to hardcoded
+    const dbSystem = this.promptTemplateService?.getTemplate(this.generatorType, 'system');
+    const dbUser = this.promptTemplateService?.getTemplate(this.generatorType, 'user');
+    const systemPrompt = dbSystem
+      ? this.hydrateTemplate(dbSystem, input, context)
+      : this.buildSystemPrompt(context);
+    const rawUserPrompt = dbUser
+      ? this.hydrateTemplate(dbUser, input, context)
+      : this.buildUserPrompt(input, context);
 
     // Step 4: Filter input
     const userPrompt = this.safetyService.filterInput(rawUserPrompt);
@@ -249,6 +282,54 @@ export abstract class BaseGenerator<TInput, TOutput> {
 
     // Step 10: Return
     return validated;
+  }
+
+  /**
+   * Replace {placeholder} tokens in a DB-stored template with runtime values.
+   * Unknown placeholders are replaced with empty string.
+   */
+  protected hydrateTemplate(
+    template: string,
+    _input: TInput,
+    context: GeneratorContext,
+  ): string {
+    const { learnerProfile, domainModel } = context;
+
+    const replacements: Record<string, string> = {
+      // Headers / Footers
+      '{HEADER:json}': jsonInstructionHeader(),
+      '{FOOTER:json}': jsonFooter(),
+
+      // Enum docs
+      '{ENUM:taskType}': enumDoc('taskType', TASK_TYPE_DOC),
+      '{ENUM:questType}': enumDoc('questType', QUEST_TYPE_DOC),
+      '{ENUM:rarity}': enumDoc('rarity', RARITY_DOC),
+      '{ENUM:bloomLevel}': enumDoc('bloomLevel', BLOOM_LEVEL_DOC),
+      '{ENUM:flowCategory}': enumDoc('flowCategory', FLOW_CATEGORY_DOC),
+
+      // Context sections
+      '{CTX:userContext}': userContextSection(learnerProfile),
+      '{CTX:skillElos}': skillEloSection(learnerProfile.skillElos),
+      '{CTX:characterContext}': characterSection(learnerProfile),
+      '{CTX:archetypeHints}': archetypeSection(domainModel.archetypeBlueprint),
+      '{CTX:roadmapContext}': roadmapContextSection(context.roadmapContext),
+      '{CTX:activeMilestone}': activeMilestoneSection(context.roadmapContext),
+      '{CTX:ledgerInsights}': ledgerInsightsSection(context.ledgerContext),
+      '{CTX:locale}': buildLocaleInstruction(learnerProfile.locale),
+
+      // Rules
+      '{CTX:rewardRules}': rewardRulesDoc(),
+      '{CTX:rarityDistribution}': rarityDistributionDoc(),
+      '{CTX:taskQuestMapping}': taskQuestTypeMapping(),
+      '{CTX:missingDataGuidance}': missingDataGuidance(),
+    };
+
+    let result = template;
+    for (const [token, value] of Object.entries(replacements)) {
+      result = result.split(token).join(value);
+    }
+
+    return result;
   }
 
   /**

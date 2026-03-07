@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { BaseGenerator } from '../core/base-generator';
 import { ModelTier } from '../core/types';
 import type { GeneratorContext } from '../core/types';
@@ -10,10 +10,19 @@ import { ContextEnrichmentService } from '../core/context-enrichment.service';
 import { ContentSafetyService } from '../core/content-safety.service';
 import { AiRateLimitService } from '../core/rate-limit.service';
 import { TemplateService } from '../core/template.service';
+import { PromptTemplateService } from '../core/prompt-template.service';
 import { AiExerciseSetSchema, type AiExerciseSetResult } from '../schemas/exercise.schema';
 import { buildLocaleInstruction } from '../core/locale-utils';
 import { createHash } from 'crypto';
 import type { ExerciseTypeSelection } from '../core/exercise-selector';
+import { BLOOM_LEVEL_DOC } from '../core/prompt-constants';
+import {
+  jsonInstructionHeader,
+  jsonFooter,
+  skillEloSection,
+  activeMilestoneSection,
+  missingDataGuidance,
+} from '../core/prompt-builder';
 
 export interface ExerciseInput {
   skillDomain: string;
@@ -45,8 +54,9 @@ export class ExerciseGenerator extends BaseGenerator<
     safetyService: ContentSafetyService,
     rateLimitService: AiRateLimitService,
     templateService: TemplateService,
+    @Optional() promptTemplateService?: PromptTemplateService,
   ) {
-    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService);
+    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService, promptTemplateService);
   }
 
   protected getCacheKey(input: ExerciseInput): string {
@@ -63,13 +73,13 @@ export class ExerciseGenerator extends BaseGenerator<
 
     let prompt = `You are Plan2Skill's exercise generation engine. You create diverse, pedagogically sound exercises that reinforce learning through active practice.
 
-Your output must be valid JSON matching the schema exactly. No markdown fences, no explanation — pure JSON only.
+${jsonInstructionHeader()}
 
 **Output JSON schema:**
 {
   "exercises": [
     // Each exercise is a discriminated union on the "type" field.
-    // All exercises share: id (string), type (string), difficulty ("easy"|"medium"|"hard"), bloomLevel (string), points (number).
+    // All exercises share: id (string), type (string), difficulty ("easy"|"medium"|"hard"), bloomLevel ("${BLOOM_LEVEL_DOC}"), points (number).
     // Type-specific fields:
     //
     // type "mcq": question, options (string[], 3-6), correctIndex (number), explanation
@@ -88,44 +98,33 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
 - Each exercise must have a unique "id" field (e.g. "ex-1", "ex-2", "ex-3")
 - Points: easy = 10, medium = 20, hard = 30
 - Bloom level must match the specified level for each exercise
-- MCQ: options must have exactly 4 choices with 1 correct answer
-- True/False: statement must be unambiguous
-- Fill blank: use "___" for the blank in the sentence; provide at least 2 accepted answers when reasonable
+
+**Exercise type constraints:**
+- MCQ: exactly 4 choices with 1 correct answer; distractors must be plausible
+- True/False: statement must be unambiguous, not trick questions
+- Fill blank: use "___" for the blank; provide at least 2 accepted answers when reasonable
 - Matching: pairs must be clear and unambiguous; provide 3-6 pairs
 - Drag & Drop: items are shuffled; correctOrder shows the right sequence
 - Code completion: provide working starterCode with a clear gap and complete solution
 - Parsons: codeLines are shuffled; correctOrder is the correct sequence
 - Free text: provide a clear rubric and 3+ keywords for automated checking
-- All explanations should be educational, explaining WHY the answer is correct`;
 
-    // No code blocks for non-coding domains
-    prompt += `\n- IMPORTANT: Do NOT generate code_completion or parsons exercises unless the domain involves programming`;
+- IMPORTANT: Do NOT generate code_completion or parsons exercises unless the domain involves programming
+- All explanations should be educational, explaining WHY the answer is correct`;
 
     // L1: User context
     prompt += `\n\n**User Context:**`;
     prompt += `\n- Level: ${learnerProfile.level}`;
-
-    if (learnerProfile.skillElos.length) {
-      const eloStr = learnerProfile.skillElos
-        .slice(0, 5)
-        .map((e) => `${e.skillDomain}(${e.elo})`)
-        .join(', ');
-      prompt += `\n- Existing proficiency: ${eloStr}`;
-    }
+    prompt += skillEloSection(learnerProfile.skillElos);
 
     // L2: Roadmap context
     if (context.roadmapContext) {
-      const rc = context.roadmapContext;
       prompt += `\n\n**Roadmap Context:**`;
-      prompt += `\n- Goal: ${rc.goal}`;
-      const activeMilestone = rc.milestones.find(
-        (m) => m.status === 'active' || m.status === 'in_progress',
-      );
-      if (activeMilestone?.skillDomains.length) {
-        prompt += `\n- Active milestone topics: ${activeMilestone.skillDomains.join(', ')}`;
-      }
+      prompt += `\n- Goal: ${context.roadmapContext.goal}`;
+      prompt += activeMilestoneSection(context.roadmapContext);
     }
 
+    prompt += missingDataGuidance();
     prompt += buildLocaleInstruction(learnerProfile.locale);
     return prompt;
   }
@@ -157,7 +156,7 @@ ${typesDescription}`;
       prompt += `\n\n**Article context (base exercises on this content):**\n${truncated}`;
     }
 
-    prompt += `\n\nReturn ONLY the JSON. No markdown fences, no explanation.`;
+    prompt += `\n\n${jsonFooter()}`;
 
     return prompt;
   }

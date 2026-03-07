@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { BaseGenerator } from '../core/base-generator';
 import { ModelTier } from '../core/types';
 import type { GeneratorContext } from '../core/types';
@@ -10,9 +10,18 @@ import { ContextEnrichmentService } from '../core/context-enrichment.service';
 import { ContentSafetyService } from '../core/content-safety.service';
 import { AiRateLimitService } from '../core/rate-limit.service';
 import { TemplateService } from '../core/template.service';
+import { PromptTemplateService } from '../core/prompt-template.service';
 import { ArticleBodySchema, type ArticleBodyResult } from '../schemas/article-body.schema';
 import { buildLocaleInstruction } from '../core/locale-utils';
 import { createHash } from 'crypto';
+import { BLOOM_LEVEL_DOC } from '../core/prompt-constants';
+import {
+  jsonInstructionHeader,
+  jsonFooter,
+  skillEloSection,
+  activeMilestoneSection,
+  missingDataGuidance,
+} from '../core/prompt-builder';
 
 export interface ArticleBodyInput {
   skillDomain: string;
@@ -43,8 +52,9 @@ export class ArticleBodyGenerator extends BaseGenerator<
     safetyService: ContentSafetyService,
     rateLimitService: AiRateLimitService,
     templateService: TemplateService,
+    @Optional() promptTemplateService?: PromptTemplateService,
   ) {
-    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService);
+    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService, promptTemplateService);
   }
 
   protected getCacheKey(input: ArticleBodyInput): string {
@@ -60,7 +70,7 @@ export class ArticleBodyGenerator extends BaseGenerator<
 
     let prompt = `You are Plan2Skill's expert educational content writer. You create clear, engaging, and structured learning articles that help students understand concepts thoroughly.
 
-Your output must be valid JSON matching the schema exactly. No markdown fences, no explanation — pure JSON only.
+${jsonInstructionHeader()}
 
 **Output JSON schema:**
 {
@@ -92,41 +102,27 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
 - Blocks should follow a logical learning flow, not just repeat the article
 
 **General rules:**
-- Match the Bloom's taxonomy level of the content:
+- Match the Bloom's taxonomy level (${BLOOM_LEVEL_DOC}) of the content:
   - remember/understand: focus on definitions, explanations, analogies
   - apply/analyze: include practical examples, step-by-step guides
   - evaluate/create: discuss trade-offs, comparisons, design decisions
 - Be educational but engaging — use clear language, avoid jargon without explanation
-- Include 2-3 practical examples or analogies`;
-
-    // No code blocks for non-coding domains
-    prompt += `\n- IMPORTANT: Do NOT include code blocks (\`\`\`) unless the domain involves programming or coding`;
+- Include 2-3 practical examples or analogies
+- IMPORTANT: Do NOT include code blocks (\`\`\`) unless the domain involves programming or coding`;
 
     // L1: User context
     prompt += `\n\n**User Context:**`;
     prompt += `\n- Level: ${learnerProfile.level}`;
-
-    if (learnerProfile.skillElos.length) {
-      const eloStr = learnerProfile.skillElos
-        .slice(0, 5)
-        .map((e) => `${e.skillDomain}(${e.elo})`)
-        .join(', ');
-      prompt += `\n- Existing proficiency: ${eloStr}`;
-    }
+    prompt += skillEloSection(learnerProfile.skillElos);
 
     // L2: Roadmap context
     if (context.roadmapContext) {
-      const rc = context.roadmapContext;
       prompt += `\n\n**Roadmap Context:**`;
-      prompt += `\n- Goal: ${rc.goal}`;
-      const activeMilestone = rc.milestones.find(
-        (m) => m.status === 'active' || m.status === 'in_progress',
-      );
-      if (activeMilestone?.skillDomains.length) {
-        prompt += `\n- Active milestone topics: ${activeMilestone.skillDomains.join(', ')}`;
-      }
+      prompt += `\n- Goal: ${context.roadmapContext.goal}`;
+      prompt += activeMilestoneSection(context.roadmapContext);
     }
 
+    prompt += missingDataGuidance();
     prompt += buildLocaleInstruction(learnerProfile.locale);
     return prompt;
   }
@@ -153,7 +149,7 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
     }
 
     prompt += `\n\nReturn both "articleBody" (markdown article) and "blocks" (3-10 structured content blocks).`;
-    prompt += `\nReturn ONLY the JSON. No markdown fences, no explanation.`;
+    prompt += `\n${jsonFooter()}`;
 
     return prompt;
   }

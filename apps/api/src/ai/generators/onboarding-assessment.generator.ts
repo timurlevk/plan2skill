@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { BaseGenerator } from '../core/base-generator';
 import { ModelTier } from '../core/types';
 import type { GeneratorContext } from '../core/types';
@@ -10,12 +10,14 @@ import { ContextEnrichmentService } from '../core/context-enrichment.service';
 import { ContentSafetyService } from '../core/content-safety.service';
 import { AiRateLimitService } from '../core/rate-limit.service';
 import { TemplateService } from '../core/template.service';
+import { PromptTemplateService } from '../core/prompt-template.service';
 import { buildLocaleInstruction } from '../core/locale-utils';
 import {
   OnboardingAssessmentOutputSchema,
   type OnboardingAssessmentOutput,
 } from '../schemas/onboarding-assessment.schema';
 import type { OnboardingContext } from '@plan2skill/types';
+import { jsonInstructionHeader, jsonFooter } from '../core/prompt-builder';
 
 // ─── Generator ──────────────────────────────────────────────
 
@@ -40,8 +42,9 @@ export class OnboardingAssessmentGenerator extends BaseGenerator<
     safetyService: ContentSafetyService,
     rateLimitService: AiRateLimitService,
     templateService: TemplateService,
+    @Optional() promptTemplateService?: PromptTemplateService,
   ) {
-    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService);
+    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService, promptTemplateService);
   }
 
   // ─── Cache Key — path-aware ───────────────────────────────
@@ -73,7 +76,7 @@ export class OnboardingAssessmentGenerator extends BaseGenerator<
   protected buildSystemPrompt(context: GeneratorContext): string {
     let prompt = `You are Plan2Skill's assessment quiz generator. Given a learner's context, generate exactly 5 multiple-choice questions to evaluate their current knowledge level.
 
-Your output must be valid JSON. No markdown fences, no explanation — pure JSON only.
+${jsonInstructionHeader()}
 
 **Output JSON schema:**
 {
@@ -155,7 +158,7 @@ Your output must be valid JSON. No markdown fences, no explanation — pure JSON
         break;
     }
 
-    prompt += `\n\nReturn ONLY the JSON. No markdown fences, no explanation.`;
+    prompt += `\n\n${jsonFooter()}`;
     return prompt;
   }
 }

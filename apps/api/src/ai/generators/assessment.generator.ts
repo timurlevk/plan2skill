@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { BaseGenerator } from '../core/base-generator';
 import { ModelTier } from '../core/types';
 import type { GeneratorContext } from '../core/types';
@@ -10,9 +10,19 @@ import { ContextEnrichmentService } from '../core/context-enrichment.service';
 import { ContentSafetyService } from '../core/content-safety.service';
 import { AiRateLimitService } from '../core/rate-limit.service';
 import { TemplateService } from '../core/template.service';
+import { PromptTemplateService } from '../core/prompt-template.service';
 import { AiAssessmentSchema, type AiAssessment } from '../schemas/assessment.schema';
 import { buildLocaleInstruction } from '../core/locale-utils';
 import { createHash } from 'crypto';
+import { BLOOM_LEVEL_DOC } from '../core/prompt-constants';
+import {
+  jsonInstructionHeader,
+  jsonFooter,
+  skillEloSection,
+  activeMilestoneSection,
+  ledgerInsightsSection,
+  missingDataGuidance,
+} from '../core/prompt-builder';
 
 export interface AssessmentGeneratorInput {
   skillDomain: string;
@@ -41,8 +51,9 @@ export class AssessmentGenerator extends BaseGenerator<
     safetyService: ContentSafetyService,
     rateLimitService: AiRateLimitService,
     templateService: TemplateService,
+    @Optional() promptTemplateService?: PromptTemplateService,
   ) {
-    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService);
+    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService, promptTemplateService);
   }
 
   protected getCacheKey(input: AssessmentGeneratorInput): string {
@@ -58,7 +69,7 @@ export class AssessmentGenerator extends BaseGenerator<
 
     let prompt = `You are Plan2Skill's assessment engine. You generate skill assessment questions to calibrate learner proficiency.
 
-Your output must be valid JSON matching the schema exactly. No markdown fences, no explanation — pure JSON only.
+${jsonInstructionHeader()}
 
 **Output JSON schema:**
 {
@@ -68,13 +79,13 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
       "options": ["4 strings, each 1-300 chars"],
       "correctIndex": number (0-3),
       "explanation": "string (10-500 chars)",
-      "bloomLevel": "remember|understand|apply|analyze|evaluate|create",
+      "bloomLevel": "${BLOOM_LEVEL_DOC}",
       "skillDomain": "string (1-50 chars)",
       "difficultyElo": number (800-2000),
       "distractorTypes": ["3 distractor types from: common_misconception, partial_knowledge, similar_concept, syntax_error"]
     }
   ],
-  "targetBloomLevel": "remember|understand|apply|analyze|evaluate|create",
+  "targetBloomLevel": "${BLOOM_LEVEL_DOC}",
   "skillDomain": "string (1-50 chars)"
 }
 
@@ -98,41 +109,13 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
     // L1: User context
     prompt += `\n\n**User Context:**`;
     prompt += `\n- Level: ${learnerProfile.level}`;
+    prompt += skillEloSection(learnerProfile.skillElos);
 
-    if (learnerProfile.skillElos.length) {
-      const eloStr = learnerProfile.skillElos
-        .slice(0, 5)
-        .map((e) => `${e.skillDomain}(${e.elo})`)
-        .join(', ');
-      prompt += `\n- Existing proficiency: ${eloStr}`;
-    }
-
-    // L2: Roadmap milestone context for topic targeting
-    if (context.roadmapContext) {
-      const activeMilestone = context.roadmapContext.milestones.find(
-        (m) => m.status === 'active' || m.status === 'in_progress',
-      );
-      if (activeMilestone) {
-        prompt += `\n- Active milestone: "${activeMilestone.title}"`;
-        if (activeMilestone.skillDomains.length > 0) {
-          prompt += `\n- Milestone topics: ${activeMilestone.skillDomains.join(', ')}`;
-        }
-      }
-    }
+    // L2: Active milestone
+    prompt += activeMilestoneSection(context.roadmapContext);
 
     // L4: Learner insights — target known misconceptions
-    if (context.ledgerContext?.insights.length) {
-      const misconceptions = context.ledgerContext.insights
-        .filter((i) => i.insightType === 'misconception' || i.insightType === 'error_pattern')
-        .slice(0, 3);
-      if (misconceptions.length > 0) {
-        prompt += `\n\n**Known Misconceptions to Test:**`;
-        for (const m of misconceptions) {
-          prompt += `\n- ${m.title}: ${m.description}`;
-        }
-        prompt += `\nInclude questions that probe these known weak areas.`;
-      }
-    }
+    prompt += ledgerInsightsSection(context.ledgerContext);
 
     prompt += `
 
@@ -160,6 +143,7 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
 }
 (Generate the requested number of questions in your actual output.)`;
 
+    prompt += missingDataGuidance();
     prompt += buildLocaleInstruction(learnerProfile.locale);
     return prompt;
   }
@@ -175,15 +159,15 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
       expert: 'analyze',
     };
 
-    let prompt = `Generate a ${input.questionCount}-question assessment for skill domain "${input.skillDomain}".
+    const prompt = `Generate a ${input.questionCount}-question assessment for skill domain "${input.skillDomain}".
 
 **Parameters:**
 - Experience level: ${input.experienceLevel}
 - Target Bloom's level: ${bloomMap[input.experienceLevel] ?? 'understand'}
 - Goal: ${input.goal}
-- Question count: ${input.questionCount}`;
+- Question count: ${input.questionCount}
 
-    prompt += `\n\nReturn ONLY the JSON. No markdown fences, no explanation.`;
+${jsonFooter()}`;
 
     return prompt;
   }

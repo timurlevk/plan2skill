@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { BaseGenerator } from '../core/base-generator';
 import { ModelTier } from '../core/types';
 import type { GeneratorContext } from '../core/types';
@@ -10,8 +10,24 @@ import { ContextEnrichmentService } from '../core/context-enrichment.service';
 import { ContentSafetyService } from '../core/content-safety.service';
 import { AiRateLimitService } from '../core/rate-limit.service';
 import { TemplateService } from '../core/template.service';
+import { PromptTemplateService } from '../core/prompt-template.service';
 import { AiRoadmapSchema, type AiRoadmapResult } from '../schemas/roadmap.schema';
 import { buildLocaleInstruction } from '../core/locale-utils';
+import { TASK_TYPE_DOC, QUEST_TYPE_DOC, RARITY_DOC, BLOOM_LEVEL_DOC, FLOW_CATEGORY_DOC } from '../core/prompt-constants';
+import {
+  jsonInstructionHeader,
+  jsonFooter,
+  archetypeSection,
+  userContextSection,
+  skillEloSection,
+  characterSection,
+  roadmapContextSection,
+  rewardRulesDoc,
+  rarityDistributionDoc,
+  pacingConstraint,
+  taskQuestTypeMapping,
+  missingDataGuidance,
+} from '../core/prompt-builder';
 
 export interface RoadmapGeneratorInput {
   goal: string;
@@ -43,8 +59,9 @@ export class RoadmapGenerator extends BaseGenerator<
     safetyService: ContentSafetyService,
     rateLimitService: AiRateLimitService,
     templateService: TemplateService,
+    @Optional() promptTemplateService?: PromptTemplateService,
   ) {
-    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService);
+    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService, promptTemplateService);
   }
 
   protected buildSystemPrompt(context: GeneratorContext): string {
@@ -52,7 +69,7 @@ export class RoadmapGenerator extends BaseGenerator<
 
     let systemPrompt = `You are Plan2Skill's AI roadmap architect. You create personalized 90-day learning roadmaps.
 
-Your output must be valid JSON matching the schema exactly. No markdown fences, no explanation — pure JSON only.
+${jsonInstructionHeader()}
 
 **Output JSON schema:**
 {
@@ -68,15 +85,15 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
         {
           "title": "string (5-200 chars)",
           "description": "string — 1-2 sentences (10-500 chars)",
-          "taskType": "article|quiz|project|review|boss|reflection",
-          "questType": "knowledge|practice|creative|boss|physical|habit|social|reflection (optional — defaults to knowledge)",
-          "flowCategory": "stretch|mastery|review (optional — defaults to mastery)",
+          "taskType": "${TASK_TYPE_DOC}",
+          "questType": "${QUEST_TYPE_DOC} (optional — defaults to knowledge)",
+          "flowCategory": "${FLOW_CATEGORY_DOC} (optional — defaults to mastery)",
           "estimatedMinutes": number (5-120),
           "xpReward": number (10-500),
           "coinReward": number (1-50),
-          "rarity": "common|uncommon|rare|epic|legendary",
+          "rarity": "${RARITY_DOC}",
           "skillDomain": "string — skill domain (1-50 chars)",
-          "bloomLevel": "remember|understand|apply|analyze|evaluate|create"
+          "bloomLevel": "${BLOOM_LEVEL_DOC}"
         }
       ]
     }
@@ -86,51 +103,27 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
 **Rules:**
 - Create 4-12 milestones spanning 90 days
 - Each milestone has 5-20 tasks
-- Mix task types: video, article, quiz, project, review, boss
+- Mix task types across all valid values
 - First milestone should be beginner-friendly with Bloom's "remember" and "understand" levels
 - Include at least 1 boss-type task per milestone — bosses must be "epic" or "legendary" rarity
 - Every task MUST have a skillDomain — the specific skill topic it covers
-- questType classifies the learning approach: knowledge (reading/watching), practice (hands-on), creative (build something new), boss (challenge), etc.
+- questType classifies the learning approach: knowledge (reading), practice (hands-on), creative (build something new), boss (challenge), etc.
 - flowCategory indicates the zone: stretch (new/hard), mastery (solidifying), review (reinforcing known material)
 - Bloom's progression: early milestones use remember→understand, middle use apply→analyze, later use evaluate→create
-- XP rewards: Common 15-25, Uncommon 30-50, Rare 60-100, Epic 120-200, Legendary 250-500
-- Coin rewards: 5-10 per task, bonus 15-30 for projects/boss
-- Rarity distribution: ~40% common, 25% uncommon, 20% rare, 10% epic, 5% legendary`;
+${rewardRulesDoc()}
+${rarityDistributionDoc()}
+${taskQuestTypeMapping()}`;
 
-    // L0: Archetype blueprint for quest mix hints
-    if (domainModel.archetypeBlueprint) {
-      const bp = domainModel.archetypeBlueprint;
-      systemPrompt += `\n\n**Archetype: ${bp.archetypeId}**`;
-      systemPrompt += `\n- Quest type mix: knowledge ${(bp.questMix.knowledge * 100).toFixed(0)}%, practice ${(bp.questMix.practice * 100).toFixed(0)}%, creative ${(bp.questMix.creative * 100).toFixed(0)}%, boss ${(bp.questMix.boss * 100).toFixed(0)}%`;
-      systemPrompt += `\n- Preferred Bloom's levels: ${bp.preferredBloomLevels.join(', ')}`;
-      systemPrompt += `\nSkew task types and Bloom's levels toward archetype preferences.`;
-    }
+    // Pacing constraint from daily minutes (will be populated in user prompt too)
+    // Added here so system prompt has the constraint for DB-template parity
+
+    // L0: Archetype blueprint
+    systemPrompt += archetypeSection(domainModel.archetypeBlueprint);
 
     // L1: User context
-    systemPrompt += `\n\n**User Context:**`;
-    systemPrompt += `\n- Level: ${learnerProfile.level}`;
-    systemPrompt += `\n- Total XP: ${learnerProfile.totalXp}`;
-
-    if (learnerProfile.archetypeId) {
-      systemPrompt += `\n- Archetype: ${learnerProfile.archetypeId}`;
-    }
-
-    systemPrompt += `\n- Current streak: ${learnerProfile.currentStreak} days`;
-    systemPrompt += `\n- Recent completions (30d): ${learnerProfile.recentCompletions}`;
-
-    if (learnerProfile.skillElos.length > 0) {
-      const eloStr = learnerProfile.skillElos
-        .slice(0, 5)
-        .map((e) => `${e.skillDomain}(${e.elo})`)
-        .join(', ');
-      systemPrompt += `\n- Skill proficiency: ${eloStr}`;
-    }
-
-    if (learnerProfile.characterAttributes) {
-      const attrs = learnerProfile.characterAttributes;
-      systemPrompt += `\n- Character: ${learnerProfile.characterId ?? 'unknown'} (${learnerProfile.evolutionTier ?? 'base'})`;
-      systemPrompt += `\n- Top attributes: STR=${attrs.strength} INT=${attrs.intelligence} CHA=${attrs.charisma}`;
-    }
+    systemPrompt += `\n` + userContextSection(learnerProfile);
+    systemPrompt += skillEloSection(learnerProfile.skillElos);
+    systemPrompt += characterSection(learnerProfile);
 
     systemPrompt += `
 
@@ -155,17 +148,6 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
           "rarity": "common",
           "skillDomain": "JavaScript Basics",
           "bloomLevel": "remember"
-        },
-        {
-          "title": "Control Flow Challenge",
-          "description": "Complete a hands-on quiz on if/else, switch, and ternary operators.",
-          "taskType": "quiz",
-          "estimatedMinutes": 15,
-          "xpReward": 25,
-          "coinReward": 5,
-          "rarity": "common",
-          "skillDomain": "JavaScript Basics",
-          "bloomLevel": "understand"
         }
       ]
     }
@@ -173,6 +155,7 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
 }
 (Show 4-12 milestones with 5-20 tasks each in your actual output.)`;
 
+    systemPrompt += missingDataGuidance();
     systemPrompt += buildLocaleInstruction(learnerProfile.locale);
     return systemPrompt;
   }
@@ -208,7 +191,13 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
       prompt += `\n- Interests: ${input.interests.join(', ')}`;
     }
 
-    // L1: Onboarding data (previously write-only)
+    // Pacing constraint
+    const pacing = pacingConstraint(input.dailyMinutes);
+    if (pacing) {
+      prompt += `\n${pacing}`;
+    }
+
+    // L1: Onboarding data
     if (learnerProfile.dreamGoal && learnerProfile.dreamGoal !== input.goal) {
       prompt += `\n- Dream goal (from onboarding): ${learnerProfile.dreamGoal}`;
     }
@@ -219,7 +208,7 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
       prompt += `\n- Interests (from onboarding): ${learnerProfile.interests.join(', ')}`;
     }
 
-    // L2: Existing roadmap context (for adjust/regen flows)
+    // L2: Existing roadmap context
     if (context.roadmapContext) {
       const rc = context.roadmapContext;
       prompt += `\n\n**Existing Roadmap Progress:**`;
@@ -236,7 +225,7 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
       prompt += `\nBuild upon the existing progress — avoid repeating completed content.`;
     }
 
-    // Enrich with skill proficiency
+    // Skill proficiency
     if (learnerProfile.skillElos.length) {
       prompt += `\n\n**Existing Skill Proficiency (Elo ratings):**`;
       for (const elo of learnerProfile.skillElos.slice(0, 5)) {
@@ -245,7 +234,7 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
       prompt += `\nAdjust difficulty to challenge but not overwhelm. Tasks in known domains should start at "apply" or higher Bloom's level.`;
     }
 
-    prompt += `\n\nReturn ONLY the JSON. No markdown fences, no explanation.`;
+    prompt += `\n\n${jsonFooter()}`;
 
     return prompt;
   }

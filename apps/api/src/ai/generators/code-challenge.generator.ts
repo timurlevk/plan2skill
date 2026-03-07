@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { BaseGenerator } from '../core/base-generator';
 import { ModelTier } from '../core/types';
 import type { GeneratorContext } from '../core/types';
@@ -10,9 +10,18 @@ import { ContextEnrichmentService } from '../core/context-enrichment.service';
 import { ContentSafetyService } from '../core/content-safety.service';
 import { AiRateLimitService } from '../core/rate-limit.service';
 import { TemplateService } from '../core/template.service';
+import { PromptTemplateService } from '../core/prompt-template.service';
 import { AiCodeChallengeSchema, type AiCodeChallengeResult } from '../schemas/code-challenge.schema';
 import { buildLocaleInstruction } from '../core/locale-utils';
 import { createHash } from 'crypto';
+import { BLOOM_LEVEL_DOC } from '../core/prompt-constants';
+import {
+  jsonInstructionHeader,
+  jsonFooter,
+  skillEloSection,
+  activeMilestoneSection,
+  missingDataGuidance,
+} from '../core/prompt-builder';
 
 export interface CodeChallengeGeneratorInput {
   language: string;
@@ -42,8 +51,9 @@ export class CodeChallengeGenerator extends BaseGenerator<
     safetyService: ContentSafetyService,
     rateLimitService: AiRateLimitService,
     templateService: TemplateService,
+    @Optional() promptTemplateService?: PromptTemplateService,
   ) {
-    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService);
+    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService, promptTemplateService);
   }
 
   protected getCacheKey(input: CodeChallengeGeneratorInput): string {
@@ -59,7 +69,7 @@ export class CodeChallengeGenerator extends BaseGenerator<
 
     let prompt = `You are Plan2Skill's expert coding challenge designer. You create well-structured, educational coding challenges with test cases and progressive hints.
 
-Your output must be valid JSON matching the schema exactly. No markdown fences, no explanation — pure JSON only.
+${jsonInstructionHeader()}
 
 **Output JSON schema:**
 {
@@ -95,7 +105,7 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
   - easy: straightforward logic, single concept, 5-15 min
   - medium: combines 2-3 concepts, requires planning, 15-30 min
   - hard: complex logic, optimization, edge cases, 30-60 min
-- Bloom's level alignment:
+- Bloom's level alignment (${BLOOM_LEVEL_DOC}):
   - remember/understand: fill-in-the-blank style, complete a partially written function
   - apply: implement a function from a clear specification
   - analyze/evaluate: debug, optimize, or refactor existing code
@@ -105,25 +115,12 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
     // L1: User context
     prompt += `\n\n**User Context:**`;
     prompt += `\n- Level: ${learnerProfile.level}`;
+    prompt += skillEloSection(learnerProfile.skillElos);
 
-    if (learnerProfile.skillElos.length) {
-      const eloStr = learnerProfile.skillElos
-        .slice(0, 5)
-        .map((e) => `${e.skillDomain}(${e.elo})`)
-        .join(', ');
-      prompt += `\n- Existing proficiency: ${eloStr}`;
-    }
+    // L2: Roadmap milestone context
+    prompt += activeMilestoneSection(context.roadmapContext);
 
-    // L2: Roadmap milestone context for topic targeting
-    if (context.roadmapContext) {
-      const activeMilestone = context.roadmapContext.milestones.find(
-        (m) => m.status === 'active' || m.status === 'in_progress',
-      );
-      if (activeMilestone?.skillDomains.length) {
-        prompt += `\n- Active milestone topics: ${activeMilestone.skillDomains.join(', ')}`;
-      }
-    }
-
+    prompt += missingDataGuidance();
     prompt += buildLocaleInstruction(learnerProfile.locale);
     return prompt;
   }
@@ -144,7 +141,7 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
       prompt += `\n- Task context: ${input.taskTitle}`;
     }
 
-    prompt += `\n\nReturn ONLY the JSON. No markdown fences, no explanation.`;
+    prompt += `\n\n${jsonFooter()}`;
 
     return prompt;
   }

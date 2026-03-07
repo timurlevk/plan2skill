@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { BaseGenerator } from '../core/base-generator';
 import { ModelTier } from '../core/types';
 import type { GeneratorContext } from '../core/types';
@@ -10,11 +10,13 @@ import { ContextEnrichmentService } from '../core/context-enrichment.service';
 import { ContentSafetyService } from '../core/content-safety.service';
 import { AiRateLimitService } from '../core/rate-limit.service';
 import { TemplateService } from '../core/template.service';
+import { PromptTemplateService } from '../core/prompt-template.service';
 import {
   DomainClassificationSchema,
   type DomainClassificationResult,
 } from '../schemas/domain-classification.schema';
 import { DOMAIN_CATEGORIES } from '../core/domain-capability';
+import { jsonInstructionHeader, jsonFooter } from '../core/prompt-builder';
 
 export interface DomainClassifierInput {
   goal: string;
@@ -41,17 +43,21 @@ export class DomainClassifierService extends BaseGenerator<
     safetyService: ContentSafetyService,
     rateLimitService: AiRateLimitService,
     templateService: TemplateService,
+    @Optional() promptTemplateService?: PromptTemplateService,
   ) {
-    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService);
+    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService, promptTemplateService);
   }
 
   protected buildSystemPrompt(_context: GeneratorContext): string {
+    // Domain classification is language-agnostic — no locale instruction
     return `You are a domain classifier for an EdTech platform. Given a learning goal and roadmap title, classify the domain into one or more categories.
+
+${jsonInstructionHeader()}
 
 **Domain categories** (pick 1-4):
 ${DOMAIN_CATEGORIES.map((c) => `- ${c}`).join('\n')}
 
-**Output JSON schema** (no markdown fences, pure JSON only):
+**Output JSON schema:**
 {
   "categories": ["primary_category", "secondary_category"],
   "primaryCategory": "primary_category",
@@ -68,8 +74,7 @@ ${DOMAIN_CATEGORIES.map((c) => `- ${c}`).join('\n')}
 - hasPhysicalComponent = true for domains requiring physical activity or hands-on material work
 - hasCreativeComponent = true for art, design, music, writing, or creative production
 - primaryLanguage = the programming language if coding-related, null otherwise
-- suggestedTooling = relevant tools, frameworks, or equipment (max 10)
-- Return ONLY the JSON. No explanation.`;
+- suggestedTooling = relevant tools, frameworks, or equipment (max 10)`;
   }
 
   protected buildUserPrompt(
@@ -81,6 +86,6 @@ ${DOMAIN_CATEGORIES.map((c) => `- ${c}`).join('\n')}
 Goal: ${input.goal}
 Title: ${input.title}
 
-Return ONLY the JSON.`;
+${jsonFooter()}`;
   }
 }

@@ -6,6 +6,7 @@ import { ContextEnrichmentService } from './core/context-enrichment.service';
 import { ContentSafetyService } from './core/content-safety.service';
 import { AiRateLimitService } from './core/rate-limit.service';
 import { TemplateService } from './core/template.service';
+import { PromptTemplateService } from './core/prompt-template.service';
 import { InsightGeneratorService } from './core/insight-generator.service';
 import { LLM_CLIENT_TOKEN } from './core/interfaces';
 import { CodeChallengeGenerator } from './generators/code-challenge.generator';
@@ -30,6 +31,7 @@ import { ContentBudgetService } from './core/content-budget.service';
     ContentSafetyService,
     AiRateLimitService,
     TemplateService,
+    PromptTemplateService,
     InsightGeneratorService,
     CodeChallengeGenerator,
     QuizGenerator,
@@ -52,6 +54,7 @@ import { ContentBudgetService } from './core/content-budget.service';
     ContentSafetyService,
     AiRateLimitService,
     TemplateService,
+    PromptTemplateService,
     InsightGeneratorService,
     CodeChallengeGenerator,
     QuizGenerator,

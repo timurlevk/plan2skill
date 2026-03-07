@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { BaseGenerator } from '../core/base-generator';
 import { ModelTier } from '../core/types';
 import type { GeneratorContext } from '../core/types';
@@ -10,9 +10,11 @@ import { ContextEnrichmentService } from '../core/context-enrichment.service';
 import { ContentSafetyService } from '../core/content-safety.service';
 import { AiRateLimitService } from '../core/rate-limit.service';
 import { TemplateService } from '../core/template.service';
+import { PromptTemplateService } from '../core/prompt-template.service';
 import { AiFunFactSchema, type AiFunFactResult } from '../schemas/fun-fact.schema';
 import { buildLocaleInstruction } from '../core/locale-utils';
 import { createHash } from 'crypto';
+import { jsonInstructionHeader, jsonFooter } from '../core/prompt-builder';
 
 export interface FunFactGeneratorInput {
   skillDomain: string;
@@ -39,8 +41,9 @@ export class FunFactGenerator extends BaseGenerator<
     safetyService: ContentSafetyService,
     rateLimitService: AiRateLimitService,
     templateService: TemplateService,
+    @Optional() promptTemplateService?: PromptTemplateService,
   ) {
-    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService);
+    super(llmClient, tracer, cacheService, contextService, safetyService, rateLimitService, templateService, promptTemplateService);
   }
 
   protected getCacheKey(input: FunFactGeneratorInput): string {
@@ -54,7 +57,7 @@ export class FunFactGenerator extends BaseGenerator<
   protected buildSystemPrompt(context: GeneratorContext): string {
     let prompt = `You are Plan2Skill's engaging micro-content creator. You generate fun, surprising, and educational facts about technical domains to keep learners curious and motivated.
 
-Your output must be valid JSON matching the schema exactly. No markdown fences, no explanation — pure JSON only.
+${jsonInstructionHeader()}
 
 **Output JSON schema:**
 {
@@ -94,7 +97,7 @@ Your output must be valid JSON matching the schema exactly. No markdown fences, 
       prompt += `\n- Focus on the specific topic: ${input.topic}`;
     }
 
-    prompt += `\n\nReturn ONLY the JSON. No markdown fences, no explanation.`;
+    prompt += `\n\n${jsonFooter()}`;
 
     return prompt;
   }
